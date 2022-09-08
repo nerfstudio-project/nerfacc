@@ -1,0 +1,12 @@
+version: 2
+
+python:
+  version: 3.9
+  install:
+    - requirements: requirements.txt
+    - requirements: docs/requirements.txt
+    - method: pip
+      path: .
+
+sphinx:
+  fail_on_warning: true

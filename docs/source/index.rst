@@ -1,10 +1,7 @@
-Welcome to nerfacc's documentation!
+Welcome to the nerfacc documentation!
 ===================================
 
-**Lumache** (/lu'make/) is a Python library for cooks and food lovers
-that creates recipes mixing random ingredients.
-It pulls data from the `Open Food Facts database <https://world.openfoodfacts.org/>`_
-and offers a *simple* and *intuitive* API.
+This is a fast differentiable volume rendering toolbox as a PyTorch extension for NeRF.
 
 Check out the :doc:`usage` section for further information, including
 how to :ref:`installation` the project.
@@ -19,4 +16,3 @@ Contents
 .. toctree::
 
    usage
-   api
