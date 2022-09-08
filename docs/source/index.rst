@@ -1,5 +1,5 @@
 Welcome to the nerfacc documentation!
-===================================
+======================================
 
 This is a fast differentiable volume rendering toolbox as a PyTorch extension for NeRF.
 
