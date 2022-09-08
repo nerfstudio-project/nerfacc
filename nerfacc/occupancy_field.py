@@ -175,16 +175,20 @@ class OccupancyField(nn.Module):
         step: int,
         occ_thre: float = 1e-2,
         ema_decay: float = 0.95,
+        warmup_steps: int = 256,
         n: int = 16,
     ):
+        """Update the field every n steps during training."""
         if not self.training:
             raise RuntimeError(
-                "You should only call this function during training. Please call update() "
-                "directly if you want to update the field during inference."
+                "You should only call this function only during training. "
+                "Please call update() directly if you want to update the "
+                "field during inference."
             )
         if step % n == 0 and self.training:
             self.update(
                 step=step,
                 occ_threshold=occ_thre,
                 ema_decay=ema_decay,
+                warmup_steps=warmup_steps,
             )
