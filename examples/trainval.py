@@ -76,7 +76,7 @@ if __name__ == "__main__":
     val_dataset = SubjectLoader(
         subject_id="lego",
         root_fp="/home/ruilongli/data/nerf_synthetic/",
-        split="val",
+        split="test",
         num_rays=None,
     )
     val_dataloader = torch.utils.data.DataLoader(
@@ -176,5 +176,5 @@ if __name__ == "__main__":
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
 
-# elapsed_time=320.04s | step=30000 | loss= 0.00022
-# evaluation: psnr_avg=34.41712421417236 (6.13 it/s)
+# elapsed_time=317.59s | step=30000 | loss= 0.00028
+# evaluation: psnr_avg=33.27096959114075 (6.24 it/s)
