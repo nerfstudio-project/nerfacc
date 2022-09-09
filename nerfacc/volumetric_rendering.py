@@ -15,6 +15,7 @@ def volumetric_rendering(
     scene_resolution: Tuple[int, int, int],
     render_bkgd: torch.Tensor = None,
     render_n_samples: int = 1024,
+    render_est_n_samples: int = None,
     **kwargs,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """A *fast* version of differentiable volumetric rendering."""
@@ -30,7 +31,10 @@ def volumetric_rendering(
     render_bkgd = render_bkgd.contiguous()
 
     n_rays = rays_o.shape[0]
-    render_total_samples = n_rays * render_n_samples
+    if render_est_n_samples is None:
+        render_total_samples = n_rays * render_n_samples
+    else:
+        render_total_samples = n_rays * render_est_n_samples
     render_step_size = (
         (scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples
     )

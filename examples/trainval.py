@@ -12,13 +12,12 @@ from radiance_fields.ngp import NGPradianceField
 from nerfacc import OccupancyField, volumetric_rendering
 
 
-def render_image(radiance_field, rays, render_bkgd, chunk=8192):
+def render_image(radiance_field, rays, render_bkgd):
     """Render the pixels of an image.
 
     Args:
       radiance_field: the radiance field of nerf.
       rays: a `Rays` namedtuple, the rays to be rendered.
-      chunk: int, the size of chunks to render sequentially.
 
     Returns:
       rgb: torch.tensor, rendered color image.
@@ -33,9 +32,10 @@ def render_image(radiance_field, rays, render_bkgd, chunk=8192):
     else:
         num_rays, _ = rays_shape
     results = []
+    chunk = torch.iinfo(torch.int32).max if radiance_field.training else 8192
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        chunk_color, chunk_depth, chunk_weight, _, = volumetric_rendering(
+        chunk_color, chunk_depth, chunk_weight, alive_ray_mask, = volumetric_rendering(
             query_fn=radiance_field.forward,  # {x, dir} -> {rgb, density}
             rays_o=chunk_rays.origins,
             rays_d=chunk_rays.viewdirs,
@@ -45,12 +45,13 @@ def render_image(radiance_field, rays, render_bkgd, chunk=8192):
             render_bkgd=render_bkgd,
             render_n_samples=render_n_samples,
         )
-        results.append([chunk_color, chunk_depth, chunk_weight])
-    rgb, depth, acc = [torch.cat(r, dim=0) for r in zip(*results)]
+        results.append([chunk_color, chunk_depth, chunk_weight, alive_ray_mask])
+    rgb, depth, acc, alive_ray_mask = [torch.cat(r, dim=0) for r in zip(*results)]
     return (
         rgb.view((*rays_shape[:-1], -1)),
         depth.view((*rays_shape[:-1], -1)),
         acc.view((*rays_shape[:-1], -1)),
+        alive_ray_mask.view(*rays_shape[:-1]),
     )
 
 
@@ -136,7 +137,9 @@ if __name__ == "__main__":
             # update occupancy grid
             occ_field.every_n_step(step)
 
-            rgb, depth, acc = render_image(radiance_field, rays, render_bkgd)
+            rgb, depth, acc, alive_ray_mask = render_image(
+                radiance_field, rays, render_bkgd
+            )
 
             # compute loss
             loss = F.mse_loss(rgb, pixels)
@@ -162,7 +165,7 @@ if __name__ == "__main__":
                         pixels = data["pixels"].to(device)
                         render_bkgd = data["color_bkgd"].to(device)
                         # rendering
-                        rgb, depth, acc = render_image(
+                        rgb, depth, acc, alive_ray_mask = render_image(
                             radiance_field, rays, render_bkgd
                         )
                         mse = F.mse_loss(rgb, pixels)
