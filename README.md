@@ -1,6 +1,6 @@
 # nerfacc
 
-This is a **tiny** tootlbox for **accelerating** NeRF training & rendering using PyTorch CUDA extensions. Plug-and-play for most of the NeRFs!
+This is a **tiny** tootlbox  for **accelerating** NeRF training & rendering using PyTorch CUDA extensions. Plug-and-play for most of the NeRFs!
 
 ## Instant-NGP example
 
@@ -16,5 +16,5 @@ Here the speed refers to the `iterations per second`.
 | Model | Split | PSNR | Train Speed | Test Speed | GPU |
 | - | - | - | - | - | - |
 | instant-ngp (paper)            | trainval?            | 36.39  |  -   | -    | 3090    |
-| torch-ngp (`-O`)               | train (30K steps)    | 34.15  |  97  | 7.8  | V100 |
-| ours                           | train (30K steps)    | 34.26  |  96  | ?    | TITAN RTX  |
+| torch-ngp (`-O`)               | train (30K steps)    | 34.15  |  97 (310 sec)  | 7.8  | V100 |
+| ours                           | train (30K steps)    | 34.42  |  94 (320 sec)  | 6.1  | TITAN RTX  |

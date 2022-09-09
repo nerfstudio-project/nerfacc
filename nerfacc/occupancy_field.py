@@ -3,7 +3,31 @@ from typing import Callable, List, Tuple, Union
 import torch
 from torch import nn
 
-from ._grid import meshgrid
+
+def meshgrid3d(res: Tuple[int, int, int], device: torch.device = "cpu"):
+    """Create 3D grid coordinates.
+
+    Args:
+        res (Tuple[int, int, int]): resolutions for {x, y, z} dimensions.
+
+    Returns:
+        torch.long with shape (res[0], res[1], res[2], 3): dense 3D grid coordinates.
+    """
+    return (
+        torch.stack(
+            torch.meshgrid(
+                [
+                    torch.arange(res[0]),
+                    torch.arange(res[1]),
+                    torch.arange(res[2]),
+                ],
+                indexing="ij",
+            ),
+            dim=-1,
+        )
+        .long()
+        .to(device)
+    )
 
 
 class OccupancyField(nn.Module):
@@ -62,7 +86,7 @@ class OccupancyField(nn.Module):
         self.register_buffer("occ_grid_mean", occ_grid_mean)
 
         # Grid coords & indices
-        grid_coords = meshgrid(self.resolution).reshape(self.num_cells, self.num_dim)
+        grid_coords = meshgrid3d(self.resolution).reshape(self.num_cells, self.num_dim)
         self.register_buffer("grid_coords", grid_coords)
         grid_indices = torch.arange(self.num_cells)
         self.register_buffer("grid_indices", grid_indices)

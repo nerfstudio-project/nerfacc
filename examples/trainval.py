@@ -32,7 +32,7 @@ def render_image(radiance_field, rays, render_bkgd):
     else:
         num_rays, _ = rays_shape
     results = []
-    chunk = torch.iinfo(torch.int32).max if radiance_field.training else 8192
+    chunk = torch.iinfo(torch.int32).max if radiance_field.training else 81920
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
         chunk_color, chunk_depth, chunk_weight, alive_ray_mask, = volumetric_rendering(
@@ -56,6 +56,7 @@ def render_image(radiance_field, rays, render_bkgd):
 
 
 if __name__ == "__main__":
+    torch.manual_seed(42)
 
     device = "cuda:0"
 
@@ -80,7 +81,7 @@ if __name__ == "__main__":
     )
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset,
-        num_workers=1,
+        num_workers=10,
         batch_size=1,
         collate_fn=getattr(train_dataset.__class__, "collate_fn"),
     )
@@ -112,6 +113,7 @@ if __name__ == "__main__":
             occupancy values with shape (N, 1).
         """
         density_after_activation = radiance_field.query_density(x)
+        # occupancy = 1.0 - torch.exp(-density_after_activation * render_step_size)
         occupancy = density_after_activation * render_step_size
         return occupancy
 
@@ -174,5 +176,5 @@ if __name__ == "__main__":
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
 
-# elapsed_time=312.5340702533722s | step=30000 | loss= 0.00025
-# evaluation: psnr_avg=34.261171398162844 (4.12 it/s)
+# elapsed_time=320.04s | step=30000 | loss= 0.00022
+# evaluation: psnr_avg=34.41712421417236 (6.13 it/s)
