@@ -48,7 +48,7 @@ def _load_renderings(root_fp: str, subject_id: str, split: str):
 class SubjectLoader(CachedIterDataset):
     """Single subject data loader for training and evaluation."""
 
-    SPLITS = ["train", "val", "test"]
+    SPLITS = ["train", "val", "trainval", "test"]
     SUBJECT_IDS = [
         "chair",
         "drums",
@@ -84,9 +84,20 @@ class SubjectLoader(CachedIterDataset):
         self.far = self.FAR if far is None else far
         self.training = (num_rays is not None) and (split in ["train"])
         self.color_bkgd_aug = color_bkgd_aug
-        self.images, self.camtoworlds, self.focal = _load_renderings(
-            root_fp, subject_id, split
-        )
+        if split == "trainval":
+            _images_train, _camtoworlds_train, _focal_train = _load_renderings(
+                root_fp, subject_id, "train"
+            )
+            _images_val, _camtoworlds_val, _focal_val = _load_renderings(
+                root_fp, subject_id, "val"
+            )
+            self.images = np.concatenate([_images_train, _images_val])
+            self.camtoworlds = np.concatenate([_camtoworlds_train, _camtoworlds_val])
+            self.focal = _focal_train
+        else:
+            self.images, self.camtoworlds, self.focal = _load_renderings(
+                root_fp, subject_id, split
+            )
         assert self.images.shape[1:3] == (self.HEIGHT, self.WIDTH)
         super().__init__(self.training, cache_n_repeat)
 

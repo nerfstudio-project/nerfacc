@@ -64,7 +64,7 @@ if __name__ == "__main__":
     train_dataset = SubjectLoader(
         subject_id="lego",
         root_fp="/home/ruilongli/data/nerf_synthetic/",
-        split="train",
+        split="val",
         num_rays=8192,
     )
     train_dataloader = torch.utils.data.DataLoader(
@@ -73,14 +73,14 @@ if __name__ == "__main__":
         batch_size=1,
         collate_fn=getattr(train_dataset.__class__, "collate_fn"),
     )
-    val_dataset = SubjectLoader(
+    test_dataset = SubjectLoader(
         subject_id="lego",
         root_fp="/home/ruilongli/data/nerf_synthetic/",
         split="test",
         num_rays=None,
     )
-    val_dataloader = torch.utils.data.DataLoader(
-        val_dataset,
+    test_dataloader = torch.utils.data.DataLoader(
+        test_dataset,
         num_workers=10,
         batch_size=1,
         collate_fn=getattr(train_dataset.__class__, "collate_fn"),
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     # training
     step = 0
     tic = time.time()
-    for epoch in range(100):
+    for epoch in range(200):
         for data in train_dataloader:
             step += 1
             if step > 30_000:
@@ -162,7 +162,7 @@ if __name__ == "__main__":
                 radiance_field.eval()
                 psnrs = []
                 with torch.no_grad():
-                    for data in tqdm.tqdm(val_dataloader):
+                    for data in tqdm.tqdm(test_dataloader):
                         # generate rays from data and the gt pixel color
                         rays = namedtuple_map(lambda x: x.to(device), data["rays"])
                         pixels = data["pixels"].to(device)
@@ -177,5 +177,10 @@ if __name__ == "__main__":
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
 
+# "train"
 # elapsed_time=317.59s | step=30000 | loss= 0.00028
 # evaluation: psnr_avg=33.27096959114075 (6.24 it/s)
+
+# "trainval"
+# elapsed_time=389.08s | step=30000 | loss= 0.00030
+# evaluation: psnr_avg=34.00573859214783 (6.26 it/s)
