@@ -1,14 +1,12 @@
 # nerfacc
 
-This is a tiny tootlbox for fast NeRF rendering.
-
+This is a **tiny** tootlbox for **accelerating** NeRF training & rendering using PyTorch CUDA extensions. Plug-and-play for most of the NeRFs!
 
 ## Instant-NGP example
 
 ```
 python examples/trainval.py
 ```
-
 
 ## Performance Reference
 
