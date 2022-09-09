@@ -39,9 +39,8 @@ class CachedIterDataset(torch.utils.data.IterableDataset):
             iter_start = worker_id * per_worker
             iter_end = min(iter_start + per_worker, self.__len__())
         if self.training:
-            while True:
-                for index in iter_start + torch.randperm(iter_end - iter_start):
-                    yield self.__getitem__(index)
+            for index in iter_start + torch.randperm(iter_end - iter_start):
+                yield self.__getitem__(index)
         else:
             for index in range(iter_start, iter_end):
                 yield self.__getitem__(index)
@@ -59,7 +58,3 @@ class CachedIterDataset(torch.utils.data.IterableDataset):
             self._cache = data
             self._n_repeat = 1
         return self.preprocess(data)
-
-    @classmethod
-    def collate_fn(cls, batch):
-        return batch[0]

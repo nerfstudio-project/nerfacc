@@ -5,9 +5,7 @@ import math
 import torch
 import torch.nn.functional as F
 
-Rays = collections.namedtuple(
-    "Rays", ("origins", "directions", "viewdirs", "radii", "near", "far")
-)
+Rays = collections.namedtuple("Rays", ("origins", "viewdirs"))
 
 Cameras = collections.namedtuple(
     "Cameras", ("intrins", "extrins", "distorts", "width", "height")
@@ -41,8 +39,6 @@ def transform_cameras(cameras: Cameras, resize_factor: float) -> torch.Tensor:
 def generate_rays(
     cameras: Cameras,
     opencv_format: bool = True,
-    near: float = None,
-    far: float = None,
     pixels_xy: torch.Tensor = None,
 ) -> Rays:
     """Generating rays for a single or multiple cameras.
@@ -82,30 +78,8 @@ def generate_rays(
     origins = torch.broadcast_to(c2w[..., :3, -1], directions.shape)
     viewdirs = directions / torch.linalg.norm(directions, dim=-1, keepdims=True)
 
-    if pixels_xy is None:
-        # Distance from each unit-norm direction vector to its x-axis neighbor.
-        dx = torch.sqrt(
-            torch.sum(
-                (directions[..., :-1, :, :] - directions[..., 1:, :, :]) ** 2,
-                dim=-1,
-            )
-        )
-        dx = torch.cat([dx, dx[..., -2:-1, :]], dim=-2)
-        radii = dx[..., None] * 2 / math.sqrt(12)  # [n_cams, height, width, 1]
-    else:
-        radii = None
-
-    if near is not None:
-        near = near * torch.ones_like(origins[..., 0:1])
-    if far is not None:
-        far = far * torch.ones_like(origins[..., 0:1])
     rays = Rays(
         origins=origins,  # [n_cams, height, width, 3]
-        directions=directions,  # [n_cams, height, width, 3]
         viewdirs=viewdirs,  # [n_cams, height, width, 3]
-        radii=radii,  # [n_cams, height, width, 1]
-        # near far is not needed when they are estimated by skeleton.
-        near=near,
-        far=far,
     )
     return rays

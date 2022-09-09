@@ -2,13 +2,11 @@
 import json
 import os
 
-import cv2
 import imageio.v2 as imageio
 import numpy as np
 import torch
 
-from .base import CachedIterDataset
-from .utils import Cameras, generate_rays, transform_cameras
+from .utils import Cameras, generate_rays
 
 
 def _load_renderings(root_fp: str, subject_id: str, split: str):
@@ -45,7 +43,7 @@ def _load_renderings(root_fp: str, subject_id: str, split: str):
     return images, camtoworlds, focal
 
 
-class SubjectLoader(CachedIterDataset):
+class SubjectLoader(torch.utils.data.Dataset):
     """Single subject data loader for training and evaluation."""
 
     SPLITS = ["train", "val", "trainval", "test"]
@@ -67,22 +65,20 @@ class SubjectLoader(CachedIterDataset):
         subject_id: str,
         root_fp: str,
         split: str,
-        resize_factor: float = 1.0,
         color_bkgd_aug: str = "white",
         num_rays: int = None,
-        cache_n_repeat: int = 0,
         near: float = None,
         far: float = None,
     ):
+        super().__init__()
         assert split in self.SPLITS, "%s" % split
         assert subject_id in self.SUBJECT_IDS, "%s" % subject_id
         assert color_bkgd_aug in ["white", "black", "random"]
-        self.resize_factor = resize_factor
         self.split = split
         self.num_rays = num_rays
         self.near = self.NEAR if near is None else near
         self.far = self.FAR if far is None else far
-        self.training = (num_rays is not None) and (split in ["train"])
+        self.training = (num_rays is not None) and (split in ["train", "trainval"])
         self.color_bkgd_aug = color_bkgd_aug
         if split == "trainval":
             _images_train, _camtoworlds_train, _focal_train = _load_renderings(
@@ -99,12 +95,15 @@ class SubjectLoader(CachedIterDataset):
                 root_fp, subject_id, split
             )
         assert self.images.shape[1:3] == (self.HEIGHT, self.WIDTH)
-        super().__init__(self.training, cache_n_repeat)
 
     def __len__(self):
         return len(self.images)
 
-    # @profile
+    def __getitem__(self, index):
+        data = self.fetch_data(index)
+        data = self.preprocess(data)
+        return data
+
     def preprocess(self, data):
         """Process the fetched / cached data with randomness."""
         rgba, rays = data["rgba"], data["rays"]
@@ -144,18 +143,7 @@ class SubjectLoader(CachedIterDataset):
         rgba = self.images[camera_id]
 
         # create pixels
-        rgba = (
-            torch.from_numpy(
-                cv2.resize(
-                    rgba,
-                    (0, 0),
-                    fx=self.resize_factor,
-                    fy=self.resize_factor,
-                    interpolation=cv2.INTER_AREA,
-                )
-            ).float()
-            / 255.0
-        )
+        rgba = torch.from_numpy(rgba).float() / 255.0
 
         # create rays from camera
         cameras = Cameras(
@@ -165,7 +153,6 @@ class SubjectLoader(CachedIterDataset):
             width=self.WIDTH,
             height=self.HEIGHT,
         )
-        cameras = transform_cameras(cameras, self.resize_factor)
 
         if self.num_rays is not None:
             x = torch.randint(0, self.WIDTH, size=(self.num_rays,))
@@ -180,8 +167,6 @@ class SubjectLoader(CachedIterDataset):
         rays = generate_rays(
             cameras,
             opencv_format=False,
-            near=self.near,
-            far=self.far,
             pixels_xy=pixels_xy,
         )
 

@@ -64,14 +64,15 @@ if __name__ == "__main__":
     train_dataset = SubjectLoader(
         subject_id="lego",
         root_fp="/home/ruilongli/data/nerf_synthetic/",
-        split="val",
+        split="train",
         num_rays=8192,
     )
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
-        num_workers=10,
-        batch_size=1,
-        collate_fn=getattr(train_dataset.__class__, "collate_fn"),
+        num_workers=1,
+        batch_size=None,
+        persistent_workers=True,
+        shuffle=True,
     )
     test_dataset = SubjectLoader(
         subject_id="lego",
@@ -81,9 +82,8 @@ if __name__ == "__main__":
     )
     test_dataloader = torch.utils.data.DataLoader(
         test_dataset,
-        num_workers=10,
-        batch_size=1,
-        collate_fn=getattr(train_dataset.__class__, "collate_fn"),
+        num_workers=4,
+        batch_size=None,
     )
 
     # setup the scene bounding box.
@@ -102,6 +102,9 @@ if __name__ == "__main__":
     )
 
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=3e-3, eps=1e-15)
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(
+    #     optimizer, milestones=[10000, 20000, 30000], gamma=0.1
+    # )
 
     # setup occupancy field with eval function
     def occ_eval_fn(x: torch.Tensor) -> torch.Tensor:
@@ -125,8 +128,11 @@ if __name__ == "__main__":
     # training
     step = 0
     tic = time.time()
-    for epoch in range(200):
+    data_time = 0
+    tic_data = time.time()
+    for epoch in range(300):
         for data in train_dataloader:
+            data_time += time.time() - tic_data
             step += 1
             if step > 30_000:
                 print("training stops")
@@ -150,11 +156,12 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            # scheduler.step()
 
             if step % 50 == 0:
                 elapsed_time = time.time() - tic
                 print(
-                    f"elapsed_time={elapsed_time:.2f}s | {step=} | loss={loss.item(): .5f}"
+                    f"elapsed_time={elapsed_time:.2f}s (data={data_time:.2f}s) | {step=} | loss={loss:.5f}"
                 )
 
             if step % 30_000 == 0 and step > 0:
@@ -176,11 +183,12 @@ if __name__ == "__main__":
                         psnrs.append(psnr.item())
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
+            tic_data = time.time()
 
 # "train"
-# elapsed_time=317.59s | step=30000 | loss= 0.00028
-# evaluation: psnr_avg=33.27096959114075 (6.24 it/s)
+# elapsed_time=298.27s (data=60.08s) | step=30000 | loss=0.00026
+# evaluation: psnr_avg=33.305334663391115 (6.42 it/s)
 
 # "trainval"
-# elapsed_time=389.08s | step=30000 | loss= 0.00030
-# evaluation: psnr_avg=34.00573859214783 (6.26 it/s)
+# elapsed_time=289.94s (data=51.99s) | step=30000 | loss=0.00021
+# evaluation: psnr_avg=34.44980221748352 (6.61 it/s)
