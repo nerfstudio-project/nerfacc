@@ -22,7 +22,8 @@ def volumetric_rendering(
     device = rays_o.device
     if render_bkgd is None:
         render_bkgd = torch.ones(3, device=device)
-    scene_resolution = torch.tensor(scene_resolution, dtype=torch.int, device=device)
+
+    # scene_resolution = torch.tensor(scene_resolution, dtype=torch.int, device=device)
 
     rays_o = rays_o.contiguous()
     rays_d = rays_d.contiguous()
@@ -40,18 +41,17 @@ def volumetric_rendering(
     )
 
     with torch.no_grad():
-        # TODO: avoid clamp here. kinda stupid
         t_min, t_max = ray_aabb_intersect(rays_o, rays_d, scene_aabb)
-        t_min = torch.clamp(t_min, max=1e10)
-        t_max = torch.clamp(t_max, max=1e10)
+        # t_min = torch.clamp(t_min, max=1e10)
+        # t_max = torch.clamp(t_max, max=1e10)
 
         (
-            packed_info,
-            frustum_origins,
-            frustum_dirs,
-            frustum_starts,
-            frustum_ends,
-            steps_counter,
+            # packed_info,
+            # frustum_origins,
+            # frustum_dirs,
+            # frustum_starts,
+            # frustum_ends,
+            # steps_counter,
         ) = ray_marching(
             # rays
             rays_o,
@@ -68,43 +68,43 @@ def volumetric_rendering(
             render_step_size,
         )
 
-        # squeeze valid samples
-        total_samples = max(packed_info[:, -1].sum(), 1)
-        total_samples = int(math.ceil(total_samples / 128.0)) * 128
-        frustum_origins = frustum_origins[:total_samples]
-        frustum_dirs = frustum_dirs[:total_samples]
-        frustum_starts = frustum_starts[:total_samples]
-        frustum_ends = frustum_ends[:total_samples]
+    #     # squeeze valid samples
+    #     total_samples = max(packed_info[:, -1].sum(), 1)
+    #     total_samples = int(math.ceil(total_samples / 128.0)) * 128
+    #     frustum_origins = frustum_origins[:total_samples]
+    #     frustum_dirs = frustum_dirs[:total_samples]
+    #     frustum_starts = frustum_starts[:total_samples]
+    #     frustum_ends = frustum_ends[:total_samples]
 
-        frustum_positions = (
-            frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
-        )
+    #     frustum_positions = (
+    #         frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
+    #     )
 
-    query_results = query_fn(frustum_positions, frustum_dirs, **kwargs)
-    rgbs, densities = query_results[0], query_results[1]
+    # query_results = query_fn(frustum_positions, frustum_dirs, **kwargs)
+    # rgbs, densities = query_results[0], query_results[1]
 
-    (
-        accumulated_weight,
-        accumulated_depth,
-        accumulated_color,
-        alive_ray_mask,
-        compact_steps_counter,
-    ) = VolumeRenderer.apply(
-        packed_info,
-        frustum_starts,
-        frustum_ends,
-        densities.contiguous(),
-        rgbs.contiguous(),
-    )
+    # (
+    #     accumulated_weight,
+    #     accumulated_depth,
+    #     accumulated_color,
+    #     alive_ray_mask,
+    #     compact_steps_counter,
+    # ) = VolumeRenderer.apply(
+    #     packed_info,
+    #     frustum_starts,
+    #     frustum_ends,
+    #     densities.contiguous(),
+    #     rgbs.contiguous(),
+    # )
 
-    accumulated_depth = torch.clip(accumulated_depth, t_min[:, None], t_max[:, None])
-    accumulated_color = accumulated_color + render_bkgd * (1.0 - accumulated_weight)
+    # accumulated_depth = torch.clip(accumulated_depth, t_min[:, None], t_max[:, None])
+    # accumulated_color = accumulated_color + render_bkgd * (1.0 - accumulated_weight)
 
-    return (
-        accumulated_color,
-        accumulated_depth,
-        accumulated_weight,
-        alive_ray_mask,
-        steps_counter,
-        compact_steps_counter,
-    )
+    # return (
+    #     accumulated_color,
+    #     accumulated_depth,
+    #     accumulated_weight,
+    #     alive_ray_mask,
+    #     steps_counter,
+    #     compact_steps_counter,
+    # )

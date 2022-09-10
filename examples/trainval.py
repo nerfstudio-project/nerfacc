@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
-from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
+from datasets.nerf_synthetic import Rays, SubjectLoader, namedtuple_map
 from radiance_fields.ngp import NGPradianceField
 
 from nerfacc import OccupancyField, volumetric_rendering
@@ -67,10 +67,10 @@ if __name__ == "__main__":
 
     # setup dataset
     train_dataset = SubjectLoader(
-        subject_id="lego",
+        subject_id="mic",
         root_fp="/home/ruilongli/data/nerf_synthetic/",
-        split="train",
-        num_rays=4096,
+        split="trainval",
+        num_rays=409600,
     )
 
     train_dataset.images = train_dataset.images.to(device)
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     )
 
     test_dataset = SubjectLoader(
-        subject_id="lego",
+        subject_id="mic",
         root_fp="/home/ruilongli/data/nerf_synthetic/",
         split="test",
         num_rays=None,
@@ -144,12 +144,27 @@ if __name__ == "__main__":
         occ_eval_fn=occ_eval_fn, aabb=scene_aabb, resolution=128
     ).to(device)
 
+    render_bkgd = torch.ones(3, device=device)
+
     # training
     step = 0
     tic = time.time()
     data_time = 0
     tic_data = time.time()
-    for epoch in range(400):
+
+    weights_image_ids = torch.ones((len(train_dataset.images),), device=device)
+    weights_xs = torch.ones(
+        (train_dataset.WIDTH,),
+        device=device,
+    )
+    weights_ys = torch.ones(
+        (train_dataset.HEIGHT,),
+        device=device,
+    )
+
+    for epoch in range(40000000):
+        data = train_dataset[0]
+
         for i in range(len(train_dataset)):
             data = train_dataset[i]
             data_time += time.time() - tic_data
@@ -162,53 +177,66 @@ if __name__ == "__main__":
             pixels = data["pixels"].to(device)
             render_bkgd = data["color_bkgd"].to(device)
 
-            # update occupancy grid
-            occ_field.every_n_step(step)
+            # # update occupancy grid
+            # occ_field.every_n_step(step)
 
-            rgb, depth, acc, alive_ray_mask, counter, compact_counter = render_image(
-                radiance_field, rays, render_bkgd
+            render_est_n_samples = 2**16 * 16 if radiance_field.training else None
+            volumetric_rendering(
+                query_fn=radiance_field.forward,  # {x, dir} -> {rgb, density}
+                rays_o=rays.origins,
+                rays_d=rays.viewdirs,
+                scene_aabb=occ_field.aabb,
+                scene_occ_binary=occ_field.occ_grid_binary,
+                scene_resolution=occ_field.resolution,
+                render_bkgd=render_bkgd,
+                render_n_samples=render_n_samples,
+                render_est_n_samples=render_est_n_samples,  # memory control: wrost case
             )
-            num_rays = len(pixels)
-            num_rays = int(num_rays * (2**16 / float(compact_counter)))
-            num_rays = int(math.ceil(num_rays / 128.0) * 128)
-            train_dataset.update_num_rays(num_rays)
 
-            # compute loss
-            loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
+            # rgb, depth, acc, alive_ray_mask, counter, compact_counter = render_image(
+            #     radiance_field, rays, render_bkgd
+            # )
+            # num_rays = len(pixels)
+            # num_rays = int(num_rays * (2**16 / float(compact_counter)))
+            # num_rays = int(math.ceil(num_rays / 128.0) * 128)
+            # train_dataset.update_num_rays(num_rays)
 
-            optimizer.zero_grad()
-            (loss * 128.0).backward()
-            optimizer.step()
-            scheduler.step()
+            # # compute loss
+            # loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
+
+            # optimizer.zero_grad()
+            # (loss * 128.0).backward()
+            # optimizer.step()
+            # scheduler.step()
 
             if step % 50 == 0:
                 elapsed_time = time.time() - tic
                 print(
                     f"elapsed_time={elapsed_time:.2f}s (data={data_time:.2f}s) | {step=} | "
-                    f"loss={loss:.5f} | "
-                    f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
-                    f"counter={counter:d} | compact_counter={compact_counter:d} | num_rays={len(pixels):d} "
+                    # f"loss={loss:.5f} | "
+                    # f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
+                    # f"counter={counter:d} | compact_counter={compact_counter:d} | num_rays={len(pixels):d} "
                 )
 
-            if step % 35_000 == 0 and step > 0:
-                # evaluation
-                radiance_field.eval()
-                psnrs = []
-                with torch.no_grad():
-                    for data in tqdm.tqdm(test_dataloader):
-                        # generate rays from data and the gt pixel color
-                        rays = namedtuple_map(lambda x: x.to(device), data["rays"])
-                        pixels = data["pixels"].to(device)
-                        render_bkgd = data["color_bkgd"].to(device)
-                        # rendering
-                        rgb, depth, acc, alive_ray_mask, _, _ = render_image(
-                            radiance_field, rays, render_bkgd
-                        )
-                        mse = F.mse_loss(rgb, pixels)
-                        psnr = -10.0 * torch.log(mse) / np.log(10.0)
-                        psnrs.append(psnr.item())
-                psnr_avg = sum(psnrs) / len(psnrs)
-                print(f"evaluation: {psnr_avg=}")
+            # if step % 35_000 == 0 and step > 0:
+            #     # evaluation
+            #     radiance_field.eval()
+            #     psnrs = []
+            #     with torch.no_grad():
+            #         for data in tqdm.tqdm(test_dataloader):
+            #             # generate rays from data and the gt pixel color
+            #             rays = namedtuple_map(lambda x: x.to(device), data["rays"])
+            #             pixels = data["pixels"].to(device)
+            #             render_bkgd = data["color_bkgd"].to(device)
+            #             # rendering
+            #             rgb, depth, acc, alive_ray_mask, _, _ = render_image(
+            #                 radiance_field, rays, render_bkgd
+            #             )
+            #             mse = F.mse_loss(rgb, pixels)
+            #             psnr = -10.0 * torch.log(mse) / np.log(10.0)
+            #             psnrs.append(psnr.item())
+            #     psnr_avg = sum(psnrs) / len(psnrs)
+            #     print(f"evaluation: {psnr_avg=}")
             tic_data = time.time()
 
             step += 1

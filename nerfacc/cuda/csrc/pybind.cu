@@ -16,7 +16,7 @@ std::vector<torch::Tensor> ray_marching(
     const torch::Tensor t_max,
     // density grid
     const torch::Tensor aabb,
-    const torch::Tensor resolution,
+    const pybind11::list resolution,
     const torch::Tensor occ_binary, 
     // sampling
     const int max_total_samples,
