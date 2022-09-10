@@ -5,8 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
-from datasets.nerf_synthetic import SubjectLoader
-from datasets.utils import namedtuple_map
+from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
 from radiance_fields.ngp import NGPradianceField
 
 from nerfacc import OccupancyField, volumetric_rendering
@@ -67,19 +66,26 @@ if __name__ == "__main__":
         split="train",
         num_rays=8192,
     )
+    # train_dataset.images = train_dataset.images.to(device)
+    # train_dataset.camtoworlds = train_dataset.camtoworlds.to(device)
+    # train_dataset.K = train_dataset.K.to(device)
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
-        num_workers=1,
+        num_workers=4,
         batch_size=None,
         persistent_workers=True,
         shuffle=True,
     )
+
     test_dataset = SubjectLoader(
         subject_id="lego",
         root_fp="/home/ruilongli/data/nerf_synthetic/",
         split="test",
         num_rays=None,
     )
+    # test_dataset.images = test_dataset.images.to(device)
+    # test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
+    # test_dataset.K = test_dataset.K.to(device)
     test_dataloader = torch.utils.data.DataLoader(
         test_dataset,
         num_workers=4,
@@ -102,9 +108,9 @@ if __name__ == "__main__":
     )
 
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=3e-3, eps=1e-15)
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    #     optimizer, milestones=[10000, 20000, 30000], gamma=0.1
-    # )
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer, milestones=[20000, 30000], gamma=0.1
+    )
 
     # setup occupancy field with eval function
     def occ_eval_fn(x: torch.Tensor) -> torch.Tensor:
@@ -156,7 +162,7 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            # scheduler.step()
+            scheduler.step()
 
             if step % 50 == 0:
                 elapsed_time = time.time() - tic
@@ -189,6 +195,18 @@ if __name__ == "__main__":
 # elapsed_time=298.27s (data=60.08s) | step=30000 | loss=0.00026
 # evaluation: psnr_avg=33.305334663391115 (6.42 it/s)
 
+# "train" batch_over_images=True
+# elapsed_time=335.21s (data=68.99s) | step=30000 | loss=0.00028
+# evaluation: psnr_avg=33.74970862388611 (6.23 it/s)
+
+# "train" batch_over_images=True, schedule
+# elapsed_time=296.30s (data=54.38s) | step=30000 | loss=0.00022
+# evaluation: psnr_avg=34.3978275680542 (6.22 it/s)
+
 # "trainval"
 # elapsed_time=289.94s (data=51.99s) | step=30000 | loss=0.00021
 # evaluation: psnr_avg=34.44980221748352 (6.61 it/s)
+
+# "trainval" batch_over_images=True, schedule
+# elapsed_time=291.42s (data=52.82s) | step=30000 | loss=0.00020
+# evaluation: psnr_avg=35.41630497932434 (6.40 it/s)
