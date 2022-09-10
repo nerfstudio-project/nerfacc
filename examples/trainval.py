@@ -63,7 +63,7 @@ if __name__ == "__main__":
     train_dataset = SubjectLoader(
         subject_id="lego",
         root_fp="/home/ruilongli/data/nerf_synthetic/",
-        split="train",
+        split="trainval",
         num_rays=8192,
     )
     # train_dataset.images = train_dataset.images.to(device)
