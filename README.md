@@ -12,12 +12,15 @@ python examples/trainval.py
 
 Tested with the default settings on the Lego test set.
 
-| Model | Split | PSNR | Train Time | Test Speed | GPU |
-| - | - | - | - | - | - |
+| Model | Split | PSNR | Train Time | Test Speed | GPU | Train Memory |
+| - | - | - | - | - | - | - |
 | instant-ngp (paper)            | trainval?            | 36.39  |  -   | -    | 3090    |
-| torch-ngp (`-O`)               | train (30K steps)    | 34.15  |  310 sec  | 7.8 fps  | V100 |
-| ours                           | train (30K steps)    | 34.40  |  296 sec  | 6.2 fps | TITAN RTX  |
-| ours                           | trainval (30K steps)    | 35.42  |  291 sec  | 6.4 fps | TITAN RTX  |
+| instant-ngp (code)             | train (35k steps)    | 36.08  |  308 sec  | 55.32 fps  | TITAN RTX  |  1734MB |
+| torch-ngp (`-O`)               | train (30K steps)    | 34.15  |  310 sec  | 7.8 fps    | V100 |
+| ours                           | train (30K steps)    | 34.40  |  296 sec  | 6.2 fps    | TITAN RTX  |
+| ours                           | trainval (30K steps) | 35.42  |  291 sec  | 6.4 fps    | TITAN RTX  |
+| ours (2**16 samples w preload) | trainval (35K steps) | 36.18  |  385 sec  | 8.3 fps    | TITAN RTX  |
+| ours (2**16 samples w preload) | train (35K steps) | 35.03  |  383 sec  | 8.0 fps    | TITAN RTX  |
 
 ## Tips:
 

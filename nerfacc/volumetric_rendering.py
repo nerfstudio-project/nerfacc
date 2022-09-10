@@ -34,7 +34,7 @@ def volumetric_rendering(
     if render_est_n_samples is None:
         render_total_samples = n_rays * render_n_samples
     else:
-        render_total_samples = n_rays * render_est_n_samples
+        render_total_samples = render_est_n_samples
     render_step_size = (
         (scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples
     )
@@ -51,6 +51,7 @@ def volumetric_rendering(
             frustum_dirs,
             frustum_starts,
             frustum_ends,
+            steps_counter,
         ) = ray_marching(
             # rays
             rays_o,
@@ -69,6 +70,7 @@ def volumetric_rendering(
 
         # squeeze valid samples
         total_samples = max(packed_info[:, -1].sum(), 1)
+        total_samples = int(math.ceil(total_samples / 128.0)) * 128
         frustum_origins = frustum_origins[:total_samples]
         frustum_dirs = frustum_dirs[:total_samples]
         frustum_starts = frustum_starts[:total_samples]
@@ -86,6 +88,7 @@ def volumetric_rendering(
         accumulated_depth,
         accumulated_color,
         alive_ray_mask,
+        compact_steps_counter,
     ) = VolumeRenderer.apply(
         packed_info,
         frustum_starts,
@@ -97,4 +100,11 @@ def volumetric_rendering(
     accumulated_depth = torch.clip(accumulated_depth, t_min[:, None], t_max[:, None])
     accumulated_color = accumulated_color + render_bkgd * (1.0 - accumulated_weight)
 
-    return accumulated_color, accumulated_depth, accumulated_weight, alive_ray_mask
+    return (
+        accumulated_color,
+        accumulated_depth,
+        accumulated_weight,
+        alive_ray_mask,
+        steps_counter,
+        compact_steps_counter,
+    )

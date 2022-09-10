@@ -281,6 +281,6 @@ std::vector<torch::Tensor> ray_marching(
         frustum_ends.data_ptr<float>()
     ); 
 
-    return {packed_info, frustum_origins, frustum_dirs, frustum_starts, frustum_ends};
+    return {packed_info, frustum_origins, frustum_dirs, frustum_starts, frustum_ends, steps_counter};
 }
 

@@ -13,7 +13,9 @@ __global__ void volumetric_rendering_forward_kernel(
     scalar_t* accumulated_weight,  // output
     scalar_t* accumulated_depth,  // output
     scalar_t* accumulated_color,  // output
-    bool* mask  // output
+    bool* mask,  // output
+    // writable helpers
+    int* steps_counter
 ) {
     CUDA_GET_THREAD_ID(thread_id, n_rays);
 
@@ -54,6 +56,7 @@ __global__ void volumetric_rendering_forward_kernel(
         T *= (1.f - alpha);
     }
     mask[0] = true;
+    atomicAdd(steps_counter, j);
 }
 
 
@@ -178,6 +181,10 @@ std::vector<torch::Tensor> volumetric_rendering_forward(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
+    // helper counter
+    torch::Tensor steps_counter = torch::zeros(
+        {1}, rgbs.options().dtype(torch::kInt32));
+
     // outputs
     torch::Tensor accumulated_weight = torch::zeros({n_rays, 1}, sigmas.options()); 
     torch::Tensor accumulated_depth = torch::zeros({n_rays, 1}, sigmas.options()); 
@@ -199,11 +206,12 @@ std::vector<torch::Tensor> volumetric_rendering_forward(
                 accumulated_weight.data_ptr<scalar_t>(),
                 accumulated_depth.data_ptr<scalar_t>(),
                 accumulated_color.data_ptr<scalar_t>(),
-                mask.data_ptr<bool>()
+                mask.data_ptr<bool>(),
+                steps_counter.data_ptr<int>()
             ); 
         }));
 
-    return {accumulated_weight, accumulated_depth, accumulated_color, mask};
+    return {accumulated_weight, accumulated_depth, accumulated_color, mask, steps_counter};
 }
 
 

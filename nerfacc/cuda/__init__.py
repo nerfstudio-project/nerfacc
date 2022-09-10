@@ -20,6 +20,7 @@ class VolumeRenderer(torch.autograd.Function):
             accumulated_depth,
             accumulated_color,
             mask,
+            steps_counter,
         ) = volumetric_rendering_forward(packed_info, starts, ends, sigmas, rgbs)
         ctx.save_for_backward(
             accumulated_weight,
@@ -31,11 +32,19 @@ class VolumeRenderer(torch.autograd.Function):
             sigmas,
             rgbs,
         )
-        return accumulated_weight, accumulated_depth, accumulated_color, mask
+        return (
+            accumulated_weight,
+            accumulated_depth,
+            accumulated_color,
+            mask,
+            steps_counter,
+        )
 
     @staticmethod
     @custom_bwd
-    def backward(ctx, grad_weight, grad_depth, grad_color, _grad_mask):
+    def backward(
+        ctx, grad_weight, grad_depth, grad_color, _grad_mask, _grad_steps_counter
+    ):
         (
             accumulated_weight,
             accumulated_depth,

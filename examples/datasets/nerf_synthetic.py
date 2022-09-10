@@ -147,23 +147,28 @@ class SubjectLoader(torch.utils.data.Dataset):
             **{k: v for k, v in data.items() if k not in ["rgba", "rays"]},
         }
 
+    def update_num_rays(self, num_rays):
+        self.num_rays = num_rays
+
     def fetch_data(self, index):
         """Fetch the data (it maybe cached for multiple batches)."""
+        num_rays = self.num_rays
+
         if self.training:
             if self.batch_over_images:
                 image_id = torch.randint(
                     0,
                     len(self.images),
-                    size=(self.num_rays,),
+                    size=(num_rays,),
                     device=self.images.device,
                 )
             else:
                 image_id = [index]
             x = torch.randint(
-                0, self.WIDTH, size=(self.num_rays,), device=self.images.device
+                0, self.WIDTH, size=(num_rays,), device=self.images.device
             )
             y = torch.randint(
-                0, self.HEIGHT, size=(self.num_rays,), device=self.images.device
+                0, self.HEIGHT, size=(num_rays,), device=self.images.device
             )
         else:
             image_id = [index]
@@ -197,9 +202,9 @@ class SubjectLoader(torch.utils.data.Dataset):
         viewdirs = directions / torch.linalg.norm(directions, dim=-1, keepdims=True)
 
         if self.training:
-            origins = torch.reshape(origins, (self.num_rays, 3))
-            viewdirs = torch.reshape(viewdirs, (self.num_rays, 3))
-            rgba = torch.reshape(rgba, (self.num_rays, 4))
+            origins = torch.reshape(origins, (num_rays, 3))
+            viewdirs = torch.reshape(viewdirs, (num_rays, 3))
+            rgba = torch.reshape(rgba, (num_rays, 4))
         else:
             origins = torch.reshape(origins, (self.HEIGHT, self.WIDTH, 3))
             viewdirs = torch.reshape(viewdirs, (self.HEIGHT, self.WIDTH, 3))
