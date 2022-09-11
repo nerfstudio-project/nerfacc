@@ -72,6 +72,7 @@ class OccupancyField(nn.Module):
 
         self.register_buffer("aabb", aabb)
         self.resolution = resolution
+        self.register_buffer("resolution_tensor", torch.tensor(resolution))
         self.num_dim = num_dim
         self.num_cells = torch.tensor(resolution).prod().item()
 
@@ -107,7 +108,6 @@ class OccupancyField(nn.Module):
         if n < len(occupied_indices):
             selector = torch.randint(len(occupied_indices), (n,), device=device)
             occupied_indices = occupied_indices[selector]
-
         indices = torch.cat([uniform_indices, occupied_indices], dim=0)
         return indices
 
@@ -129,19 +129,19 @@ class OccupancyField(nn.Module):
                 stage we change the sampling strategy to 1/4 unifromly sampled cells
                 together with 1/4 occupied cells.
         """
-        resolution = torch.tensor(self.resolution).to(self.occ_grid.device)
-
         # sample cells
         if step < warmup_steps:
             indices = self._get_all_cells()
         else:
-            N = resolution.prod().item() // 4
+            N = self.num_cells // 4
             indices = self._sample_uniform_and_occupied_cells(N)
 
         # infer occupancy: density * step_size
         tmp_occ_grid = -torch.ones_like(self.occ_grid)
         grid_coords = self.grid_coords[indices]
-        x = (grid_coords + torch.rand_like(grid_coords.float())) / resolution
+        x = (
+            grid_coords + torch.rand_like(grid_coords.float())
+        ) / self.resolution_tensor
         bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
         x = x * (bb_max - bb_min) + bb_min
         tmp_occ_grid[indices] = self.occ_eval_fn(x).squeeze(-1)
@@ -152,8 +152,8 @@ class OccupancyField(nn.Module):
             self.occ_grid[ema_mask] * ema_decay, tmp_occ_grid[ema_mask]
         )
         self.occ_grid_mean = self.occ_grid.mean()
-        self.occ_grid_binary = self.occ_grid > min(
-            self.occ_grid_mean.item(), occ_threshold
+        self.occ_grid_binary = self.occ_grid > torch.clamp(
+            self.occ_grid_mean, max=occ_threshold
         )
 
     @torch.no_grad()

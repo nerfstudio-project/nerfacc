@@ -5,13 +5,15 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
-from datasets.nerf_synthetic import Rays, SubjectLoader, namedtuple_map
+from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
 from radiance_fields.ngp import NGPradianceField
 
 from nerfacc import OccupancyField, volumetric_rendering
 
+TARGET_SAMPLE_BATCH_SIZE = 1 << 16
 
-def render_image(radiance_field, rays, render_bkgd):
+
+def render_image(radiance_field, rays, render_bkgd, render_step_size):
     """Render the pixels of an image.
 
     Args:
@@ -32,7 +34,9 @@ def render_image(radiance_field, rays, render_bkgd):
         num_rays, _ = rays_shape
     results = []
     chunk = torch.iinfo(torch.int32).max if radiance_field.training else 81920
-    render_est_n_samples = 2**16 * 16 if radiance_field.training else None
+    render_est_n_samples = (
+        TARGET_SAMPLE_BATCH_SIZE * 16 if radiance_field.training else None
+    )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
         chunk_results = volumetric_rendering(
@@ -45,6 +49,7 @@ def render_image(radiance_field, rays, render_bkgd):
             render_bkgd=render_bkgd,
             render_n_samples=render_n_samples,
             render_est_n_samples=render_est_n_samples,  # memory control: wrost case
+            render_step_size=render_step_size,
         )
         results.append(chunk_results)
     rgb, depth, acc, alive_ray_mask, counter, compact_counter = [
@@ -64,13 +69,14 @@ if __name__ == "__main__":
     torch.manual_seed(42)
 
     device = "cuda:0"
+    scene = "lego"
 
     # setup dataset
     train_dataset = SubjectLoader(
-        subject_id="mic",
+        subject_id=scene,
         root_fp="/home/ruilongli/data/nerf_synthetic/",
         split="trainval",
-        num_rays=409600,
+        num_rays=4096,
     )
 
     train_dataset.images = train_dataset.images.to(device)
@@ -85,7 +91,7 @@ if __name__ == "__main__":
     )
 
     test_dataset = SubjectLoader(
-        subject_id="mic",
+        subject_id=scene,
         root_fp="/home/ruilongli/data/nerf_synthetic/",
         split="test",
         num_rays=None,
@@ -112,7 +118,7 @@ if __name__ == "__main__":
     render_n_samples = 1024
     render_step_size = (
         (scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples
-    )
+    ).item()
 
     optimizer = torch.optim.Adam(
         radiance_field.parameters(),
@@ -144,123 +150,75 @@ if __name__ == "__main__":
         occ_eval_fn=occ_eval_fn, aabb=scene_aabb, resolution=128
     ).to(device)
 
-    render_bkgd = torch.ones(3, device=device)
-
     # training
     step = 0
     tic = time.time()
     data_time = 0
     tic_data = time.time()
 
-    weights_image_ids = torch.ones((len(train_dataset.images),), device=device)
-    weights_xs = torch.ones(
-        (train_dataset.WIDTH,),
-        device=device,
-    )
-    weights_ys = torch.ones(
-        (train_dataset.HEIGHT,),
-        device=device,
-    )
-
-    for epoch in range(40000000):
-        data = train_dataset[0]
-
+    for epoch in range(10000000):
         for i in range(len(train_dataset)):
             data = train_dataset[i]
             data_time += time.time() - tic_data
-            if step > 35_000:
-                print("training stops")
-                exit()
 
             # generate rays from data and the gt pixel color
-            rays = namedtuple_map(lambda x: x.to(device), data["rays"])
-            pixels = data["pixels"].to(device)
-            render_bkgd = data["color_bkgd"].to(device)
+            # rays = namedtuple_map(lambda x: x.to(device), data["rays"])
+            # pixels = data["pixels"].to(device)
+            render_bkgd = data["color_bkgd"]
+            rays = data["rays"]
+            pixels = data["pixels"]
 
-            # # update occupancy grid
-            # occ_field.every_n_step(step)
+            # update occupancy grid
+            occ_field.every_n_step(step)
 
-            render_est_n_samples = 2**16 * 16 if radiance_field.training else None
-            volumetric_rendering(
-                query_fn=radiance_field.forward,  # {x, dir} -> {rgb, density}
-                rays_o=rays.origins,
-                rays_d=rays.viewdirs,
-                scene_aabb=occ_field.aabb,
-                scene_occ_binary=occ_field.occ_grid_binary,
-                scene_resolution=occ_field.resolution,
-                render_bkgd=render_bkgd,
-                render_n_samples=render_n_samples,
-                render_est_n_samples=render_est_n_samples,  # memory control: wrost case
+            rgb, depth, acc, alive_ray_mask, counter, compact_counter = render_image(
+                radiance_field, rays, render_bkgd, render_step_size
             )
+            num_rays = len(pixels)
+            num_rays = int(
+                num_rays * (TARGET_SAMPLE_BATCH_SIZE / float(compact_counter.item()))
+            )
+            train_dataset.update_num_rays(num_rays)
 
-            # rgb, depth, acc, alive_ray_mask, counter, compact_counter = render_image(
-            #     radiance_field, rays, render_bkgd
-            # )
-            # num_rays = len(pixels)
-            # num_rays = int(num_rays * (2**16 / float(compact_counter)))
-            # num_rays = int(math.ceil(num_rays / 128.0) * 128)
-            # train_dataset.update_num_rays(num_rays)
+            # compute loss
+            loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
 
-            # # compute loss
-            # loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
+            optimizer.zero_grad()
+            (loss * 128).backward()
+            optimizer.step()
+            scheduler.step()
 
-            # optimizer.zero_grad()
-            # (loss * 128.0).backward()
-            # optimizer.step()
-            # scheduler.step()
-
-            if step % 50 == 0:
+            if step % 100 == 0:
                 elapsed_time = time.time() - tic
                 print(
                     f"elapsed_time={elapsed_time:.2f}s (data={data_time:.2f}s) | {step=} | "
-                    # f"loss={loss:.5f} | "
-                    # f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
-                    # f"counter={counter:d} | compact_counter={compact_counter:d} | num_rays={len(pixels):d} "
+                    f"loss={loss:.5f} | "
+                    f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
+                    f"counter={counter.item():d} | compact_counter={compact_counter.item():d} | num_rays={len(pixels):d} "
                 )
 
-            # if step % 35_000 == 0 and step > 0:
-            #     # evaluation
-            #     radiance_field.eval()
-            #     psnrs = []
-            #     with torch.no_grad():
-            #         for data in tqdm.tqdm(test_dataloader):
-            #             # generate rays from data and the gt pixel color
-            #             rays = namedtuple_map(lambda x: x.to(device), data["rays"])
-            #             pixels = data["pixels"].to(device)
-            #             render_bkgd = data["color_bkgd"].to(device)
-            #             # rendering
-            #             rgb, depth, acc, alive_ray_mask, _, _ = render_image(
-            #                 radiance_field, rays, render_bkgd
-            #             )
-            #             mse = F.mse_loss(rgb, pixels)
-            #             psnr = -10.0 * torch.log(mse) / np.log(10.0)
-            #             psnrs.append(psnr.item())
-            #     psnr_avg = sum(psnrs) / len(psnrs)
-            #     print(f"evaluation: {psnr_avg=}")
+            # if time.time() - tic > 300:
+            if step == 35_000:
+                print("training stops")
+                # evaluation
+                radiance_field.eval()
+                psnrs = []
+                with torch.no_grad():
+                    for data in tqdm.tqdm(test_dataloader):
+                        # generate rays from data and the gt pixel color
+                        rays = namedtuple_map(lambda x: x.to(device), data["rays"])
+                        pixels = data["pixels"].to(device)
+                        render_bkgd = data["color_bkgd"].to(device)
+                        # rendering
+                        rgb, depth, acc, alive_ray_mask, _, _ = render_image(
+                            radiance_field, rays, render_bkgd, render_step_size
+                        )
+                        mse = F.mse_loss(rgb, pixels)
+                        psnr = -10.0 * torch.log(mse) / np.log(10.0)
+                        psnrs.append(psnr.item())
+                psnr_avg = sum(psnrs) / len(psnrs)
+                print(f"evaluation: {psnr_avg=}")
+                exit()
             tic_data = time.time()
 
             step += 1
-
-# "train"
-# elapsed_time=298.27s (data=60.08s) | step=30000 | loss=0.00026
-# evaluation: psnr_avg=33.305334663391115 (6.42 it/s)
-
-# "train" batch_over_images=True
-# elapsed_time=335.21s (data=68.99s) | step=30000 | loss=0.00028
-# evaluation: psnr_avg=33.74970862388611 (6.23 it/s)
-
-# "train" batch_over_images=True, schedule
-# elapsed_time=296.30s (data=54.38s) | step=30000 | loss=0.00022
-# evaluation: psnr_avg=34.3978275680542 (6.22 it/s)
-
-# "trainval"
-# elapsed_time=289.94s (data=51.99s) | step=30000 | loss=0.00021
-# evaluation: psnr_avg=34.44980221748352 (6.61 it/s)
-
-# "trainval" batch_over_images=True, schedule
-# elapsed_time=291.42s (data=52.82s) | step=30000 | loss=0.00020
-# evaluation: psnr_avg=35.41630497932434 (6.40 it/s)
-
-
-# "trainval" batch_over_images=True, schedule 2**18
-# evaluation: psnr_avg=36.24 (6.75 it/s)

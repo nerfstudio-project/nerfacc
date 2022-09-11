@@ -187,9 +187,7 @@ class SubjectLoader(torch.utils.data.Dataset):
         camera_dirs = F.pad(
             torch.stack(
                 [
-                    (x - self.K[0, 2] + 0.5)
-                    / self.K[0, 0]
-                    * (-1.0 if self.OPENGL_CAMERA else 1.0),
+                    (x - self.K[0, 2] + 0.5) / self.K[0, 0],
                     (y - self.K[1, 2] + 0.5)
                     / self.K[1, 1]
                     * (-1.0 if self.OPENGL_CAMERA else 1.0),
@@ -197,7 +195,7 @@ class SubjectLoader(torch.utils.data.Dataset):
                 dim=-1,
             ),
             (0, 1),
-            value=1,
+            value=(-1.0 if self.OPENGL_CAMERA else 1.0),
         )  # [num_rays, 3]
 
         # [n_cams, height, width, 3]

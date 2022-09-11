@@ -14,7 +14,8 @@ inline __device__ int cascaded_grid_idx_at(
     ix = __clamp(ix, 0, resx-1);
     iy = __clamp(iy, 0, resy-1);
     iz = __clamp(iz, 0, resz-1);
-    int idx = ix * resx * resy + iy * resz + iz;
+    int idx = ix * resy * resz + iy * resz + iz;
+    // printf("(ix, iy, iz) = (%d, %d, %d)\n", ix, iy, iz);
     return idx;
 }
 
@@ -89,102 +90,102 @@ __global__ void kernel_raymarching(
 ) {
     CUDA_GET_THREAD_ID(i, n_rays);
 
-    // // locate
-    // rays_o += i * 3;
-    // rays_d += i * 3;
-    // t_min += i;
-    // t_max += i;
+    // locate
+    rays_o += i * 3;
+    rays_d += i * 3;
+    t_min += i;
+    t_max += i;
 
-    // const float ox = rays_o[0], oy = rays_o[1], oz = rays_o[2];
-    // const float dx = rays_d[0], dy = rays_d[1], dz = rays_d[2];
-    // const float rdx = 1 / dx, rdy = 1 / dy, rdz = 1 / dz;
-    // const float near = t_min[0], far = t_max[0];
+    const float ox = rays_o[0], oy = rays_o[1], oz = rays_o[2];
+    const float dx = rays_d[0], dy = rays_d[1], dz = rays_d[2];
+    const float rdx = 1 / dx, rdy = 1 / dy, rdz = 1 / dz;
+    const float near = t_min[0], far = t_max[0];
 
-    // uint32_t ray_idx, base, marching_samples;
-    // uint32_t j;
-    // float t0, t1, t_mid;
+    uint32_t ray_idx, base, marching_samples;
+    uint32_t j;
+    float t0, t1, t_mid;
 
-    // // first pass to compute an accurate number of steps
-    // j = 0;
-    // t0 = near;  // TODO(ruilongli): perturb `near` as in ngp_pl?
-    // t1 = t0 + dt;
-    // t_mid = (t0 + t1) * 0.5f;
+    // first pass to compute an accurate number of steps
+    j = 0;
+    t0 = near;  // TODO(ruilongli): perturb `near` as in ngp_pl?
+    t1 = t0 + dt;
+    t_mid = (t0 + t1) * 0.5f;
 
-    // while (t_mid < far && j < max_per_ray_samples) {
-    //     // current center
-    //     const float x = ox + t_mid * dx;
-    //     const float y = oy + t_mid * dy;
-    //     const float z = oz + t_mid * dz;
+    while (t_mid < far && j < max_per_ray_samples) {
+        // current center
+        const float x = ox + t_mid * dx;
+        const float y = oy + t_mid * dy;
+        const float z = oz + t_mid * dz;
         
-    //     if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary)) {
-    //         ++j;
-    //         // march to next sample
-    //         t0 = t1;
-    //         t1 = t0 + dt;
-    //         t_mid = (t0 + t1) * 0.5f;
-    //     }
-    //     else {
-    //         // march to next sample
-    //         t_mid = advance_to_next_voxel(
-    //             t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt
-    //         );
-    //         t0 = t_mid - dt * 0.5f;
-    //         t1 = t_mid + dt * 0.5f;
-    //     }
-    // }
-    // if (j == 0) return;
+        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary)) {
+            ++j;
+            // march to next sample
+            t0 = t1;
+            t1 = t0 + dt;
+            t_mid = (t0 + t1) * 0.5f;
+        }
+        else {
+            // march to next sample
+            t_mid = advance_to_next_voxel(
+                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt
+            );
+            t0 = t_mid - dt * 0.5f;
+            t1 = t_mid + dt * 0.5f;
+        }
+    }
+    if (j == 0) return;
 
-    // marching_samples = j;
-    // base = atomicAdd(steps_counter, marching_samples);
-    // if (base + marching_samples > max_total_samples) return;
-    // ray_idx = atomicAdd(rays_counter, 1);
+    marching_samples = j;
+    base = atomicAdd(steps_counter, marching_samples);
+    if (base + marching_samples > max_total_samples) return;
+    ray_idx = atomicAdd(rays_counter, 1);
 
-    // // locate
-    // frustum_origins += base * 3;
-    // frustum_dirs += base * 3;
-    // frustum_starts += base;
-    // frustum_ends += base;
+    // locate
+    frustum_origins += base * 3;
+    frustum_dirs += base * 3;
+    frustum_starts += base;
+    frustum_ends += base;
 
-    // // Second round
-    // j = 0;
-    // t0 = near;
-    // t1 = t0 + dt;
-    // t_mid = (t0 + t1) / 2.;
+    // Second round
+    j = 0;
+    t0 = near;
+    t1 = t0 + dt;
+    t_mid = (t0 + t1) / 2.;
 
-    // while (t_mid < far && j < marching_samples) {
-    //     // current center
-    //     const float x = ox + t_mid * dx;
-    //     const float y = oy + t_mid * dy;
-    //     const float z = oz + t_mid * dz;
+    while (t_mid < far && j < marching_samples) {
+        // current center
+        const float x = ox + t_mid * dx;
+        const float y = oy + t_mid * dy;
+        const float z = oz + t_mid * dz;
         
-    //     if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary)) {
-    //         frustum_origins[j * 3 + 0] = ox;
-    //         frustum_origins[j * 3 + 1] = oy;
-    //         frustum_origins[j * 3 + 2] = oz;
-    //         frustum_dirs[j * 3 + 0] = dx;
-    //         frustum_dirs[j * 3 + 1] = dy;
-    //         frustum_dirs[j * 3 + 2] = dz;
-    //         frustum_starts[j] = t0;   
-    //         frustum_ends[j] = t1;     
-    //         ++j;
-    //         // march to next sample
-    //         t0 = t1;
-    //         t1 = t0 + dt;
-    //         t_mid = (t0 + t1) * 0.5f;
-    //     }
-    //     else {
-    //         // march to next sample
-    //         t_mid = advance_to_next_voxel(
-    //             t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt
-    //         );
-    //         t0 = t_mid - dt * 0.5f;
-    //         t1 = t_mid + dt * 0.5f;
-	// 	}
-	// }
+        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary)) {
+            frustum_origins[j * 3 + 0] = ox;
+            frustum_origins[j * 3 + 1] = oy;
+            frustum_origins[j * 3 + 2] = oz;
+            frustum_dirs[j * 3 + 0] = dx;
+            frustum_dirs[j * 3 + 1] = dy;
+            frustum_dirs[j * 3 + 2] = dz;
+            frustum_starts[j] = t0;   
+            frustum_ends[j] = t1;     
+            ++j;
+            // march to next sample
+            t0 = t1;
+            t1 = t0 + dt;
+            t_mid = (t0 + t1) * 0.5f;
+        }
+        else {
+            // march to next sample
+            t_mid = advance_to_next_voxel(
+                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt
+            );
+            t0 = t_mid - dt * 0.5f;
+            t1 = t_mid + dt * 0.5f;
+		}
+	}
 
-    // packed_info[ray_idx * 3 + 0] = i;  // ray idx in {rays_o, rays_d}
-    // packed_info[ray_idx * 3 + 1] = base;  // point idx start.
-    // packed_info[ray_idx * 3 + 2] = j;  // point idx shift (actual marching samples).
+    packed_info[ray_idx * 3 + 0] = i;  // ray idx in {rays_o, rays_d}
+    packed_info[ray_idx * 3 + 1] = base;  // point idx start.
+    packed_info[ray_idx * 3 + 2] = j;  // point idx shift (actual marching samples).
 
     return;
 }
@@ -233,62 +234,61 @@ std::vector<torch::Tensor> ray_marching(
     const int max_per_ray_samples,
     const float dt
 ) {
-    // DEVICE_GUARD(rays_o);
+    DEVICE_GUARD(rays_o);
 
-    // CHECK_INPUT(rays_o);
-    // CHECK_INPUT(rays_d);
-    // CHECK_INPUT(t_min);
-    // CHECK_INPUT(t_max);
-    // CHECK_INPUT(aabb);
-    // CHECK_INPUT(occ_binary);
+    CHECK_INPUT(rays_o);
+    CHECK_INPUT(rays_d);
+    CHECK_INPUT(t_min);
+    CHECK_INPUT(t_max);
+    CHECK_INPUT(aabb);
+    CHECK_INPUT(occ_binary);
     
-    // const int n_rays = rays_o.size(0);
+    const int n_rays = rays_o.size(0);
 
-    // // const int threads = 256;
-    // // const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
+    const int threads = 256;
+    const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    // // helper counter
-    // torch::Tensor steps_counter = torch::zeros(
-    //     {1}, rays_o.options().dtype(torch::kInt32));
-    // torch::Tensor rays_counter = torch::zeros(
-    //     {1}, rays_o.options().dtype(torch::kInt32));
+    // helper counter
+    torch::Tensor steps_counter = torch::zeros(
+        {1}, rays_o.options().dtype(torch::kInt32));
+    torch::Tensor rays_counter = torch::zeros(
+        {1}, rays_o.options().dtype(torch::kInt32));
 
-    // // output frustum samples
-    // torch::Tensor packed_info = torch::zeros(
-    //     {n_rays, 3}, rays_o.options().dtype(torch::kInt32));  // ray_id, sample_id, num_samples
-    // torch::Tensor frustum_origins = torch::zeros({max_total_samples, 3}, rays_o.options());
-    // torch::Tensor frustum_dirs = torch::zeros({max_total_samples, 3}, rays_o.options());
-    // torch::Tensor frustum_starts = torch::zeros({max_total_samples, 1}, rays_o.options());
-    // torch::Tensor frustum_ends = torch::zeros({max_total_samples, 1}, rays_o.options());
+    // output frustum samples
+    torch::Tensor packed_info = torch::zeros(
+        {n_rays, 3}, rays_o.options().dtype(torch::kInt32));  // ray_id, sample_id, num_samples
+    torch::Tensor frustum_origins = torch::zeros({max_total_samples, 3}, rays_o.options());
+    torch::Tensor frustum_dirs = torch::zeros({max_total_samples, 3}, rays_o.options());
+    torch::Tensor frustum_starts = torch::zeros({max_total_samples, 1}, rays_o.options());
+    torch::Tensor frustum_ends = torch::zeros({max_total_samples, 1}, rays_o.options());
 
-    // kernel_raymarching<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
-    //     // rays
-    //     n_rays,
-    //     rays_o.data_ptr<float>(),
-    //     rays_d.data_ptr<float>(),
-    //     t_min.data_ptr<float>(),
-    //     t_max.data_ptr<float>(),
-    //     // density grid
-    //     aabb.data_ptr<float>(),
-    //     resolution[0].cast<int>(),
-    //     resolution[1].cast<int>(),
-    //     resolution[2].cast<int>(),
-    //     occ_binary.data_ptr<bool>(),
-    //     // sampling
-    //     max_total_samples,
-    //     max_per_ray_samples,
-    //     dt,
-    //     // writable helpers
-    //     steps_counter.data_ptr<int>(),  // total samples.
-    //     rays_counter.data_ptr<int>(),  // total rays.
-    //     packed_info.data_ptr<int>(), 
-    //     frustum_origins.data_ptr<float>(),
-    //     frustum_dirs.data_ptr<float>(), 
-    //     frustum_starts.data_ptr<float>(),
-    //     frustum_ends.data_ptr<float>()
-    // ); 
+    kernel_raymarching<<<blocks, threads>>>(
+        // rays
+        n_rays,
+        rays_o.data_ptr<float>(),
+        rays_d.data_ptr<float>(),
+        t_min.data_ptr<float>(),
+        t_max.data_ptr<float>(),
+        // density grid
+        aabb.data_ptr<float>(),
+        resolution[0].cast<int>(),
+        resolution[1].cast<int>(),
+        resolution[2].cast<int>(),
+        occ_binary.data_ptr<bool>(),
+        // sampling
+        max_total_samples,
+        max_per_ray_samples,
+        dt,
+        // writable helpers
+        steps_counter.data_ptr<int>(),  // total samples.
+        rays_counter.data_ptr<int>(),  // total rays.
+        packed_info.data_ptr<int>(), 
+        frustum_origins.data_ptr<float>(),
+        frustum_dirs.data_ptr<float>(), 
+        frustum_starts.data_ptr<float>(),
+        frustum_ends.data_ptr<float>()
+    ); 
 
-    // return {packed_info, frustum_origins, frustum_dirs, frustum_starts, frustum_ends, steps_counter};
-    return {};
+    return {packed_info, frustum_origins, frustum_dirs, frustum_starts, frustum_ends, steps_counter};
 }
 

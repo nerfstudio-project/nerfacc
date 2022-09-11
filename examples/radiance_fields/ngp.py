@@ -98,7 +98,6 @@ class NGPradianceField(BaseRadianceField):
             },
         )
 
-    @torch.cuda.amp.autocast()
     def query_density(self, x, return_feat: bool = False):
         bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
         x = (x - bb_min) / (bb_max - bb_min)
@@ -119,7 +118,6 @@ class NGPradianceField(BaseRadianceField):
         else:
             return density
 
-    @torch.cuda.amp.autocast()
     def _query_rgb(self, dir, embedding):
         # tcnn requires directions in the range [0, 1]
         if self.use_viewdirs:
@@ -131,7 +129,6 @@ class NGPradianceField(BaseRadianceField):
         rgb = self.mlp_head(h).view(list(embedding.shape[:-1]) + [3]).to(embedding)
         return rgb
 
-    @torch.cuda.amp.autocast()
     def forward(
         self,
         positions: torch.Tensor,

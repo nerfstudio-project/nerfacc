@@ -10,6 +10,12 @@ python examples/trainval.py
 
 ## Performance Reference
 
+| trainval (35k, 1<<16) | Lego | Mic | Materials ｜
+| - | - | - | - ｜
+| Time | 377s | 357s ｜ 354s |
+| PSNR | 36.08 | 36.58 ｜ 29.63 |
+
+
 Tested with the default settings on the Lego test set.
 
 | Model | Split | PSNR | Train Time | Test Speed | GPU | Train Memory |
