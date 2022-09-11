@@ -14,7 +14,7 @@ python examples/trainval.py
 | - | - | - | - ｜
 | Time | 377s | 357s ｜ 354s |
 | PSNR | 36.08 | 36.58 ｜ 29.63 |
-
+35.37?
 
 Tested with the default settings on the Lego test set.
 
@@ -23,10 +23,7 @@ Tested with the default settings on the Lego test set.
 | instant-ngp (paper)            | trainval?            | 36.39  |  -   | -    | 3090    |
 | instant-ngp (code)             | train (35k steps)    | 36.08  |  308 sec  | 55.32 fps  | TITAN RTX  |  1734MB |
 | torch-ngp (`-O`)               | train (30K steps)    | 34.15  |  310 sec  | 7.8 fps    | V100 |
-| ours                           | train (30K steps)    | 34.40  |  296 sec  | 6.2 fps    | TITAN RTX  |
-| ours                           | trainval (30K steps) | 35.42  |  291 sec  | 6.4 fps    | TITAN RTX  |
-| ours (2**16 samples w preload) | trainval (35K steps) | 36.18  |  385 sec  | 8.3 fps    | TITAN RTX  |
-| ours (2**16 samples w preload) | train (35K steps) | 35.03  |  383 sec  | 8.0 fps    | TITAN RTX  |
+| ours                           | trainval (35K steps) | 36.08  |  343 sec  | 9.6 fps    | TITAN RTX  |
 
 ## Tips:
 

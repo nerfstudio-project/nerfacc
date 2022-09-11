@@ -7,6 +7,7 @@ ray_aabb_intersect = _C.ray_aabb_intersect
 ray_marching = _C.ray_marching
 volumetric_rendering_forward = _C.volumetric_rendering_forward
 volumetric_rendering_backward = _C.volumetric_rendering_backward
+volumetric_rendering_inference = _C.volumetric_rendering_inference
 
 
 class VolumeRenderer(torch.autograd.Function):

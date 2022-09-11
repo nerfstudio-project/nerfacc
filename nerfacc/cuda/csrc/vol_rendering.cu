@@ -2,6 +2,58 @@
 
 
 template <typename scalar_t>
+__global__ void volumetric_rendering_inference_kernel(
+    const uint32_t n_rays,
+    const int* packed_info,  // input ray & point indices.
+    const scalar_t* starts,  // input start t
+    const scalar_t* ends,  // input end t
+    const scalar_t* sigmas,  // input density after activation
+    int* compact_packed_info,  // output: should be all zero initialized
+    int* compact_selector,  // output: should be all zero initialized
+    // writable helpers
+    int* steps_counter
+) {
+    CUDA_GET_THREAD_ID(thread_id, n_rays);
+
+    // locate
+    const int i = packed_info[thread_id * 3 + 0];  // ray idx in {rays_o, rays_d}
+    const int base = packed_info[thread_id * 3 + 1];  // point idx start.
+    const int numsteps = packed_info[thread_id * 3 + 2];  // point idx shift.
+    if (numsteps == 0) return;
+
+    starts += base;
+    ends += base;
+    sigmas += base;
+
+    // accumulated rendering
+    scalar_t T = 1.f;
+    scalar_t EPSILON = 1e-4f;
+    int j = 0;
+    for (; j < numsteps; ++j) {
+        if (T < EPSILON) {
+            break;
+        }
+        const scalar_t delta = ends[j] - starts[j];
+        const scalar_t alpha = 1.f - __expf(-sigmas[j] * delta);
+        const scalar_t weight = alpha * T;
+        T *= (1.f - alpha);
+    }
+    
+    int compact_base = atomicAdd(steps_counter, j);
+
+    compact_selector += compact_base;
+    for (int k = 0; k < j; ++k) {
+        compact_selector[k] = base + k;
+    }
+
+    compact_packed_info += thread_id * 3;
+    compact_packed_info[0] = i; // ray idx in {rays_o, rays_d}
+    compact_packed_info[1] = compact_base; // compact point idx start.
+    compact_packed_info[2] = j;  // compact point idx shift.
+}
+
+
+template <typename scalar_t>
 __global__ void volumetric_rendering_forward_kernel(
     const uint32_t n_rays,
     const int* packed_info,  // input ray & point indices.
@@ -136,6 +188,57 @@ __global__ void volumetric_rendering_backward_kernel(
         );
     }
 }
+
+
+std::vector<torch::Tensor> volumetric_rendering_inference(
+    torch::Tensor packed_info, 
+    torch::Tensor starts, 
+    torch::Tensor ends, 
+    torch::Tensor sigmas
+) {
+    DEVICE_GUARD(packed_info);
+    CHECK_INPUT(packed_info);
+    CHECK_INPUT(starts);
+    CHECK_INPUT(ends);
+    CHECK_INPUT(sigmas);
+    TORCH_CHECK(packed_info.ndimension() == 2 & packed_info.size(1) == 3);
+    TORCH_CHECK(starts.ndimension() == 2 & starts.size(1) == 1);
+    TORCH_CHECK(ends.ndimension() == 2 & ends.size(1) == 1);
+    TORCH_CHECK(sigmas.ndimension() == 2 & sigmas.size(1) == 1);
+
+    const uint32_t n_rays = packed_info.size(0);
+    const uint32_t n_samples = sigmas.size(0);
+
+    const int threads = 256;
+    const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
+
+    // helper counter
+    torch::Tensor steps_counter = torch::zeros(
+        {1}, packed_info.options().dtype(torch::kInt32));
+
+    // outputs
+    torch::Tensor compact_packed_info = torch::zeros({n_rays, 3}, packed_info.options()); 
+    torch::Tensor compact_selector = - torch::ones({n_samples}, packed_info.options()); 
+
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+        sigmas.scalar_type(),
+        "volumetric_rendering_inference",
+        ([&]
+         { volumetric_rendering_inference_kernel<scalar_t><<<blocks, threads>>>(
+                n_rays,
+                packed_info.data_ptr<int>(), 
+                starts.data_ptr<scalar_t>(),
+                ends.data_ptr<scalar_t>(),
+                sigmas.data_ptr<scalar_t>(),
+                compact_packed_info.data_ptr<int>(),
+                compact_selector.data_ptr<int>(),
+                steps_counter.data_ptr<int>()
+            ); 
+        }));
+
+    return {compact_packed_info, compact_selector, steps_counter};
+}
+
 
 /**
  * @brief Volumetric Rendering: Accumulating samples in the forward pass.

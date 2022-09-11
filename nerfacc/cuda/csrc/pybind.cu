@@ -24,6 +24,13 @@ std::vector<torch::Tensor> ray_marching(
     const float dt
 );
 
+std::vector<torch::Tensor> volumetric_rendering_inference(
+    torch::Tensor packed_info, 
+    torch::Tensor starts, 
+    torch::Tensor ends, 
+    torch::Tensor sigmas
+);
+
 std::vector<torch::Tensor> volumetric_rendering_forward(
     torch::Tensor packed_info, 
     torch::Tensor starts, 
@@ -51,6 +58,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
     m.def("ray_marching", &ray_marching);
+    m.def("volumetric_rendering_inference", &volumetric_rendering_inference);
     m.def("volumetric_rendering_forward", &volumetric_rendering_forward);
     m.def("volumetric_rendering_backward", &volumetric_rendering_backward);
 }

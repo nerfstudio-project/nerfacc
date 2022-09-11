@@ -58,8 +58,15 @@ class NGPradianceField(BaseRadianceField):
             self.direction_encoding = tcnn.Encoding(
                 n_input_dims=num_dim,
                 encoding_config={
-                    "otype": "SphericalHarmonics",
-                    "degree": 4,
+                    "otype": "Composite",
+                    "nested": [
+                        {
+                            "n_dims_to_encode": 3,
+                            "otype": "SphericalHarmonics",
+                            "degree": 4,
+                        },
+                        # {"otype": "Identity", "n_bins": 4, "degree": 4},
+                    ],
                 },
             )
 
@@ -134,6 +141,7 @@ class NGPradianceField(BaseRadianceField):
         positions: torch.Tensor,
         directions: torch.Tensor = None,
         mask: torch.Tensor = None,
+        only_density: bool = False,
     ):
         if self.use_viewdirs and (directions is not None):
             assert (
@@ -143,12 +151,18 @@ class NGPradianceField(BaseRadianceField):
             density = torch.zeros_like(positions[..., :1])
             rgb = torch.zeros(list(positions.shape[:-1]) + [3], device=positions.device)
             density[mask], embedding = self.query_density(positions[mask])
+            if only_density:
+                return density
+
             rgb[mask] = self.query_rgb(
                 directions[mask] if directions is not None else None,
                 embedding=embedding,
             )
         else:
             density, embedding = self.query_density(positions, return_feat=True)
+            if only_density:
+                return density
+
             rgb = self._query_rgb(directions, embedding=embedding)
 
         return rgb, density

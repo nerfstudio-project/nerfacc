@@ -12,6 +12,27 @@ from nerfacc import OccupancyField, volumetric_rendering
 
 TARGET_SAMPLE_BATCH_SIZE = 1 << 16
 
+# import tqdm
+
+# device = "cuda:0"
+# radiance_field = NGPradianceField(aabb=[0, 0, 0, 1, 1, 1]).to(device)
+# positions = torch.rand((TARGET_SAMPLE_BATCH_SIZE, 3), device=device)
+# directions = torch.rand(positions.shape, device=device)
+# optimizer = torch.optim.Adam(
+#     radiance_field.parameters(),
+#     lr=1e-10,
+#     # betas=(0.9, 0.99),
+#     eps=1e-15,
+#     # weight_decay=1e-6,
+# )
+# for _ in tqdm.tqdm(range(1000)):
+#     rgbs, sigmas = radiance_field(positions, directions)
+#     loss = rgbs.mean()
+#     optimizer.zero_grad()
+#     loss.backward()
+#     optimizer.step()
+# exit()
+
 
 def render_image(radiance_field, rays, render_bkgd, render_step_size):
     """Render the pixels of an image.
