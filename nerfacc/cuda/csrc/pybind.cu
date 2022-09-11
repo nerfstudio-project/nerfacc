@@ -53,6 +53,22 @@ std::vector<torch::Tensor> volumetric_rendering_backward(
     torch::Tensor rgbs
 );
 
+std::vector<torch::Tensor> compute_weights_forward(
+    torch::Tensor packed_info, 
+    torch::Tensor starts, 
+    torch::Tensor ends, 
+    torch::Tensor sigmas
+);
+
+torch::Tensor compute_weights_backward(
+    torch::Tensor weights, 
+    torch::Tensor grad_weights, 
+    torch::Tensor packed_info, 
+    torch::Tensor starts, 
+    torch::Tensor ends, 
+    torch::Tensor sigmas
+);
+
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
@@ -61,4 +77,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("volumetric_rendering_inference", &volumetric_rendering_inference);
     m.def("volumetric_rendering_forward", &volumetric_rendering_forward);
     m.def("volumetric_rendering_backward", &volumetric_rendering_backward);
+    m.def("compute_weights_forward", &compute_weights_forward);
+    m.def("compute_weights_backward", &compute_weights_backward);
 }

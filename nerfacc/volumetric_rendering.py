@@ -4,6 +4,7 @@ from typing import Callable, Tuple
 import torch
 
 from .cuda import (
+    ComputeWeight,
     VolumeRenderer,
     ray_aabb_intersect,
     ray_marching,
@@ -114,18 +115,47 @@ def volumetric_rendering(
     )
     compact_rgbs, compact_densities = compact_query_results[0], compact_query_results[1]
 
-    (
-        accumulated_weight,
-        accumulated_depth,
-        accumulated_color,
-        alive_ray_mask,
-        compact_steps_counter,
-    ) = VolumeRenderer.apply(
+    # (
+    #     accumulated_weight,
+    #     accumulated_depth,
+    #     accumulated_color,
+    #     alive_ray_mask,
+    #     compact_steps_counter,
+    # ) = VolumeRenderer.apply(
+    #     compact_packed_info.contiguous(),
+    #     compact_frustum_starts.contiguous(),
+    #     compact_frustum_ends.contiguous(),
+    #     compact_densities.contiguous(),
+    #     compact_rgbs.contiguous(),
+    # )
+
+    compact_weights, compact_ray_indices, alive_ray_mask = ComputeWeight.apply(
         compact_packed_info.contiguous(),
         compact_frustum_starts.contiguous(),
         compact_frustum_ends.contiguous(),
         compact_densities.contiguous(),
-        compact_rgbs.contiguous(),
+    )
+    index = compact_ray_indices[:, None].long()
+
+    accumulated_color = torch.zeros((n_rays, 3), device=device)
+    accumulated_color.scatter_add_(
+        dim=0,
+        index=index.expand(-1, 3),
+        src=compact_weights[:, None] * compact_rgbs,
+    )
+    accumulated_weight = torch.zeros((n_rays, 1), device=device)
+    accumulated_weight.scatter_add_(
+        dim=0,
+        index=index.expand(-1, 1),
+        src=compact_weights[:, None],
+    )
+    accumulated_depth = torch.zeros((n_rays, 1), device=device)
+    accumulated_depth.scatter_add_(
+        dim=0,
+        index=index.expand(-1, 1),
+        src=compact_weights[:, None]
+        * (compact_frustum_starts + compact_frustum_ends)
+        / 2.0,
     )
 
     # query_results = query_fn(frustum_positions, frustum_dirs, **kwargs)
