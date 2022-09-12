@@ -55,9 +55,6 @@ def render_image(radiance_field, rays, render_bkgd, render_step_size):
         num_rays, _ = rays_shape
     results = []
     chunk = torch.iinfo(torch.int32).max if radiance_field.training else 81920
-    render_est_n_samples = (
-        TARGET_SAMPLE_BATCH_SIZE * 16 if radiance_field.training else None
-    )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
         chunk_results = volumetric_rendering(
@@ -68,8 +65,6 @@ def render_image(radiance_field, rays, render_bkgd, render_step_size):
             scene_occ_binary=occ_field.occ_grid_binary,
             scene_resolution=occ_field.resolution,
             render_bkgd=render_bkgd,
-            render_n_samples=render_n_samples,
-            render_est_n_samples=render_est_n_samples,  # memory control: wrost case
             render_step_size=render_step_size,
         )
         results.append(chunk_results)

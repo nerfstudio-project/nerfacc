@@ -1,4 +1,3 @@
-import math
 from typing import Callable, Tuple
 
 import torch
@@ -18,29 +17,11 @@ def volumetric_rendering(
     scene_aabb: torch.Tensor,
     scene_occ_binary: torch.Tensor,
     scene_resolution: Tuple[int, int, int],
-    render_bkgd: torch.Tensor = None,
-    render_n_samples: int = 1024,
-    render_est_n_samples: int = None,
-    render_step_size: int = None,
-    **kwargs,
+    render_bkgd: torch.Tensor,
+    render_step_size: int,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """A *fast* version of differentiable volumetric rendering."""
-    device = rays_o.device
-    if render_bkgd is None:
-        render_bkgd = torch.ones(3, device=device)
-
-    rays_o = rays_o.contiguous()
-    rays_d = rays_d.contiguous()
-    scene_aabb = scene_aabb.contiguous()
-    scene_occ_binary = scene_occ_binary.contiguous()
-    render_bkgd = render_bkgd.contiguous()
-
     n_rays = rays_o.shape[0]
-    if render_step_size is None:
-        # Note: CPU<->GPU is not idea, try to pre-define it outside this function.
-        render_step_size = (
-            (scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples
-        )
 
     # get packed samples from ray marching & occupancy check.
     with torch.no_grad():
@@ -56,7 +37,8 @@ def volumetric_rendering(
             rays_d,
             # density grid
             aabb=scene_aabb,
-            scene_occ_binary=scene_occ_binary.reshape(scene_resolution),
+            scene_resolution=scene_resolution,
+            scene_occ_binary=scene_occ_binary,
             # sampling
             render_step_size=render_step_size,
         )
@@ -67,9 +49,7 @@ def volumetric_rendering(
 
     # compat the samples thru volumetric rendering
     with torch.no_grad():
-        densities = query_fn(
-            frustum_positions, frustum_dirs, only_density=True, **kwargs
-        )
+        densities = query_fn(frustum_positions, frustum_dirs, only_density=True)
         (
             compact_packed_info,
             compact_frustum_starts,
@@ -84,18 +64,10 @@ def volumetric_rendering(
             frustum_positions,
             frustum_dirs,
         )
-        # compact_frustum_positions = (
-        #     compact_frustum_origins
-        #     + compact_frustum_dirs
-        #     * (compact_frustum_starts + compact_frustum_ends)
-        #     / 2.0
-        # )
         compact_steps_counter = compact_packed_info[:, -1].sum(0, keepdim=True)
 
     # network
-    compact_query_results = query_fn(
-        compact_frustum_positions, compact_frustum_dirs, **kwargs
-    )
+    compact_query_results = query_fn(compact_frustum_positions, compact_frustum_dirs)
     compact_rgbs, compact_densities = compact_query_results[0], compact_query_results[1]
 
     # accumulation

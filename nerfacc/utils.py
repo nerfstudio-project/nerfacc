@@ -38,6 +38,7 @@ def volumetric_marching(
     rays_o: torch.Tensor,
     rays_d: torch.Tensor,
     aabb: torch.Tensor,
+    scene_resolution: Tuple[int, int, int],
     scene_occ_binary: torch.Tensor,
     t_min: torch.Tensor = None,
     t_max: torch.Tensor = None,
@@ -52,8 +53,9 @@ def volumetric_marching(
         rays_d: Normalized ray directions. Tensor with shape (n_rays, 3).
         aabb: Scene bounding box {xmin, ymin, zmin, xmax, ymax, zmax}.
             Tensor with shape (6)
+        scene_resolution: Shape of the `scene_occ_binary`. {resx, resy, resz}.
         scene_occ_binary: Scene occupancy binary field. BoolTensor with shape
-            (resx, resy, resz)
+            (resx * resy * resz)
         t_min: Optional. Ray near planes. Tensor with shape (n_ray,).
             If not given it will be calculated using aabb test. Default is None.
         t_max: Optional. Ray far planes. Tensor with shape (n_ray,)
@@ -74,7 +76,10 @@ def volumetric_marching(
         raise NotImplementedError("Only support cuda inputs.")
     if t_min is None or t_max is None:
         t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabb)
-    assert scene_occ_binary.dim() == 3, f"Shape {scene_occ_binary.shape} is not right!"
+    assert (
+        scene_occ_binary.numel()
+        == scene_resolution[0] * scene_resolution[1] * scene_resolution[2]
+    ), f"Shape {scene_occ_binary.shape} is not right!"
 
     (
         packed_info,
@@ -90,7 +95,7 @@ def volumetric_marching(
         t_max.contiguous(),
         # density grid
         aabb.contiguous(),
-        list(scene_occ_binary.shape),
+        scene_resolution,
         scene_occ_binary.contiguous(),
         # sampling
         render_step_size,
