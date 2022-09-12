@@ -73,14 +73,13 @@ def render_image(radiance_field, rays, render_bkgd, render_step_size):
             render_step_size=render_step_size,
         )
         results.append(chunk_results)
-    rgb, depth, acc, alive_ray_mask, counter, compact_counter = [
+    rgb, depth, acc, counter, compact_counter = [
         torch.cat(r, dim=0) for r in zip(*results)
     ]
     return (
         rgb.view((*rays_shape[:-1], -1)),
         depth.view((*rays_shape[:-1], -1)),
         acc.view((*rays_shape[:-1], -1)),
-        alive_ray_mask.view(*rays_shape[:-1]),
         counter.sum(),
         compact_counter.sum(),
     )
@@ -192,7 +191,7 @@ if __name__ == "__main__":
             # update occupancy grid
             occ_field.every_n_step(step)
 
-            rgb, depth, acc, alive_ray_mask, counter, compact_counter = render_image(
+            rgb, depth, acc, counter, compact_counter = render_image(
                 radiance_field, rays, render_bkgd, render_step_size
             )
             num_rays = len(pixels)
@@ -200,6 +199,7 @@ if __name__ == "__main__":
                 num_rays * (TARGET_SAMPLE_BATCH_SIZE / float(compact_counter.item()))
             )
             train_dataset.update_num_rays(num_rays)
+            alive_ray_mask = acc.squeeze(-1) > 0
 
             # compute loss
             loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
@@ -231,7 +231,7 @@ if __name__ == "__main__":
                         pixels = data["pixels"].to(device)
                         render_bkgd = data["color_bkgd"].to(device)
                         # rendering
-                        rgb, depth, acc, alive_ray_mask, _, _ = render_image(
+                        rgb, depth, acc, _, _ = render_image(
                             radiance_field, rays, render_bkgd, render_step_size
                         )
                         mse = F.mse_loss(rgb, pixels)

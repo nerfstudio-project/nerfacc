@@ -3,13 +3,10 @@ from typing import Callable, Tuple
 
 import torch
 
-from .cuda import (  # ComputeWeight,; VolumeRenderer,; ray_aabb_intersect,
-    volumetric_marching,
-    volumetric_rendering_steps,
-)
 from .utils import (
-    ray_aabb_intersect,
-    volumetric_accumulate,
+    volumetric_marching,
+    volumetric_rendering_accumulate,
+    volumetric_rendering_steps,
     volumetric_rendering_weights,
 )
 
@@ -47,8 +44,6 @@ def volumetric_rendering(
 
     # get packed samples from ray marching & occupancy check.
     with torch.no_grad():
-        t_min, t_max = ray_aabb_intersect(rays_o, rays_d, scene_aabb)
-
         (
             packed_info,
             frustum_origins,
@@ -59,16 +54,12 @@ def volumetric_rendering(
             # rays
             rays_o,
             rays_d,
-            t_min,
-            t_max,
             # density grid
-            scene_aabb,
-            scene_resolution,
-            scene_occ_binary,
+            aabb=scene_aabb,
+            scene_occ_binary=scene_occ_binary.reshape(scene_resolution),
             # sampling
-            render_step_size,
+            render_step_size=render_step_size,
         )
-
         frustum_positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
@@ -79,16 +70,26 @@ def volumetric_rendering(
         densities = query_fn(
             frustum_positions, frustum_dirs, only_density=True, **kwargs
         )
-        compact_packed_info, compact_selector = volumetric_rendering_steps(
-            packed_info.contiguous(),
-            frustum_starts.contiguous(),
-            frustum_ends.contiguous(),
-            densities.contiguous(),
+        (
+            compact_packed_info,
+            compact_frustum_starts,
+            compact_frustum_ends,
+            compact_frustum_positions,
+            compact_frustum_dirs,
+        ) = volumetric_rendering_steps(
+            packed_info,
+            densities,
+            frustum_starts,
+            frustum_ends,
+            frustum_positions,
+            frustum_dirs,
         )
-        compact_frustum_positions = frustum_positions[compact_selector]
-        compact_frustum_dirs = frustum_dirs[compact_selector]
-        compact_frustum_starts = frustum_starts[compact_selector]
-        compact_frustum_ends = frustum_ends[compact_selector]
+        # compact_frustum_positions = (
+        #     compact_frustum_origins
+        #     + compact_frustum_dirs
+        #     * (compact_frustum_starts + compact_frustum_ends)
+        #     / 2.0
+        # )
         compact_steps_counter = compact_packed_info[:, -1].sum(0, keepdim=True)
 
     # network
@@ -98,33 +99,31 @@ def volumetric_rendering(
     compact_rgbs, compact_densities = compact_query_results[0], compact_query_results[1]
 
     # accumulation
-    compact_weights, compact_ray_indices, alive_ray_mask = volumetric_rendering_weights(
+    compact_weights, compact_ray_indices = volumetric_rendering_weights(
         compact_packed_info,
+        compact_densities,
         compact_frustum_starts,
         compact_frustum_ends,
-        compact_densities,
     )
-    accumulated_color = volumetric_accumulate(
+    accumulated_color = volumetric_rendering_accumulate(
         compact_weights, compact_ray_indices, compact_rgbs, n_rays
     )
-    accumulated_weight = volumetric_accumulate(
+    accumulated_weight = volumetric_rendering_accumulate(
         compact_weights, compact_ray_indices, None, n_rays
     )
-    accumulated_depth = volumetric_accumulate(
+    accumulated_depth = volumetric_rendering_accumulate(
         compact_weights,
         compact_ray_indices,
         (compact_frustum_starts + compact_frustum_ends) / 2.0,
         n_rays,
     )
 
-    accumulated_depth = torch.clip(accumulated_depth, t_min[:, None], t_max[:, None])
     accumulated_color = accumulated_color + render_bkgd * (1.0 - accumulated_weight)
 
     return (
         accumulated_color,
         accumulated_depth,
         accumulated_weight,
-        alive_ray_mask,
         steps_counter,
         compact_steps_counter,
     )
