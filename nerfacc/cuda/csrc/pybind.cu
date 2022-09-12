@@ -30,7 +30,7 @@ torch::Tensor volumetric_rendering_weights_backward(
     torch::Tensor sigmas
 );
 
-std::vector<torch::Tensor> ray_marching(
+std::vector<torch::Tensor> volumetric_marching(
     // rays
     const torch::Tensor rays_o, 
     const torch::Tensor rays_d, 
@@ -47,7 +47,7 @@ std::vector<torch::Tensor> ray_marching(
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
-    m.def("ray_marching", &ray_marching);
+    m.def("volumetric_marching", &volumetric_marching);
     m.def("volumetric_rendering_steps", &volumetric_rendering_steps);
     m.def("volumetric_rendering_weights_forward", &volumetric_rendering_weights_forward);
     m.def("volumetric_rendering_weights_backward", &volumetric_rendering_weights_backward);

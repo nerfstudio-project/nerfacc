@@ -212,7 +212,7 @@ __global__ void marching_forward_kernel(
 }
 
 
-std::vector<torch::Tensor> ray_marching(
+std::vector<torch::Tensor> volumetric_marching(
     // rays
     const torch::Tensor rays_o, 
     const torch::Tensor rays_d, 

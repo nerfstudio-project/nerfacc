@@ -4,7 +4,7 @@ from typing import Callable, Tuple
 import torch
 
 from .cuda import (  # ComputeWeight,; VolumeRenderer,; ray_aabb_intersect,
-    ray_marching,
+    volumetric_marching,
     volumetric_rendering_steps,
 )
 from .utils import (
@@ -55,7 +55,7 @@ def volumetric_rendering(
             frustum_dirs,
             frustum_starts,
             frustum_ends,
-        ) = ray_marching(
+        ) = volumetric_marching(
             # rays
             rays_o,
             rays_d,
