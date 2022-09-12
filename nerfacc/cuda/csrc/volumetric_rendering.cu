@@ -45,7 +45,7 @@ __global__ void volumetric_rendering_steps_kernel(
 
 
 template <typename scalar_t>
-__global__ void volumetric_weights_forward_kernel(
+__global__ void volumetric_rendering_weights_forward_kernel(
     const uint32_t n_rays,
     const int* packed_info,  // input ray & point indices.
     const scalar_t* starts,  // input start t
@@ -92,7 +92,7 @@ __global__ void volumetric_weights_forward_kernel(
 
 
 template <typename scalar_t>
-__global__ void volumetric_weights_backward_kernel(
+__global__ void volumetric_rendering_weights_backward_kernel(
     const uint32_t n_rays,
     const int* packed_info,  // input ray & point indices.
     const scalar_t* starts,  // input start t
@@ -187,7 +187,7 @@ std::vector<torch::Tensor> volumetric_rendering_steps(
 }
 
 
-std::vector<torch::Tensor> volumetric_weights_forward(
+std::vector<torch::Tensor> volumetric_rendering_weights_forward(
     torch::Tensor packed_info, 
     torch::Tensor starts, 
     torch::Tensor ends, 
@@ -217,9 +217,9 @@ std::vector<torch::Tensor> volumetric_weights_forward(
 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(
         sigmas.scalar_type(),
-        "volumetric_weights_forward",
+        "volumetric_rendering_weights_forward",
         ([&]
-         { volumetric_weights_forward_kernel<scalar_t><<<blocks, threads>>>(
+         { volumetric_rendering_weights_forward_kernel<scalar_t><<<blocks, threads>>>(
                 n_rays,
                 packed_info.data_ptr<int>(), 
                 starts.data_ptr<scalar_t>(),
@@ -235,7 +235,7 @@ std::vector<torch::Tensor> volumetric_weights_forward(
 }
 
 
-torch::Tensor volumetric_weights_backward(
+torch::Tensor volumetric_rendering_weights_backward(
     torch::Tensor weights, 
     torch::Tensor grad_weights, 
     torch::Tensor packed_info, 
@@ -255,9 +255,9 @@ torch::Tensor volumetric_weights_backward(
 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(
         sigmas.scalar_type(),
-        "volumetric_weights_backward",
+        "volumetric_rendering_weights_backward",
         ([&]
-         { volumetric_weights_backward_kernel<scalar_t><<<blocks, threads>>>(
+         { volumetric_rendering_weights_backward_kernel<scalar_t><<<blocks, threads>>>(
                 n_rays,
                 packed_info.data_ptr<int>(), 
                 starts.data_ptr<scalar_t>(),

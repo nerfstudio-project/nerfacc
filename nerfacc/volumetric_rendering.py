@@ -7,7 +7,11 @@ from .cuda import (  # ComputeWeight,; VolumeRenderer,; ray_aabb_intersect,
     ray_marching,
     volumetric_rendering_steps,
 )
-from .utils import ray_aabb_intersect, volumetric_accumulate, volumetric_weights
+from .utils import (
+    ray_aabb_intersect,
+    volumetric_accumulate,
+    volumetric_rendering_weights,
+)
 
 
 def volumetric_rendering(
@@ -94,7 +98,7 @@ def volumetric_rendering(
     compact_rgbs, compact_densities = compact_query_results[0], compact_query_results[1]
 
     # accumulation
-    compact_weights, compact_ray_indices, alive_ray_mask = volumetric_weights(
+    compact_weights, compact_ray_indices, alive_ray_mask = volumetric_rendering_weights(
         compact_packed_info,
         compact_frustum_starts,
         compact_frustum_ends,

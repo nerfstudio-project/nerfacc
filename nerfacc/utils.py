@@ -32,7 +32,7 @@ def ray_aabb_intersect(
     return t_min, t_max
 
 
-def volumetric_weights(
+def volumetric_rendering_weights(
     packed_info: torch.Tensor,
     t_starts: torch.Tensor,
     t_ends: torch.Tensor,
@@ -64,7 +64,7 @@ def volumetric_weights(
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
-        weights, ray_indices, ray_alive_masks = _volumetric_weights.apply(
+        weights, ray_indices, ray_alive_masks = _volumetric_rendering_weights.apply(
             packed_info, t_starts, t_ends, sigmas
         )
     else:
@@ -120,14 +120,16 @@ def volumetric_accumulate(
     return outputs
 
 
-class _volumetric_weights(torch.autograd.Function):
+class _volumetric_rendering_weights(torch.autograd.Function):
     @staticmethod
     def forward(ctx, packed_info, t_starts, t_ends, sigmas):
         (
             weights,
             ray_indices,
             ray_alive_masks,
-        ) = _C.volumetric_weights_forward(packed_info, t_starts, t_ends, sigmas)
+        ) = _C.volumetric_rendering_weights_forward(
+            packed_info, t_starts, t_ends, sigmas
+        )
         ctx.save_for_backward(
             packed_info,
             t_starts,
@@ -146,7 +148,7 @@ class _volumetric_weights(torch.autograd.Function):
             sigmas,
             weights,
         ) = ctx.saved_tensors
-        grad_sigmas = _C.volumetric_weights_backward(
+        grad_sigmas = _C.volumetric_rendering_weights_backward(
             weights,
             grad_weights,
             packed_info,

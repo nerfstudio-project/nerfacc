@@ -47,7 +47,7 @@ inline __host__ __device__ void _ray_aabb_intersect(
 
 
 template <typename scalar_t>
-__global__ void kernel_ray_aabb_intersect(
+__global__ void ray_aabb_intersect_kernel(
     const int N,
     const scalar_t* rays_o,
     const scalar_t* rays_d,
@@ -103,7 +103,7 @@ std::vector<torch::Tensor> ray_aabb_intersect(
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(
         rays_o.scalar_type(), "ray_aabb_intersect", 
         ([&] {
-            kernel_ray_aabb_intersect<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+            ray_aabb_intersect_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
                 N,
                 rays_o.data_ptr<scalar_t>(),
                 rays_d.data_ptr<scalar_t>(),

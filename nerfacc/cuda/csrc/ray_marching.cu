@@ -259,7 +259,7 @@ std::vector<torch::Tensor> ray_marching(
         occ_binary.data_ptr<bool>(),
         // sampling
         dt,
-        // writable helpers
+        // outputs
         num_steps.data_ptr<int>()
     ); 
 

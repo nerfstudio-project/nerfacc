@@ -14,14 +14,14 @@ std::vector<torch::Tensor> volumetric_rendering_steps(
     torch::Tensor sigmas
 );
 
-std::vector<torch::Tensor> volumetric_weights_forward(
+std::vector<torch::Tensor> volumetric_rendering_weights_forward(
     torch::Tensor packed_info, 
     torch::Tensor starts, 
     torch::Tensor ends, 
     torch::Tensor sigmas
 );
 
-torch::Tensor volumetric_weights_backward(
+torch::Tensor volumetric_rendering_weights_backward(
     torch::Tensor weights, 
     torch::Tensor grad_weights, 
     torch::Tensor packed_info, 
@@ -49,6 +49,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
     m.def("ray_marching", &ray_marching);
     m.def("volumetric_rendering_steps", &volumetric_rendering_steps);
-    m.def("volumetric_weights_forward", &volumetric_weights_forward);
-    m.def("volumetric_weights_backward", &volumetric_weights_backward);
+    m.def("volumetric_rendering_weights_forward", &volumetric_rendering_weights_forward);
+    m.def("volumetric_rendering_weights_backward", &volumetric_rendering_weights_backward);
 }
