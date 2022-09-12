@@ -78,7 +78,7 @@ def volumetric_accumulate(
     values: torch.Tensor = None,
     n_rays: int = None,
 ) -> torch.Tensor:
-    """Accumulate values along the ray.
+    """Accumulate volumetric values along the ray.
 
     Note: this function is only differentiable to `weights` and `values`.
 

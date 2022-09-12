@@ -61,7 +61,6 @@ inline __device__ float advance_to_next_voxel(
 }
 
 
-
 __global__ void marching_steps_kernel(
     // rays info
     const uint32_t n_rays,
