@@ -13,13 +13,12 @@ __global__ void volumetric_weights_forward_kernel(
     int* samples_ray_ids, // output
     bool* mask  // output
 ) {
-    CUDA_GET_THREAD_ID(thread_id, n_rays);
+    CUDA_GET_THREAD_ID(i, n_rays);
 
     // locate
-    const int i = packed_info[thread_id * 3 + 0];  // ray idx in {rays_o, rays_d}
-    const int base = packed_info[thread_id * 3 + 1];  // point idx start.
-    const int numsteps = packed_info[thread_id * 3 + 2];  // point idx shift.
-    if (numsteps == 0) return;
+    const int base = packed_info[i * 2 + 0];  // point idx start.
+    const int steps = packed_info[i * 2 + 1];  // point idx shift.
+    if (steps == 0) return;
 
     starts += base;
     ends += base;
@@ -28,14 +27,14 @@ __global__ void volumetric_weights_forward_kernel(
     samples_ray_ids += base;
     mask += i;
 
-    for (int j = 0; j < numsteps; ++j) {
+    for (int j = 0; j < steps; ++j) {
         samples_ray_ids[j] = i;
     }
 
     // accumulated rendering
     scalar_t T = 1.f;
     scalar_t EPSILON = 1e-4f;
-    for (int j = 0; j < numsteps; ++j) {
+    for (int j = 0; j < steps; ++j) {
         if (T < EPSILON) {
             break;
         }
@@ -60,13 +59,12 @@ __global__ void volumetric_weights_backward_kernel(
     const scalar_t* grad_weights,  // input
     scalar_t* grad_sigmas  // output
 ) {
-    CUDA_GET_THREAD_ID(thread_id, n_rays);
+    CUDA_GET_THREAD_ID(i, n_rays);
 
     // locate
-    // const int i = packed_info[thread_id * 3 + 0];  // ray idx in {rays_o, rays_d}
-    const int base = packed_info[thread_id * 3 + 1];  // point idx start.
-    const int numsteps = packed_info[thread_id * 3 + 2];  // point idx shift.
-    if (numsteps == 0) return;
+    const int base = packed_info[i * 2 + 0];  // point idx start.
+    const int steps = packed_info[i * 2 + 1];  // point idx shift.
+    if (steps == 0) return;
 
     starts += base;
     ends += base;
@@ -76,14 +74,14 @@ __global__ void volumetric_weights_backward_kernel(
     grad_sigmas += base;
 
     scalar_t accum = 0;
-    for (int j = 0; j < numsteps; ++j) {
+    for (int j = 0; j < steps; ++j) {
         accum += grad_weights[j] * weights[j];
     }
 
     // backward of accumulated rendering
     scalar_t T = 1.f;
     scalar_t EPSILON = 1e-4f;
-    for (int j = 0; j < numsteps; ++j) {
+    for (int j = 0; j < steps; ++j) {
         if (T < EPSILON) {
             break;
         }
@@ -108,7 +106,7 @@ std::vector<torch::Tensor> volumetric_weights_forward(
     CHECK_INPUT(starts);
     CHECK_INPUT(ends);
     CHECK_INPUT(sigmas);
-    TORCH_CHECK(packed_info.ndimension() == 2 & packed_info.size(1) == 3);
+    TORCH_CHECK(packed_info.ndimension() == 2 & packed_info.size(1) == 2);
     TORCH_CHECK(starts.ndimension() == 2 & starts.size(1) == 1);
     TORCH_CHECK(ends.ndimension() == 2 & ends.size(1) == 1);
     TORCH_CHECK(sigmas.ndimension() == 2 & sigmas.size(1) == 1);

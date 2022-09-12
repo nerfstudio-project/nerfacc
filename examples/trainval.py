@@ -90,14 +90,14 @@ if __name__ == "__main__":
     torch.manual_seed(42)
 
     device = "cuda:0"
-    scene = "lego"
+    scene = "materials"
 
     # setup dataset
     train_dataset = SubjectLoader(
         subject_id=scene,
         root_fp="/home/ruilongli/data/nerf_synthetic/",
         split="trainval",
-        num_rays=4096,
+        num_rays=1024,
     )
 
     train_dataset.images = train_dataset.images.to(device)

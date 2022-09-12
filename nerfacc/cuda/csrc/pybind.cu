@@ -8,21 +8,21 @@ std::vector<torch::Tensor> ray_aabb_intersect(
 );
 
 
-std::vector<torch::Tensor> ray_marching(
-    // rays
-    const torch::Tensor rays_o, 
-    const torch::Tensor rays_d, 
-    const torch::Tensor t_min, 
-    const torch::Tensor t_max,
-    // density grid
-    const torch::Tensor aabb,
-    const pybind11::list resolution,
-    const torch::Tensor occ_binary, 
-    // sampling
-    const int max_total_samples,
-    const int max_per_ray_samples,
-    const float dt
-);
+// std::vector<torch::Tensor> ray_marching(
+//     // rays
+//     const torch::Tensor rays_o, 
+//     const torch::Tensor rays_d, 
+//     const torch::Tensor t_min, 
+//     const torch::Tensor t_max,
+//     // density grid
+//     const torch::Tensor aabb,
+//     const pybind11::list resolution,
+//     const torch::Tensor occ_binary, 
+//     // sampling
+//     const int max_total_samples,
+//     const int max_per_ray_samples,
+//     const float dt
+// );
 
 std::vector<torch::Tensor> volumetric_rendering_inference(
     torch::Tensor packed_info, 
@@ -69,6 +69,19 @@ torch::Tensor volumetric_weights_backward(
     torch::Tensor sigmas
 );
 
+std::vector<torch::Tensor> ray_marching(
+    // rays
+    const torch::Tensor rays_o, 
+    const torch::Tensor rays_d, 
+    const torch::Tensor t_min, 
+    const torch::Tensor t_max,
+    // density grid
+    const torch::Tensor aabb,
+    const pybind11::list resolution,
+    const torch::Tensor occ_binary, 
+    // sampling
+    const float dt
+);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {

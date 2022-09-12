@@ -54,7 +54,6 @@ def volumetric_rendering(
             frustum_dirs,
             frustum_starts,
             frustum_ends,
-            steps_counter,
         ) = ray_marching(
             # rays
             rays_o,
@@ -66,22 +65,13 @@ def volumetric_rendering(
             scene_resolution,
             scene_occ_binary,
             # sampling
-            render_total_samples,
-            render_n_samples,
             render_step_size,
         )
-
-        # squeeze valid samples
-        total_samples = max(packed_info[:, -1].sum(), 1)
-        total_samples = int(math.ceil(total_samples / 256.0)) * 256
-        frustum_origins = frustum_origins[:total_samples]
-        frustum_dirs = frustum_dirs[:total_samples]
-        frustum_starts = frustum_starts[:total_samples]
-        frustum_ends = frustum_ends[:total_samples]
 
         frustum_positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
+        steps_counter = packed_info[:, -1].sum(0, keepdim=True)
 
     with torch.no_grad():
         densities = query_fn(

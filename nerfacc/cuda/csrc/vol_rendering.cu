@@ -16,10 +16,9 @@ __global__ void volumetric_rendering_inference_kernel(
     CUDA_GET_THREAD_ID(thread_id, n_rays);
 
     // locate
-    const int i = packed_info[thread_id * 3 + 0];  // ray idx in {rays_o, rays_d}
-    const int base = packed_info[thread_id * 3 + 1];  // point idx start.
-    const int numsteps = packed_info[thread_id * 3 + 2];  // point idx shift.
-    if (numsteps == 0) return;
+    const int base = packed_info[thread_id * 2 + 0];  // point idx start.
+    const int steps = packed_info[thread_id * 2 + 1];  // point idx shift.
+    if (steps == 0) return;
 
     starts += base;
     ends += base;
@@ -29,7 +28,7 @@ __global__ void volumetric_rendering_inference_kernel(
     scalar_t T = 1.f;
     scalar_t EPSILON = 1e-4f;
     int j = 0;
-    for (; j < numsteps; ++j) {
+    for (; j < steps; ++j) {
         if (T < EPSILON) {
             break;
         }
@@ -46,10 +45,8 @@ __global__ void volumetric_rendering_inference_kernel(
         compact_selector[k] = base + k;
     }
 
-    compact_packed_info += thread_id * 3;
-    compact_packed_info[0] = i; // ray idx in {rays_o, rays_d}
-    compact_packed_info[1] = compact_base; // compact point idx start.
-    compact_packed_info[2] = j;  // compact point idx shift.
+    compact_packed_info[thread_id * 2 + 0] = compact_base; // compact point idx start.
+    compact_packed_info[thread_id * 2 + 1] = j;  // compact point idx shift.
 }
 
 
@@ -201,7 +198,7 @@ std::vector<torch::Tensor> volumetric_rendering_inference(
     CHECK_INPUT(starts);
     CHECK_INPUT(ends);
     CHECK_INPUT(sigmas);
-    TORCH_CHECK(packed_info.ndimension() == 2 & packed_info.size(1) == 3);
+    TORCH_CHECK(packed_info.ndimension() == 2 & packed_info.size(1) == 2);
     TORCH_CHECK(starts.ndimension() == 2 & starts.size(1) == 1);
     TORCH_CHECK(ends.ndimension() == 2 & ends.size(1) == 1);
     TORCH_CHECK(sigmas.ndimension() == 2 & sigmas.size(1) == 1);
@@ -217,7 +214,7 @@ std::vector<torch::Tensor> volumetric_rendering_inference(
         {1}, packed_info.options().dtype(torch::kInt32));
 
     // outputs
-    torch::Tensor compact_packed_info = torch::zeros({n_rays, 3}, packed_info.options()); 
+    torch::Tensor compact_packed_info = torch::zeros({n_rays, 2}, packed_info.options()); 
     torch::Tensor compact_selector = - torch::ones({n_samples}, packed_info.options()); 
 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(
