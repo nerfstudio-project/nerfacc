@@ -23,6 +23,12 @@ def volumetric_rendering(
     """A *fast* version of differentiable volumetric rendering."""
     n_rays = rays_o.shape[0]
 
+    rays_o = rays_o.contiguous()
+    rays_d = rays_d.contiguous()
+    scene_aabb = scene_aabb.contiguous()
+    scene_occ_binary = scene_occ_binary.contiguous()
+    render_bkgd = render_bkgd.contiguous()
+
     # get packed samples from ray marching & occupancy check.
     with torch.no_grad():
         (
@@ -45,7 +51,7 @@ def volumetric_rendering(
         frustum_positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
-        steps_counter = packed_info[:, -1].sum(0, keepdim=True)
+        steps_counter = frustum_origins.shape[0]
 
     # compat the samples thru volumetric rendering
     with torch.no_grad():
@@ -64,7 +70,7 @@ def volumetric_rendering(
             frustum_positions,
             frustum_dirs,
         )
-        compact_steps_counter = compact_packed_info[:, -1].sum(0, keepdim=True)
+        compact_steps_counter = compact_frustum_positions.shape[0]
 
     # network
     compact_query_results = query_fn(compact_frustum_positions, compact_frustum_dirs)

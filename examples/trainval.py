@@ -69,14 +69,15 @@ def render_image(radiance_field, rays, render_bkgd, render_step_size):
         )
         results.append(chunk_results)
     rgb, depth, acc, counter, compact_counter = [
-        torch.cat(r, dim=0) for r in zip(*results)
+        torch.cat(r, dim=0) if isinstance(r[0], torch.Tensor) else r
+        for r in zip(*results)
     ]
     return (
         rgb.view((*rays_shape[:-1], -1)),
         depth.view((*rays_shape[:-1], -1)),
         acc.view((*rays_shape[:-1], -1)),
-        counter.sum(),
-        compact_counter.sum(),
+        sum(counter),
+        sum(compact_counter),
     )
 
 
@@ -191,7 +192,7 @@ if __name__ == "__main__":
             )
             num_rays = len(pixels)
             num_rays = int(
-                num_rays * (TARGET_SAMPLE_BATCH_SIZE / float(compact_counter.item()))
+                num_rays * (TARGET_SAMPLE_BATCH_SIZE / float(compact_counter))
             )
             train_dataset.update_num_rays(num_rays)
             alive_ray_mask = acc.squeeze(-1) > 0
@@ -210,7 +211,7 @@ if __name__ == "__main__":
                     f"elapsed_time={elapsed_time:.2f}s (data={data_time:.2f}s) | {step=} | "
                     f"loss={loss:.5f} | "
                     f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
-                    f"counter={counter.item():d} | compact_counter={compact_counter.item():d} | num_rays={len(pixels):d} "
+                    f"counter={counter:d} | compact_counter={compact_counter:d} | num_rays={len(pixels):d} "
                 )
 
             # if time.time() - tic > 300:
