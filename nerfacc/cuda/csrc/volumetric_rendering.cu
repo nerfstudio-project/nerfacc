@@ -166,7 +166,7 @@ std::vector<torch::Tensor> volumetric_rendering_steps(
         sigmas.scalar_type(),
         "volumetric_marching_steps",
         ([&]
-         { volumetric_rendering_steps_kernel<scalar_t><<<blocks, threads>>>(
+         { volumetric_rendering_steps_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
                 n_rays,
                 packed_info.data_ptr<int>(), 
                 starts.data_ptr<scalar_t>(),
@@ -214,7 +214,7 @@ std::vector<torch::Tensor> volumetric_rendering_weights_forward(
         sigmas.scalar_type(),
         "volumetric_rendering_weights_forward",
         ([&]
-         { volumetric_rendering_weights_forward_kernel<scalar_t><<<blocks, threads>>>(
+         { volumetric_rendering_weights_forward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
                 n_rays,
                 packed_info.data_ptr<int>(), 
                 starts.data_ptr<scalar_t>(),
@@ -251,7 +251,7 @@ torch::Tensor volumetric_rendering_weights_backward(
         sigmas.scalar_type(),
         "volumetric_rendering_weights_backward",
         ([&]
-         { volumetric_rendering_weights_backward_kernel<scalar_t><<<blocks, threads>>>(
+         { volumetric_rendering_weights_backward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
                 n_rays,
                 packed_info.data_ptr<int>(), 
                 starts.data_ptr<scalar_t>(),

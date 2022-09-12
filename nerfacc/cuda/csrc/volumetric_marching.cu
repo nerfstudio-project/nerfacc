@@ -244,7 +244,7 @@ std::vector<torch::Tensor> volumetric_marching(
         {n_rays}, rays_o.options().dtype(torch::kInt32));
 
     // count number of samples per ray
-    marching_steps_kernel<<<blocks, threads>>>(
+    marching_steps_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         // rays
         n_rays,
         rays_o.data_ptr<float>(),
@@ -276,7 +276,7 @@ std::vector<torch::Tensor> volumetric_marching(
     torch::Tensor frustum_starts = torch::zeros({total_steps, 1}, rays_o.options());
     torch::Tensor frustum_ends = torch::zeros({total_steps, 1}, rays_o.options());
 
-    marching_forward_kernel<<<blocks, threads>>>(
+    marching_forward_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         // rays
         n_rays,
         rays_o.data_ptr<float>(),
