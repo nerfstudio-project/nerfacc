@@ -10,12 +10,22 @@ python examples/trainval.py
 
 ## Performance Reference
 
-| trainval (20k, 1<<18) | Lego | Mic | Materials |
-| - | - | - | - | - |
+Ours:
+
+| trainval | Lego | Mic | Materials |
+| - | - | - | - |
 | Time | 300s  | 272s  | 258s  |
 | PSNR | 36.28 | 36.16 | 29.76 |
 | FPS  | 11.49 | 21.48 | 8.86  |
 
+Instant-NGP paper (5 min):
+
+| trainval | Lego | Mic | Materials |
+| - | - | - | - |
+| PSNR | 36.39 | 36.22 | 29.78 |
+
+
+<!-- 
 
 Tested with the default settings on the Lego test set.
 
@@ -25,7 +35,7 @@ Tested with the default settings on the Lego test set.
 | instant-ngp (code)             | train (35k steps)    | 36.08  |  308 sec  | 55.32 fps  | TITAN RTX  |  1734MB |
 | instant-ngp (code) w/o rng bkgd| train (35k steps)    | 34.17  |  -  | -  | - |  - |
 | torch-ngp (`-O`)               | train (30K steps)    | 34.15  |  310 sec  | 7.8 fps    | V100 |
-| ours                           | trainval (35K steps) | 36.22  |  378 sec  | 12.08 fps    | TITAN RTX  |
+| ours                           | trainval (35K steps) | 36.22  |  378 sec  | 12.08 fps    | TITAN RTX  | -->
 
 ## Tips:
 
