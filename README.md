@@ -10,7 +10,7 @@ python examples/trainval.py
 
 ## Performance Reference
 
-Ours:
+Ours on TITAN RTX :
 
 | trainval | Lego | Mic | Materials |
 | - | - | - | - |
@@ -18,7 +18,7 @@ Ours:
 | PSNR | 36.28 | 36.16 | 29.76 |
 | FPS  | 11.49 | 21.48 | 8.86  |
 
-Instant-NGP paper (5 min):
+Instant-NGP paper (5 min) on 3090:
 
 | trainval | Lego | Mic | Materials |
 | - | - | - | - |
