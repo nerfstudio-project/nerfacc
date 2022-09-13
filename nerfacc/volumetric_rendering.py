@@ -95,8 +95,12 @@ def volumetric_rendering(
         (compact_frustum_starts + compact_frustum_ends) / 2.0,
         n_rays,
     )
+    # TODO: use transmittance to compose bkgd color:
+    # https://github.com/NVlabs/instant-ngp/blob/14d6ba6fa899e9f069d2f65d33dbe3cd43056ddd/src/testbed_nerf.cu#L1400
 
+    # accumulated_color = linear_to_srgb(accumulated_color)
     accumulated_color = accumulated_color + render_bkgd * (1.0 - accumulated_weight)
+    # accumulated_color = srgb_to_linear(accumulated_color)
 
     return (
         accumulated_color,

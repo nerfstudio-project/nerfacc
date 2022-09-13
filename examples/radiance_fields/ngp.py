@@ -6,8 +6,9 @@ from torch.cuda.amp import custom_bwd, custom_fwd
 
 try:
     import tinycudann as tcnn
-except ImportError:
+except ImportError as e:
     print(
+        f"Error: {e}! "
         "Please install tinycudann by: "
         "pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch"
     )
@@ -16,32 +17,35 @@ except ImportError:
 from .base import BaseRadianceField
 
 
+class _TruncExp(Function):  # pylint: disable=abstract-method
+    # Implementation from torch-ngp:
+    # https://github.com/ashawkey/torch-ngp/blob/93b08a0d4ec1cc6e69d85df7f0acdfb99603b628/activation.py
+    @staticmethod
+    @custom_fwd(cast_inputs=torch.float32)
+    def forward(ctx, x):  # pylint: disable=arguments-differ
+        ctx.save_for_backward(x)
+        return torch.exp(x)
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, g):  # pylint: disable=arguments-differ
+        x = ctx.saved_tensors[0]
+        return g * torch.exp(torch.clamp(x, max=15))
+
+
+trunc_exp = _TruncExp.apply
+
+
 class NGPradianceField(BaseRadianceField):
     """Instance-NGP radiance Field"""
-
-    class _TruncExp(Function):  # pylint: disable=abstract-method
-        # Implementation from torch-ngp:
-        # https://github.com/ashawkey/torch-ngp/blob/93b08a0d4ec1cc6e69d85df7f0acdfb99603b628/activation.py
-        @staticmethod
-        @custom_fwd(cast_inputs=torch.float32)
-        def forward(ctx, x):  # pylint: disable=arguments-differ
-            ctx.save_for_backward(x)
-            return torch.exp(x)
-
-        @staticmethod
-        @custom_bwd
-        def backward(ctx, g):  # pylint: disable=arguments-differ
-            x = ctx.saved_tensors[0]
-            return g * torch.exp(x.clamp(-15, 15))
-
-    trunc_exp = _TruncExp.apply
 
     def __init__(
         self,
         aabb: Union[torch.Tensor, List[float]],
         num_dim: int = 3,
         use_viewdirs: bool = True,
-        density_activation: Callable = trunc_exp,
+        density_activation: Callable = lambda x: trunc_exp(x - 1),
+        # density_activation: Callable = lambda x: torch.nn.functional.softplus(x - 1),
     ) -> None:
         super().__init__()
         if not isinstance(aabb, torch.Tensor):

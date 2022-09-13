@@ -23,6 +23,7 @@ Tested with the default settings on the Lego test set.
 | - | - | - | - | - | - | - |
 | instant-ngp (paper)            | trainval?            | 36.39  |  -   | -    | 3090    |
 | instant-ngp (code)             | train (35k steps)    | 36.08  |  308 sec  | 55.32 fps  | TITAN RTX  |  1734MB |
+| instant-ngp (code) w/o rng bkgd| train (35k steps)    | 34.17  |  -  | -  | - |  - |
 | torch-ngp (`-O`)               | train (30K steps)    | 34.15  |  310 sec  | 7.8 fps    | V100 |
 | ours                           | trainval (35K steps) | 36.22  |  378 sec  | 12.08 fps    | TITAN RTX  |
 

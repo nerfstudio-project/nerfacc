@@ -2,6 +2,7 @@ from typing import Callable, List, Tuple, Union
 
 import torch
 from torch import nn
+from torch_scatter import scatter_max
 
 
 def meshgrid3d(res: Tuple[int, int, int], device: torch.device = "cpu"):
@@ -144,7 +145,8 @@ class OccupancyField(nn.Module):
         ) / self.resolution_tensor
         bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
         x = x * (bb_max - bb_min) + bb_min
-        tmp_occ_grid[indices] = self.occ_eval_fn(x).squeeze(-1)
+        tmp_occ = self.occ_eval_fn(x).squeeze(-1)
+        tmp_occ_grid, _ = scatter_max(tmp_occ, indices, dim=0, out=tmp_occ_grid)
 
         # ema update
         ema_mask = (self.occ_grid >= 0) & (tmp_occ_grid >= 0)

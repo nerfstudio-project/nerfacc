@@ -1,6 +1,7 @@
 import math
 import time
 
+import imageio
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -10,28 +11,7 @@ from radiance_fields.ngp import NGPradianceField
 
 from nerfacc import OccupancyField, volumetric_rendering
 
-TARGET_SAMPLE_BATCH_SIZE = 1 << 16
-
-# import tqdm
-
-# device = "cuda:0"
-# radiance_field = NGPradianceField(aabb=[0, 0, 0, 1, 1, 1]).to(device)
-# positions = torch.rand((TARGET_SAMPLE_BATCH_SIZE, 3), device=device)
-# directions = torch.rand(positions.shape, device=device)
-# optimizer = torch.optim.Adam(
-#     radiance_field.parameters(),
-#     lr=1e-10,
-#     # betas=(0.9, 0.99),
-#     eps=1e-15,
-#     # weight_decay=1e-6,
-# )
-# for _ in tqdm.tqdm(range(1000)):
-#     rgbs, sigmas = radiance_field(positions, directions)
-#     loss = rgbs.mean()
-#     optimizer.zero_grad()
-#     loss.backward()
-#     optimizer.step()
-# exit()
+TARGET_SAMPLE_BATCH_SIZE = 1 << 18
 
 
 def render_image(radiance_field, rays, render_bkgd, render_step_size):
@@ -91,8 +71,9 @@ if __name__ == "__main__":
     train_dataset = SubjectLoader(
         subject_id=scene,
         root_fp="/home/ruilongli/data/nerf_synthetic/",
-        split="trainval",
+        split="train",
         num_rays=1024,
+        # color_bkgd_aug="random",
     )
 
     train_dataset.images = train_dataset.images.to(device)
@@ -139,12 +120,12 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(
         radiance_field.parameters(),
         lr=1e-2,
-        # betas=(0.9, 0.99),
+        betas=(0.9, 0.99),
         eps=1e-15,
-        # weight_decay=1e-6,
+        weight_decay=1e-6,
     )
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=[20000, 30000], gamma=0.1
+        optimizer, milestones=[10000, 15000, 18000], gamma=0.33
     )
 
     # setup occupancy field with eval function
@@ -172,8 +153,11 @@ if __name__ == "__main__":
     data_time = 0
     tic_data = time.time()
 
+    # Scaling up the gradients for Adam
+    grad_scaler = torch.cuda.amp.GradScaler(2**10)
     for epoch in range(10000000):
         for i in range(len(train_dataset)):
+            radiance_field.train()
             data = train_dataset[i]
             data_time += time.time() - tic_data
 
@@ -198,27 +182,29 @@ if __name__ == "__main__":
             alive_ray_mask = acc.squeeze(-1) > 0
 
             # compute loss
-            loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
+            loss = F.smooth_l1_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
 
             optimizer.zero_grad()
-            (loss * 128).backward()
+            # do not unscale it because we are using Adam.
+            grad_scaler.scale(loss).backward()
             optimizer.step()
             scheduler.step()
 
             if step % 100 == 0:
                 elapsed_time = time.time() - tic
+                loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
                 print(
                     f"elapsed_time={elapsed_time:.2f}s (data={data_time:.2f}s) | {step=} | "
                     f"loss={loss:.5f} | "
                     f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
-                    f"counter={counter:d} | compact_counter={compact_counter:d} | num_rays={len(pixels):d} "
+                    f"counter={counter:d} | compact_counter={compact_counter:d} | num_rays={len(pixels):d} |"
                 )
 
             # if time.time() - tic > 300:
-            if step == 35_000:
-                print("training stops")
+            if step >= 5_000 and step % 5000 == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
+
                 psnrs = []
                 with torch.no_grad():
                     for data in tqdm.tqdm(test_dataloader):
@@ -235,6 +221,41 @@ if __name__ == "__main__":
                         psnrs.append(psnr.item())
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
+                imageio.imwrite(
+                    "acc_binary_test.png",
+                    ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
+                )
+
+                psnrs = []
+                train_dataset.training = False
+                with torch.no_grad():
+                    for data in tqdm.tqdm(train_dataloader):
+                        # generate rays from data and the gt pixel color
+                        rays = namedtuple_map(lambda x: x.to(device), data["rays"])
+                        pixels = data["pixels"].to(device)
+                        render_bkgd = data["color_bkgd"].to(device)
+                        # rendering
+                        rgb, depth, acc, _, _ = render_image(
+                            radiance_field, rays, render_bkgd, render_step_size
+                        )
+                        mse = F.mse_loss(rgb, pixels)
+                        psnr = -10.0 * torch.log(mse) / np.log(10.0)
+                        psnrs.append(psnr.item())
+                psnr_avg = sum(psnrs) / len(psnrs)
+                print(f"evaluation on train: {psnr_avg=}")
+                imageio.imwrite(
+                    "acc_binary_train.png",
+                    ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
+                )
+                print("acc", acc[acc > 0].min())
+                imageio.imwrite(
+                    "rgb_train.png",
+                    (rgb.cpu().numpy() * 255).astype(np.uint8),
+                )
+                train_dataset.training = True
+
+            if step == 20_000:
+                print("training stops")
                 exit()
             tic_data = time.time()
 
