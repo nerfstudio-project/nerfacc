@@ -71,7 +71,7 @@ if __name__ == "__main__":
     train_dataset = SubjectLoader(
         subject_id=scene,
         root_fp="/home/ruilongli/data/nerf_synthetic/",
-        split="train",
+        split="trainval",
         num_rays=1024,
         # color_bkgd_aug="random",
     )
@@ -120,9 +120,9 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(
         radiance_field.parameters(),
         lr=1e-2,
-        betas=(0.9, 0.99),
+        # betas=(0.9, 0.99),
         eps=1e-15,
-        weight_decay=1e-6,
+        # weight_decay=1e-6,
     )
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=[10000, 15000, 18000], gamma=0.33
@@ -201,7 +201,7 @@ if __name__ == "__main__":
                 )
 
             # if time.time() - tic > 300:
-            if step >= 5_000 and step % 5000 == 0 and step > 0:
+            if step >= 20_000 and step % 5000 == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
@@ -247,7 +247,6 @@ if __name__ == "__main__":
                     "acc_binary_train.png",
                     ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
                 )
-                print("acc", acc[acc > 0].min())
                 imageio.imwrite(
                     "rgb_train.png",
                     (rgb.cpu().numpy() * 255).astype(np.uint8),
