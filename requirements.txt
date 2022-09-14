@@ -1,4 +1,0 @@
-ninja
-pybind11
-torch
-# torch-scatter -f https://data.pyg.org/whl/torch-1.12.0+cu102.html

@@ -1,12 +1,16 @@
 version: 2
 
+sphinx:
+  fail_on_warning: true
+
 python:
   version: 3.8
   install:
-    - requirements: requirements.txt
-    - requirements: docs/requirements.txt
+    # Equivalent to 'pip install .'
     - method: pip
       path: .
-
-sphinx:
-  fail_on_warning: true
+    # Equivalent to 'pip install .[docs]'
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
