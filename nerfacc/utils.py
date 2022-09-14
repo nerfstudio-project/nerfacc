@@ -129,7 +129,7 @@ def volumetric_rendering_steps(
 
     Args:
         packed_info: Stores infomation on which samples belong to the same ray.
-            See `volumetric_marching` for details. Tensor with shape (n_rays, 3).
+            See `volumetric_marching` for details. Tensor with shape (n_rays, 2).
         sigmas: Densities at those samples. Tensor with shape (n_samples, 1).
         frustum_starts: Where the frustum-shape sample starts along a ray. Tensor with
             shape (n_samples, 1).
@@ -180,7 +180,7 @@ def volumetric_rendering_weights(
 
     Args:
         packed_info: Stores infomation on which samples belong to the same ray.
-            See `volumetric_marching` for details. Tensor with shape (n_rays, 3).
+            See `volumetric_marching` for details. Tensor with shape (n_rays, 2).
         sigmas: Densities at those samples. Tensor with shape (n_samples, 1).
         frustum_starts: Where the frustum-shape sample starts along a ray. Tensor with
             shape (n_samples, 1).
