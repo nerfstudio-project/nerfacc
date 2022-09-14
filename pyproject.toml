@@ -11,18 +11,10 @@ requires-python = ">=3.8"
 dependencies = [
     "ninja>=1.10.2.3",
     "pybind11>=2.10.0",
-    "torch>=1.12.1"
+    "torch>=1.12.1",
+    "rich>=12"
 ]
 
 [project.optional-dependencies]
-# for example scripts
-examples = [
-    "tinycudann @ git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch",
-    "opencv-python",
-    "imageio",
-    "numpy",
-    "tqdm",
-]
-
 # for documentation
 docs = []
