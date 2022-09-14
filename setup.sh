@@ -1,3 +1,4 @@
 conda create -n nerfacc python=3.9 -y
 conda activate nerfacc
-pip install -r requirements.txt
+conda install pytorch cudatoolkit=11.3 -c pytorch -y
+pip install -e .
