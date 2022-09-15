@@ -2,6 +2,7 @@
 import glob
 import os
 from subprocess import DEVNULL, call
+
 from rich.console import Console
 
 console = Console()
@@ -29,7 +30,8 @@ else:
 extra_cflags = ["-O3"]
 extra_cuda_cflags = ["-O3"]
 with console.status(
-    "[bold yellow]Setting up CUDA (This may take a few minutes the first time)", spinner="bouncingBall"
+    "[bold yellow]Setting up CUDA (This may take a few minutes the first time)",
+    spinner="bouncingBall",
 ):
     _C = load(
         name="nerfacc_cuda",

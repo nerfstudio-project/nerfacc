@@ -22,6 +22,7 @@ def ray_aabb_intersect(
     Returns:
         Ray AABB intersection {t_min, t_max} with shape (n_rays) respectively.
         Note the t_min is clipped to minimum zero. 1e10 means no intersection.
+
     """
     if rays_o.is_cuda and rays_d.is_cuda and aabb.is_cuda:
         rays_o = rays_o.contiguous()
@@ -52,25 +53,26 @@ def volumetric_marching(
         rays_o: Ray origins. Tensor with shape (n_rays, 3).
         rays_d: Normalized ray directions. Tensor with shape (n_rays, 3).
         aabb: Scene bounding box {xmin, ymin, zmin, xmax, ymax, zmax}.
-            Tensor with shape (6)
+        Tensor with shape (6)
         scene_resolution: Shape of the `scene_occ_binary`. {resx, resy, resz}.
         scene_occ_binary: Scene occupancy binary field. BoolTensor with shape
-            (resx * resy * resz)
+        (resx * resy * resz)
         t_min: Optional. Ray near planes. Tensor with shape (n_ray,).
-            If not given it will be calculated using aabb test. Default is None.
+        If not given it will be calculated using aabb test. Default is None.
         t_max: Optional. Ray far planes. Tensor with shape (n_ray,)
-            If not given it will be calculated using aabb test. Default is None.
+        If not given it will be calculated using aabb test. Default is None.
         render_step_size: Marching step size. Default is 1e-3.
 
     Returns:
         packed_info: Stores infomation on which samples belong to the same ray.
-            It is a tensor with shape (n_rays, 2). For each ray, the two values
-            indicate the start index and the number of samples for this ray,
-            respectively.
+        It is a tensor with shape (n_rays, 2). For each ray, the two values
+        indicate the start index and the number of samples for this ray,
+        respectively.
         frustum_origins: Sampled frustum origins. Tensor with shape (n_samples, 3).
         frustum_dirs: Sampled frustum directions. Tensor with shape (n_samples, 3).
         frustum_starts: Sampled frustum starts. Tensor with shape (n_samples, 1).
         frustum_ends: Sampled frustum ends. Tensor with shape (n_samples, 1).
+
     """
     if not rays_o.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
@@ -123,24 +125,24 @@ def volumetric_rendering_steps(
     This function will compact the samples by terminate the marching once the
     transmittance reaches to 0.9999. It is recommanded that before running your
     network with gradients enabled, first run this function without gradients
-    (`torch.no_grad()`) to quickly filter out some samples.
+    (torch.no_grad()) to quickly filter out some samples.
 
     Note: this function is not differentiable to inputs.
 
     Args:
         packed_info: Stores infomation on which samples belong to the same ray.
-            See `volumetric_marching` for details. Tensor with shape (n_rays, 2).
+        See volumetric_marching for details. Tensor with shape (n_rays, 2).
         sigmas: Densities at those samples. Tensor with shape (n_samples, 1).
         frustum_starts: Where the frustum-shape sample starts along a ray. Tensor with
-            shape (n_samples, 1).
+        shape (n_samples, 1).
         frustum_ends: Where the frustum-shape sample ends along a ray. Tensor with
-            shape (n_samples, 1).
+        shape (n_samples, 1).
 
     Returns:
-        compact_packed_info: Compacted version of input `packed_info`.
-        compact_frustum_starts: Compacted version of input `frustum_starts`.
-        compact_frustum_ends: Compacted version of input `frustum_ends`.
-        ... all the things in *args
+        compact_packed_info: Compacted version of input packed_info.
+        compact_frustum_starts: Compacted version of input frustum_starts.
+        compact_frustum_ends: Compacted version of input frustum_ends.
+
     """
     if (
         packed_info.is_cuda
@@ -180,17 +182,18 @@ def volumetric_rendering_weights(
 
     Args:
         packed_info: Stores infomation on which samples belong to the same ray.
-            See `volumetric_marching` for details. Tensor with shape (n_rays, 2).
+        See volumetric_marching for details. Tensor with shape (n_rays, 2).
         sigmas: Densities at those samples. Tensor with shape (n_samples, 1).
         frustum_starts: Where the frustum-shape sample starts along a ray. Tensor with
-            shape (n_samples, 1).
+        shape (n_samples, 1).
         frustum_ends: Where the frustum-shape sample ends along a ray. Tensor with
-            shape (n_samples, 1).
+        shape (n_samples, 1).
 
     Returns:
         weights: Volumetric rendering weights for those samples. Tensor with shape
-            (n_samples).
+        (n_samples).
         ray_indices: Ray index of each sample. IntTensor with shape (n_sample).
+
     """
     if (
         packed_info.is_cuda
@@ -218,7 +221,7 @@ def volumetric_rendering_accumulate(
 ) -> torch.Tensor:
     """Accumulate volumetric values along the ray.
 
-    Note: this function is only differentiable to `weights` and `values`.
+    Note: this function is only differentiable to weights and values.
 
     Args:
         weights: Volumetric rendering weights for those samples. Tensor with shape
