@@ -2,7 +2,7 @@ from typing import Tuple
 
 import torch
 
-from .cuda import _C
+import nerfacc.cuda as nerfacc_cuda
 
 
 @torch.no_grad()
@@ -27,7 +27,7 @@ def ray_aabb_intersect(
         rays_o = rays_o.contiguous()
         rays_d = rays_d.contiguous()
         aabb = aabb.contiguous()
-        t_min, t_max = _C.ray_aabb_intersect(rays_o, rays_d, aabb)
+        t_min, t_max = nerfacc_cuda.ray_aabb_intersect(rays_o, rays_d, aabb)
     else:
         raise NotImplementedError("Only support cuda inputs.")
     return t_min, t_max
@@ -87,7 +87,7 @@ def volumetric_marching(
         frustum_dirs,
         frustum_starts,
         frustum_ends,
-    ) = _C.volumetric_marching(
+    ) = nerfacc_cuda.volumetric_marching(
         # rays
         rays_o.contiguous(),
         rays_d.contiguous(),
@@ -152,7 +152,7 @@ def volumetric_rendering_steps(
         frustum_starts = frustum_starts.contiguous()
         frustum_ends = frustum_ends.contiguous()
         sigmas = sigmas.contiguous()
-        compact_packed_info, compact_selector = _C.volumetric_rendering_steps(
+        compact_packed_info, compact_selector = nerfacc_cuda.volumetric_rendering_steps(
             packed_info, frustum_starts, frustum_ends, sigmas
         )
         compact_frustum_starts = frustum_starts[compact_selector]
@@ -261,7 +261,7 @@ def volumetric_rendering_accumulate(
 class _volumetric_rendering_weights(torch.autograd.Function):
     @staticmethod
     def forward(ctx, packed_info, frustum_starts, frustum_ends, sigmas):
-        weights, ray_indices = _C.volumetric_rendering_weights_forward(
+        weights, ray_indices = nerfacc_cuda.volumetric_rendering_weights_forward(
             packed_info, frustum_starts, frustum_ends, sigmas
         )
         ctx.save_for_backward(
@@ -282,7 +282,7 @@ class _volumetric_rendering_weights(torch.autograd.Function):
             sigmas,
             weights,
         ) = ctx.saved_tensors
-        grad_sigmas = _C.volumetric_rendering_weights_backward(
+        grad_sigmas = nerfacc_cuda.volumetric_rendering_weights_backward(
             weights,
             grad_weights,
             packed_info,
