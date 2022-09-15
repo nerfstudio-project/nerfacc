@@ -1,14 +1,15 @@
 from typing import Tuple
 
 import torch
+from torch import Tensor
 
 import nerfacc.cuda as nerfacc_cuda
 
 
 @torch.no_grad()
 def ray_aabb_intersect(
-    rays_o: torch.Tensor, rays_d: torch.Tensor, aabb: torch.Tensor
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    rays_o: Tensor, rays_d: Tensor, aabb: Tensor
+) -> Tuple[Tensor, Tensor]:
     """Ray AABB Test.
 
     Note: this function is not differentiable to inputs.
@@ -36,15 +37,15 @@ def ray_aabb_intersect(
 
 @torch.no_grad()
 def volumetric_marching(
-    rays_o: torch.Tensor,
-    rays_d: torch.Tensor,
-    aabb: torch.Tensor,
+    rays_o: Tensor,
+    rays_d: Tensor,
+    aabb: Tensor,
     scene_resolution: Tuple[int, int, int],
-    scene_occ_binary: torch.Tensor,
-    t_min: torch.Tensor = None,
-    t_max: torch.Tensor = None,
+    scene_occ_binary: Tensor,
+    t_min: Tensor = None,
+    t_max: Tensor = None,
     render_step_size: float = 1e-3,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
     """Volumetric marching with occupancy test.
 
     Note: this function is not differentiable to inputs.
@@ -116,12 +117,12 @@ def volumetric_marching(
 
 @torch.no_grad()
 def volumetric_rendering_steps(
-    packed_info: torch.Tensor,
-    sigmas: torch.Tensor,
-    frustum_starts: torch.Tensor,
-    frustum_ends: torch.Tensor,
+    packed_info: Tensor,
+    sigmas: Tensor,
+    frustum_starts: Tensor,
+    frustum_ends: Tensor,
     *args,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[Tensor, Tensor, Tensor]:
     """Compute rendering marching steps.
 
     This function will compact the samples by terminate the marching once the \
@@ -175,11 +176,11 @@ def volumetric_rendering_steps(
 
 
 def volumetric_rendering_weights(
-    packed_info: torch.Tensor,
-    sigmas: torch.Tensor,
-    frustum_starts: torch.Tensor,
-    frustum_ends: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    packed_info: Tensor,
+    sigmas: Tensor,
+    frustum_starts: Tensor,
+    frustum_ends: Tensor,
+) -> Tuple[Tensor, Tensor, Tensor]:
     """Compute weights for volumetric rendering.
 
     Note: this function is only differentiable to `sigmas`.
@@ -219,11 +220,11 @@ def volumetric_rendering_weights(
 
 
 def volumetric_rendering_accumulate(
-    weights: torch.Tensor,
-    ray_indices: torch.Tensor,
-    values: torch.Tensor = None,
+    weights: Tensor,
+    ray_indices: Tensor,
+    values: Tensor = None,
     n_rays: int = None,
-) -> torch.Tensor:
+) -> Tensor:
     """Accumulate volumetric values along the ray.
 
     Note: this function is only differentiable to weights and values.
