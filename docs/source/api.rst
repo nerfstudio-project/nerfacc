@@ -3,7 +3,7 @@
 API
 ============
 
-.. automodule:: nerfacc.utils
+.. automodule:: nerfacc
    :members:
    :show-inheritance:
 
