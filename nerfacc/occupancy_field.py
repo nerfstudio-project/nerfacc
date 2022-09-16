@@ -219,9 +219,9 @@ class OccupancyField(nn.Module):
                 "field during inference."
             )
         if step % n == 0 and self.training:
-            self.update(
+            self._update(
                 step=step,
-                occ_threshold=occ_thre,
+                occ_thre=occ_thre,
                 ema_decay=ema_decay,
                 warmup_steps=warmup_steps,
             )
