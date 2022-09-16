@@ -33,22 +33,21 @@ def meshgrid3d(res: Tuple[int, int, int], device: torch.device = "cpu"):
 
 
 class OccupancyField(nn.Module):
-    """Occupancy Field that supports EMA updates.
+    """Occupancy Field that supports EMA updates. Both 2D and 3D are supported.
 
-    It supports both 2D and 3D cases, where in the 2D cases the occupancy field
-    is basically a segmentation mask.
+    Note:
+        Make sure the arguemnts match with the ``num_dim`` -- Either 2D or 3D.
 
     Args:
         occ_eval_fn: A Callable function that takes in the un-normalized points x,
-            with shape of (N, 2) or (N, 3) (depends on `num_dim`), and outputs
-            the occupancy of those points with shape of (N, 1).
-        aabb: Scene bounding box. {min_x, min_y, (min_z), max_x, max_y, (max_z)}.
-            It can be either a list or a torch.Tensor.
+            with shape of (N, 2) or (N, 3) (depends on ``num_dim``),
+            and outputs the occupancy of those points with shape of (N, 1).
+        aabb: Scene bounding box. If ``num_dim=2`` it should be {min_x, min_y,max_x, max_y}.
+            If ``num_dim=3`` it should be {min_x, min_y, min_z, max_x, max_y, max_z}.
         resolution: The field resolution. It can either be a int of a list of ints
-            to specify resolution on each dimention. {res_x, res_y, (res_z)}. Default
-            is 128.
-        num_dim: The space dimension. Either 2 or 3. Default is 3. Note other arguments
-            should match with the space dimension being set here.
+            to specify resolution on each dimention.  If ``num_dim=2`` it is for {res_x, res_y}.
+            If ``num_dim=3`` it is for {res_x, res_y, res_z}. Default is 128.
+        num_dim: The space dimension. Either 2 or 3. Default is 3.
     """
 
     def __init__(
@@ -114,23 +113,14 @@ class OccupancyField(nn.Module):
         return indices
 
     @torch.no_grad()
-    def update(
+    def _update(
         self,
         step: int,
-        occ_threshold: float = 0.01,
+        occ_thre: float = 0.01,
         ema_decay: float = 0.95,
         warmup_steps: int = 256,
     ) -> None:
-        """Update the occ field in the EMA way.
-
-        Args:
-            step: Current training step.
-            occ_threshold: Threshold to binarize the occupancy field.
-            ema_decay: The decay rate for EMA updates.
-            warmup_steps: Sample all cells during the warmup stage. After the warmup
-                stage we change the sampling strategy to 1/4 unifromly sampled cells
-                together with 1/4 occupied cells.
-        """
+        """Update the occ field in the EMA way."""
         # sample cells
         if step < warmup_steps:
             indices = self._get_all_cells()
@@ -157,7 +147,7 @@ class OccupancyField(nn.Module):
         )
         self.occ_grid_mean = self.occ_grid.mean()
         self.occ_grid_binary = self.occ_grid > torch.clamp(
-            self.occ_grid_mean, max=occ_threshold
+            self.occ_grid_mean, max=occ_thre
         )
 
     @torch.no_grad()
@@ -168,8 +158,7 @@ class OccupancyField(nn.Module):
             x: Samples with shape (..., 2) or (..., 3).
 
         Returns:
-            float occupancy values with shape (...),
-            binary occupancy values with shape (...)
+            float and binary occupancy values with shape (...) respectively.
         """
         assert (
             x.shape[-1] == self.num_dim
@@ -206,17 +195,33 @@ class OccupancyField(nn.Module):
         warmup_steps: int = 256,
         n: int = 16,
     ):
-        """Update the field every n steps during training."""
+        """Update the field every n steps during training.
+
+        This function is designed for training only. If for some reason you want to
+        manually update the field, please use the ``_update()`` function instead.
+
+        Args:
+            step: Current training step.
+            occ_thre: Threshold to binarize the occupancy field.
+            ema_decay: The decay rate for EMA updates.
+            warmup_steps: Sample all cells during the warmup stage. After the warmup
+                stage we change the sampling strategy to 1/4 unifromly sampled cells
+                together with 1/4 occupied cells.
+            n: Update the field every n steps.
+
+        Returns:
+            None
+        """
         if not self.training:
             raise RuntimeError(
                 "You should only call this function only during training. "
-                "Please call update() directly if you want to update the "
+                "Please call _update() directly if you want to update the "
                 "field during inference."
             )
         if step % n == 0 and self.training:
-            self.update(
+            self._update(
                 step=step,
-                occ_threshold=occ_thre,
+                occ_thre=occ_thre,
                 ema_decay=ema_decay,
                 warmup_steps=warmup_steps,
             )
