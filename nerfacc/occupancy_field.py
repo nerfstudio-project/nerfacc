@@ -57,7 +57,7 @@ class OccupancyField(nn.Module):
         grid_coords: The grid coordinates. It is a tensor of shape (num_cells, num_dim).
         grid_indices: The grid indices. It is a tensor of shape (num_cells,).
     """
-    aabb = torch.Tensor
+    aabb: torch.Tensor
     occ_grid: torch.Tensor
     occ_grid_binary: torch.Tensor
     grid_coords: torch.Tensor
