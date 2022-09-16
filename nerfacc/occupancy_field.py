@@ -6,15 +6,16 @@ from torch import nn
 # from torch_scatter import scatter_max
 
 
-def meshgrid3d(res: Tuple[int, int, int], device: torch.device = "cpu"):
+def meshgrid3d(res: List[int], device: Union[torch.device, str] = "cpu") -> torch.Tensor:
     """Create 3D grid coordinates.
 
     Args:
-        res (Tuple[int, int, int]): resolutions for {x, y, z} dimensions.
+        res: resolutions for {x, y, z} dimensions.
 
     Returns:
         torch.long with shape (res[0], res[1], res[2], 3): dense 3D grid coordinates.
     """
+    assert len(res) == 3
     return (
         torch.stack(
             torch.meshgrid(
@@ -48,7 +49,19 @@ class OccupancyField(nn.Module):
             to specify resolution on each dimention.  If ``num_dim=2`` it is for {res_x, res_y}.
             If ``num_dim=3`` it is for {res_x, res_y, res_z}. Default is 128.
         num_dim: The space dimension. Either 2 or 3. Default is 3.
+
+    Attributes:
+        aabb: Scene bounding box.
+        occ_grid: The occupancy grid. It is a tensor of shape (num_cells,).
+        occ_grid_binary: The binary occupancy grid. It is a tensor of shape (num_cells,).
+        grid_coords: The grid coordinates. It is a tensor of shape (num_cells, num_dim).
+        grid_indices: The grid indices. It is a tensor of shape (num_cells,).
     """
+    aabb = torch.Tensor
+    occ_grid: torch.Tensor
+    occ_grid_binary: torch.Tensor
+    grid_coords: torch.Tensor
+    grid_indices: torch.Tensor
 
     def __init__(
         self,
@@ -75,7 +88,7 @@ class OccupancyField(nn.Module):
         self.resolution = resolution
         self.register_buffer("resolution_tensor", torch.tensor(resolution))
         self.num_dim = num_dim
-        self.num_cells = torch.tensor(resolution).prod().item()
+        self.num_cells = int(torch.tensor(resolution).prod().item())
 
         # Stores cell occupancy values ranged in [0, 1].
         occ_grid = torch.zeros(self.num_cells)
@@ -180,9 +193,11 @@ class OccupancyField(nn.Module):
                 + grid_coords[..., 1] * self.resolution[-1]
                 + grid_coords[..., 2]
             )
+        else:
+            raise NotImplementedError("Currently only supports 2D or 3D field.")
         occs = torch.zeros(x.shape[:-1], device=x.device)
         occs[selector] = self.occ_grid[grid_indices[selector]]
-        occs_binary = torch.zeros(x.shape[:-1], device=x.device, dtype=bool)
+        occs_binary = torch.zeros(x.shape[:-1], device=x.device, dtype=torch.bool)
         occs_binary[selector] = self.occ_grid_binary[grid_indices[selector]]
         return occs, occs_binary
 
