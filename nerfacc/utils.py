@@ -45,7 +45,8 @@ def volumetric_marching(
     t_min: Tensor = None,
     t_max: Tensor = None,
     render_step_size: float = 1e-3,
-) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+    stratified: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Volumetric marching with occupancy test.
 
     Note: this function is not differentiable to inputs.
@@ -63,6 +64,7 @@ def volumetric_marching(
         t_max: Optional. Ray far planes. Tensor with shape (n_ray,). \
             If not given it will be calculated using aabb test. Default is None.
         render_step_size: Marching step size. Default is 1e-3.
+        stratified: Whether to use stratified sampling. Default is False.
 
     Returns:
         A tuple of tensors containing
@@ -86,6 +88,8 @@ def volumetric_marching(
         == scene_resolution[0] * scene_resolution[1] * scene_resolution[2]
     ), f"Shape {scene_occ_binary.shape} is not right!"
 
+    if stratified:
+        t_min = t_min + torch.rand_like(t_min) * render_step_size
     (
         packed_info,
         frustum_origins,

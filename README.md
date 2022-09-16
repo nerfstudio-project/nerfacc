@@ -15,7 +15,7 @@ Ours on TITAN RTX :
 | trainval | Lego | Mic | Materials |
 | - | - | - | - |
 | Time | 300s  | 272s  | 258s  |
-| PSNR | 36.28 | 36.16 | 29.76 |
+| PSNR | 36.61 | 37.45 | 30.15 |
 | FPS  | 11.49 | 21.48 | 8.86  |
 
 Instant-NGP paper (5 min) on 3090:
