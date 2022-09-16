@@ -10,7 +10,7 @@ To use nerfacc, first install it using pip:
 
 .. code-block:: console
 
-   (.venv) $ pip install git+https://github.com/liruilong940607/nerfacc
+   $ pip install nerfacc
 
 Example of use
 ----------------
