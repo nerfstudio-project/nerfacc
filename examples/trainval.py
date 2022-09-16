@@ -66,7 +66,7 @@ if __name__ == "__main__":
     torch.manual_seed(42)
 
     device = "cuda:0"
-    scene = "materials"
+    scene = "hotdog"
 
     # setup dataset
     train_dataset = SubjectLoader(
