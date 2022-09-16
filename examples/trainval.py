@@ -46,6 +46,7 @@ def render_image(radiance_field, rays, render_bkgd, render_step_size):
             scene_resolution=occ_field.resolution,
             render_bkgd=render_bkgd,
             render_step_size=render_step_size,
+            stratified=radiance_field.training,
         )
         results.append(chunk_results)
     rgb, depth, acc, counter, compact_counter = [
@@ -65,7 +66,7 @@ if __name__ == "__main__":
     torch.manual_seed(42)
 
     device = "cuda:0"
-    scene = "lego"
+    scene = "materials"
 
     # setup dataset
     train_dataset = SubjectLoader(
