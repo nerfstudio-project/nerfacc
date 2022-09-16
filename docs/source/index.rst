@@ -1,5 +1,11 @@
-Welcome to the nerfacc documentation!
-======================================
+
+.. image:: _static/images/logo.png
+  :width: 400
+  :align: center
+  :alt: nerfacc
+
+NeRF Acceleration
+-----------------
 
 This is a fast differentiable volume rendering toolbox as a PyTorch extension for NeRF.
 
