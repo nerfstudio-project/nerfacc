@@ -1,2 +1,0 @@
-git+https://github.com/liruilong940607/pytorch_sphinx_theme.git#egg=pytorch_sphinx_theme
-sphinx_copybutton
