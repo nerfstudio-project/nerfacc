@@ -45,7 +45,8 @@ def volumetric_marching(
     t_min: Tensor = None,
     t_max: Tensor = None,
     render_step_size: float = 1e-3,
-    stratified: bool = False,
+    near_plane: float = 0.0,
+    stratified: bool = False
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Volumetric marching with occupancy test.
 
@@ -64,6 +65,7 @@ def volumetric_marching(
         t_max: Optional. Ray far planes. Tensor with shape (n_ray,). \
             If not given it will be calculated using aabb test. Default is None.
         render_step_size: Marching step size. Default is 1e-3.
+        near_plane: Near plane of the camera. Default is 0.0.
         stratified: Whether to use stratified sampling. Default is False.
 
     Returns:
@@ -83,6 +85,8 @@ def volumetric_marching(
         raise NotImplementedError("Only support cuda inputs.")
     if t_min is None or t_max is None:
         t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabb)
+        if near_plane > 0.0:
+            t_min = torch.clamp(t_min, min=near_plane)
     assert (
         scene_occ_binary.numel()
         == scene_resolution[0] * scene_resolution[1] * scene_resolution[2]
