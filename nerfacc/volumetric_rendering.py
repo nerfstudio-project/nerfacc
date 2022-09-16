@@ -19,7 +19,8 @@ def volumetric_rendering(
     scene_resolution: Tuple[int, int, int],
     render_bkgd: torch.Tensor,
     render_step_size: int,
-    near_plane: float = 0.0
+    near_plane: float = 0.0,
+    stratified: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """A *fast* version of differentiable volumetric rendering."""
     n_rays = rays_o.shape[0]
@@ -49,7 +50,8 @@ def volumetric_rendering(
             # sampling
             render_step_size=render_step_size,
             # optional settings
-            near_plane=near_plane
+            near_plane=near_plane,
+            stratified=stratified,
         )
         frustum_positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0

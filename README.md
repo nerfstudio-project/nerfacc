@@ -12,17 +12,17 @@ python examples/trainval.py
 
 Ours on TITAN RTX :
 
-| trainval | Lego | Mic | Materials |
-| - | - | - | - |
-| Time | 300s  | 272s  | 258s  |
-| PSNR | 36.28 | 36.16 | 29.76 |
-| FPS  | 11.49 | 21.48 | 8.86  |
+| trainval | Lego | Mic | Materials | Chair | Hotdog |
+| - | - | - | - | - | - |
+| Time | 300s  | 272s  | 258s  | 331s  | 287s |
+| PSNR | 36.61 | 37.45 | 30.15 | 36.06 | 38.17 |
+| FPS  | 11.49 | 21.48 | 8.86  | 15.61 | 7.38 |
 
-Instant-NGP paper (5 min) on 3090:
+Instant-NGP paper (5 min) on 3090 (w/ mask):
 
-| trainval | Lego | Mic | Materials |
-| - | - | - | - |
-| PSNR | 36.39 | 36.22 | 29.78 |
+| trainval | Lego | Mic | Materials | Chair | Hotdog |
+| - | - | - | - | - | - |
+| PSNR | 36.39 | 36.22 | 29.78 | 35.00 | 37.40 |
 
 
 <!-- 
