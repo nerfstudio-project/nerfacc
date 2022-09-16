@@ -51,12 +51,13 @@ class OccupancyField(nn.Module):
         num_dim: The space dimension. Either 2 or 3. Default is 3.
 
     Attributes:
+        aabb: Scene bounding box.
         occ_grid: The occupancy grid. It is a tensor of shape (num_cells,).
         occ_grid_binary: The binary occupancy grid. It is a tensor of shape (num_cells,).
         grid_coords: The grid coordinates. It is a tensor of shape (num_cells, num_dim).
         grid_indices: The grid indices. It is a tensor of shape (num_cells,).
     """
-
+    aabb = torch.Tensor
     occ_grid: torch.Tensor
     occ_grid_binary: torch.Tensor
     grid_coords: torch.Tensor
