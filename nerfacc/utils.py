@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional, List
 
 import torch
 from torch import Tensor
@@ -40,10 +40,10 @@ def volumetric_marching(
     rays_o: Tensor,
     rays_d: Tensor,
     aabb: Tensor,
-    scene_resolution: Tuple[int, int, int],
+    scene_resolution: List[int],
     scene_occ_binary: Tensor,
-    t_min: Tensor = None,
-    t_max: Tensor = None,
+    t_min: Optional[Tensor] = None,
+    t_max: Optional[Tensor] = None,
     render_step_size: float = 1e-3,
     near_plane: float = 0.0,
     stratified: bool = False
@@ -130,7 +130,7 @@ def volumetric_rendering_steps(
     frustum_starts: Tensor,
     frustum_ends: Tensor,
     *args,
-) -> Tuple[Tensor, Tensor, Tensor]:
+) -> Tuple[Tensor, ...]:
     """Compute rendering marching steps.
 
     This function will compact the samples by terminate the marching once the \
@@ -188,7 +188,7 @@ def volumetric_rendering_weights(
     sigmas: Tensor,
     frustum_starts: Tensor,
     frustum_ends: Tensor,
-) -> Tuple[Tensor, Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor]:
     """Compute weights for volumetric rendering.
 
     Note: this function is only differentiable to `sigmas`.
@@ -230,8 +230,8 @@ def volumetric_rendering_weights(
 def volumetric_rendering_accumulate(
     weights: Tensor,
     ray_indices: Tensor,
-    values: Tensor = None,
-    n_rays: int = None,
+    values: Optional[Tensor] = None,
+    n_rays: Optional[int] = None,
 ) -> Tensor:
     """Accumulate volumetric values along the ray.
 
@@ -265,7 +265,7 @@ def volumetric_rendering_accumulate(
         return torch.zeros((n_rays, src.shape[-1]), device=weights.device)
 
     if n_rays is None:
-        n_rays = ray_indices.max() + 1
+        n_rays = int(ray_indices.max()) + 1
     else:
         assert n_rays > ray_indices.max()
 

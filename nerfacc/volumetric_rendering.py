@@ -1,4 +1,4 @@
-from typing import Callable, Tuple
+from typing import Callable, Tuple, List
 
 import torch
 
@@ -16,12 +16,12 @@ def volumetric_rendering(
     rays_d: torch.Tensor,
     scene_aabb: torch.Tensor,
     scene_occ_binary: torch.Tensor,
-    scene_resolution: Tuple[int, int, int],
+    scene_resolution: List[int],
     render_bkgd: torch.Tensor,
     render_step_size: int,
     near_plane: float = 0.0,
     stratified: bool = False,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int, int]:
     """A *fast* version of differentiable volumetric rendering."""
     n_rays = rays_o.shape[0]
 
