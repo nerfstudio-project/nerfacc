@@ -18,7 +18,7 @@ def test_rendering():
     rays_d = torch.randn((10000, 3), device=device)
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
-    for step in tqdm.tqdm(range(5000)):
+    for step in tqdm.tqdm(range(1000)):
         (
             packed_info,
             frustum_origins,
@@ -33,7 +33,7 @@ def test_rendering():
             scene_occ_binary=scene_occ_binary,
         )
 
-        sigmas = torch.rand_like(frustum_ends[:, :1]) * 100
+        sigmas = torch.rand_like(frustum_ends[:, :1], requires_grad=True) * 100
 
         (
             packed_info,
@@ -57,7 +57,7 @@ def test_rendering():
             frustum_ends,
         )
 
-        values = torch.rand_like(sigmas)
+        values = torch.rand_like(sigmas, requires_grad=True)
 
         accum_values = volumetric_rendering_accumulate(
             weights,
@@ -65,6 +65,8 @@ def test_rendering():
             values,
             n_rays=rays_o.shape[0],
         )
+
+        accum_values.sum().backward()
 
 
 if __name__ == "__main__":
