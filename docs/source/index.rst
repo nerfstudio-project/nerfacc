@@ -1,25 +1,39 @@
+:github_url: https://github.com/KAIR-BAIR/nerfacc
 
-.. image:: _static/images/logo.png
-  :width: 400
-  :align: center
-  :alt: nerfacc
+NeRFacc Documentation
+===================================
 
-NeRF Acceleration
------------------
-
-This is a fast differentiable volume rendering toolbox as a PyTorch extension for NeRF.
-
-Check out the :doc:`usage` section for further information, including
-how to :ref:`installation` the project.
+NeRFacc is a PyTorch NeRF acceleration toolbox for both training and inference. 
 
 .. note::
 
    This project is under active development.
 
-Contents
---------
+Installation:
+-------------
+
+.. code-block:: console
+
+   $ pip install nerfacc
+
 
 .. toctree::
+   :glob:
+   :maxdepth: 1
+   :caption: Example Usages
 
-   usage
-   api
+   examples/*
+
+
+.. toctree::
+   :glob:
+   :maxdepth: 1
+   :caption: Python API
+
+   apis/*
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Projects
+
+   NeRFactory <https://plenoptix-nerfactory.readthedocs-hosted.com/>
