@@ -1,5 +1,3 @@
-:github_url: https://github.com/KAIR-BAIR/nerfacc
-
 NeRFacc Documentation
 ===================================
 
