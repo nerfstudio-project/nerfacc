@@ -2,15 +2,13 @@
 
 This is a **tiny** tootlbox  for **accelerating** NeRF training & rendering using PyTorch CUDA extensions. Plug-and-play for most of the NeRFs!
 
-## Instant-NGP example
+## Examples: Instant-NGP NeRF
 
+``` bash
+python examples/trainval.py ngp --train_split trainval
 ```
-python examples/trainval.py
-```
 
-## Performance Reference
-
-Ours on TITAN RTX :
+Performance on TITAN RTX :
 
 | trainval | Lego | Mic | Materials | Chair | Hotdog |
 | - | - | - | - | - | - |
@@ -24,6 +22,25 @@ Instant-NGP paper (5 min) on 3090 (w/ mask):
 | - | - | - | - | - | - |
 | PSNR | 36.39 | 36.22 | 29.78 | 35.00 | 37.40 |
 
+
+## Examples: Vanilla MLP NeRF
+
+``` bash
+python examples/trainval.py vanilla --train_split train
+```
+
+Performance on test set:
+
+|  | Lego |
+| - | - |
+| Paper PSNR (train set) | 32.54 |
+| Our PSNR (train set) | 33.21 |
+| Our PSNR (trainval set) | 33.66  |
+| Our train time & test FPS | 45min; 0.43FPS |
+
+For reference, vanilla NeRF paper trains on V100 GPU for 1-2 days per scene. Test time rendering takes about 30 secs to render a 800x800 image. Our model is trained on a TITAN X.
+
+Note: We only use a single MLP with more samples (1024), instead of two MLPs with coarse-to-fine sampling as in the paper. Both ways share the same spirit to do dense sampling around the surface. Our fast rendering inheritly skip samples away from the surface so we can simplly increase the number of samples with a single MLP, to achieve the same goal with coarse-to-fine sampling, without runtime or memory issue.
 
 <!-- 
 
