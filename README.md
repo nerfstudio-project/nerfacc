@@ -31,16 +31,18 @@ python examples/trainval.py vanilla --train_split train
 
 Performance on test set:
 
-|  | Lego |
-| - | - |
-| Paper PSNR (train set) | 32.54 |
-| Our PSNR (train set) | 33.21 |
-| Our PSNR (trainval set) | 33.66  |
-| Our train time & test FPS | 45min; 0.43FPS |
+|  | Lego | Mic | Materials | Chair | Hotdog |
+| - | - | - | - | - | - |
+| Paper PSNR (train set) | 32.54 | 32.91 | 29.62 | 33.00 | 36.18 |
+| Our PSNR (train set) | 33.21 | 33.36 | 29.48 | 32.79 | 35.54 |
+| Our PSNR (trainval set) | 33.66  | - | - | - | - | - |
+| Our train time & test FPS | 45min; 0.43FPS | 44min; 1FPS | 37min; 0.33FPS* | 44min; 0.57FPS* | 50min; 0.15 FPS* |
 
 For reference, vanilla NeRF paper trains on V100 GPU for 1-2 days per scene. Test time rendering takes about 30 secs to render a 800x800 image. Our model is trained on a TITAN X.
 
 Note: We only use a single MLP with more samples (1024), instead of two MLPs with coarse-to-fine sampling as in the paper. Both ways share the same spirit to do dense sampling around the surface. Our fast rendering inheritly skip samples away from the surface so we can simplly increase the number of samples with a single MLP, to achieve the same goal with coarse-to-fine sampling, without runtime or memory issue.
+
+*FPS for some scenes are tested under `--test_chunk_size=8192` (default is `81920`) to avoid OOM.
 
 <!-- 
 

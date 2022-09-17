@@ -15,7 +15,9 @@ from nerfacc import OccupancyField, volumetric_rendering
 TARGET_SAMPLE_BATCH_SIZE = 1 << 16
 
 
-def render_image(radiance_field, rays, render_bkgd, render_step_size):
+def render_image(
+    radiance_field, rays, render_bkgd, render_step_size, test_chunk_size=81920
+):
     """Render the pixels of an image.
 
     Args:
@@ -48,7 +50,7 @@ def render_image(radiance_field, rays, render_bkgd, render_step_size):
         return radiance_field(positions, frustum_dirs)
 
     results = []
-    chunk = torch.iinfo(torch.int32).max if radiance_field.training else 81920
+    chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
         chunk_results = volumetric_rendering(
@@ -95,10 +97,31 @@ if __name__ == "__main__":
         choices=["train", "trainval"],
         help="which train split to use",
     )
+    parser.add_argument(
+        "--scene",
+        type=str,
+        default="lego",
+        choices=[
+            "chair",
+            "drums",
+            "ficus",
+            "hotdog",
+            "lego",
+            "materials",
+            "mic",
+            "ship",
+        ],
+        help="which scene to use",
+    )
+    parser.add_argument(
+        "--test_chunk_size",
+        type=int,
+        default=81920,
+    )
     args = parser.parse_args()
 
     device = "cuda:0"
-    scene = "lego"
+    scene = args.scene
 
     # setup the scene bounding box.
     scene_aabb = torch.tensor([-1.5, -1.5, -1.5, 1.5, 1.5, 1.5])
@@ -251,7 +274,11 @@ if __name__ == "__main__":
                         render_bkgd = data["color_bkgd"].to(device)
                         # rendering
                         rgb, acc, _, _ = render_image(
-                            radiance_field, rays, render_bkgd, render_step_size
+                            radiance_field,
+                            rays,
+                            render_bkgd,
+                            render_step_size,
+                            test_chunk_size=args.test_chunk_size,
                         )
                         mse = F.mse_loss(rgb, pixels)
                         psnr = -10.0 * torch.log(mse) / np.log(10.0)
