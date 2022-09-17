@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, List
+from typing import Callable, List, Tuple
 
 import torch
 
@@ -11,18 +11,19 @@ from .utils import (
 
 
 def volumetric_rendering(
-    query_fn: Callable,
+    sigma_fn: Callable,
+    sigma_rgb_fn: Callable,
     rays_o: torch.Tensor,
     rays_d: torch.Tensor,
     scene_aabb: torch.Tensor,
-    scene_occ_binary: torch.Tensor,
     scene_resolution: List[int],
+    scene_occ_binary: torch.Tensor,
     render_bkgd: torch.Tensor,
-    render_step_size: int,
+    render_step_size: float = 1e-3,
     near_plane: float = 0.0,
     stratified: bool = False,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int, int]:
-    """A *fast* version of differentiable volumetric rendering."""
+) -> Tuple[torch.Tensor, torch.Tensor, int, int]:
+    """Differentiable volumetric rendering."""
     n_rays = rays_o.shape[0]
 
     rays_o = rays_o.contiguous()
@@ -31,8 +32,8 @@ def volumetric_rendering(
     scene_occ_binary = scene_occ_binary.contiguous()
     render_bkgd = render_bkgd.contiguous()
 
-    # get packed samples from ray marching & occupancy check.
     with torch.no_grad():
+        # Ray marching and occupancy check.
         (
             packed_info,
             frustum_origins,
@@ -40,77 +41,71 @@ def volumetric_rendering(
             frustum_starts,
             frustum_ends,
         ) = volumetric_marching(
-            # rays
             rays_o,
             rays_d,
-            # density grid
             aabb=scene_aabb,
             scene_resolution=scene_resolution,
             scene_occ_binary=scene_occ_binary,
-            # sampling
             render_step_size=render_step_size,
-            # optional settings
             near_plane=near_plane,
             stratified=stratified,
         )
-        frustum_positions = (
-            frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
-        )
-        steps_counter = frustum_origins.shape[0]
+        n_marching_samples = frustum_starts.shape[0]
 
-    # compat the samples thru volumetric rendering
-    with torch.no_grad():
-        densities = query_fn(frustum_positions, frustum_dirs, only_density=True)
-        (
-            compact_packed_info,
-            compact_frustum_starts,
-            compact_frustum_ends,
-            compact_frustum_positions,
-            compact_frustum_dirs,
-        ) = volumetric_rendering_steps(
-            packed_info,
-            densities,
+        # Query sigma without gradients
+        sigmas = sigma_fn(
+            frustum_origins,
+            frustum_dirs,
             frustum_starts,
             frustum_ends,
-            frustum_positions,
+        )
+
+        # Ray marching and rendering check.
+        (
+            packed_info,
+            frustum_starts,
+            frustum_ends,
+            frustum_origins,
+            frustum_dirs,
+        ) = volumetric_rendering_steps(
+            packed_info,
+            sigmas,
+            frustum_starts,
+            frustum_ends,
+            frustum_origins,
             frustum_dirs,
         )
-        compact_steps_counter = compact_frustum_positions.shape[0]
+        n_rendering_samples = frustum_starts.shape[0]
 
-    # network
-    compact_query_results = query_fn(compact_frustum_positions, compact_frustum_dirs)
-    compact_rgbs, compact_densities = compact_query_results[0], compact_query_results[1]
+    # Query sigma and color with gradients
+    rgbs, sigmas = sigma_rgb_fn(
+        frustum_origins,
+        frustum_dirs,
+        frustum_starts,
+        frustum_ends,
+    )
+    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels"
+    assert sigmas.shape[-1] == 1, "sigmas must have 1 channel"
 
-    # accumulation
-    compact_weights, compact_ray_indices = volumetric_rendering_weights(
-        compact_packed_info,
-        compact_densities,
-        compact_frustum_starts,
-        compact_frustum_ends,
+    # Rendering: compute weights and ray indices.
+    weights, ray_indices = volumetric_rendering_weights(
+        packed_info, sigmas, frustum_starts, frustum_ends
     )
-    accumulated_color = volumetric_rendering_accumulate(
-        compact_weights, compact_ray_indices, compact_rgbs, n_rays
-    )
-    accumulated_weight = volumetric_rendering_accumulate(
-        compact_weights, compact_ray_indices, None, n_rays
-    )
-    accumulated_depth = volumetric_rendering_accumulate(
-        compact_weights,
-        compact_ray_indices,
-        (compact_frustum_starts + compact_frustum_ends) / 2.0,
-        n_rays,
-    )
-    # TODO: use transmittance to compose bkgd color:
-    # https://github.com/NVlabs/instant-ngp/blob/14d6ba6fa899e9f069d2f65d33dbe3cd43056ddd/src/testbed_nerf.cu#L1400
 
-    # accumulated_color = linear_to_srgb(accumulated_color)
-    accumulated_color = accumulated_color + render_bkgd * (1.0 - accumulated_weight)
-    # accumulated_color = srgb_to_linear(accumulated_color)
-
-    return (
-        accumulated_color,
-        accumulated_depth,
-        accumulated_weight,
-        steps_counter,
-        compact_steps_counter,
+    # Rendering: accumulate rgbs and opacities along the rays.
+    colors = volumetric_rendering_accumulate(
+        weights, ray_indices, values=rgbs, n_rays=n_rays
     )
+    opacities = volumetric_rendering_accumulate(
+        weights, ray_indices, values=None, n_rays=n_rays
+    )
+    # depths = volumetric_rendering_accumulate(
+    #     weights,
+    #     ray_indices,
+    #     values=(frustum_starts + frustum_ends) / 2.0,
+    #     n_rays=n_rays,
+    # )
+
+    colors = colors + render_bkgd * (1.0 - opacities)
+
+    return colors, opacities, n_marching_samples, n_rendering_samples

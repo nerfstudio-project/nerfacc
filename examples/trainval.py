@@ -1,7 +1,6 @@
 import math
 import time
 
-import imageio
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -33,12 +32,26 @@ def render_image(radiance_field, rays, render_bkgd, render_step_size):
         rays = namedtuple_map(lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays)
     else:
         num_rays, _ = rays_shape
+
+    def sigma_fn(frustum_origins, frustum_dirs, frustum_starts, frustum_ends):
+        positions = (
+            frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
+        )
+        return radiance_field.query_density(positions)
+
+    def sigma_rgb_fn(frustum_origins, frustum_dirs, frustum_starts, frustum_ends):
+        positions = (
+            frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
+        )
+        return radiance_field(positions, frustum_dirs)
+
     results = []
     chunk = torch.iinfo(torch.int32).max if radiance_field.training else 81920
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
         chunk_results = volumetric_rendering(
-            query_fn=radiance_field.forward,  # {x, dir} -> {rgb, density}
+            sigma_fn=sigma_fn,
+            sigma_rgb_fn=sigma_rgb_fn,
             rays_o=chunk_rays.origins,
             rays_d=chunk_rays.viewdirs,
             scene_aabb=occ_field.aabb,
@@ -46,19 +59,19 @@ def render_image(radiance_field, rays, render_bkgd, render_step_size):
             scene_resolution=occ_field.resolution,
             render_bkgd=render_bkgd,
             render_step_size=render_step_size,
+            near_plane=0.0,
             stratified=radiance_field.training,
         )
         results.append(chunk_results)
-    rgb, depth, acc, counter, compact_counter = [
+    colors, opacities, n_marching_samples, n_rendering_samples = [
         torch.cat(r, dim=0) if isinstance(r[0], torch.Tensor) else r
         for r in zip(*results)
     ]
     return (
-        rgb.view((*rays_shape[:-1], -1)),
-        depth.view((*rays_shape[:-1], -1)),
-        acc.view((*rays_shape[:-1], -1)),
-        sum(counter),
-        sum(compact_counter),
+        colors.view((*rays_shape[:-1], -1)),
+        opacities.view((*rays_shape[:-1], -1)),
+        sum(n_marching_samples),
+        sum(n_rendering_samples),
     )
 
 
@@ -172,7 +185,7 @@ if __name__ == "__main__":
             # update occupancy grid
             occ_field.every_n_step(step)
 
-            rgb, depth, acc, counter, compact_counter = render_image(
+            rgb, acc, counter, compact_counter = render_image(
                 radiance_field, rays, render_bkgd, render_step_size
             )
             num_rays = len(pixels)
@@ -214,7 +227,7 @@ if __name__ == "__main__":
                         pixels = data["pixels"].to(device)
                         render_bkgd = data["color_bkgd"].to(device)
                         # rendering
-                        rgb, depth, acc, _, _ = render_image(
+                        rgb, acc, _, _ = render_image(
                             radiance_field, rays, render_bkgd, render_step_size
                         )
                         mse = F.mse_loss(rgb, pixels)
@@ -222,10 +235,10 @@ if __name__ == "__main__":
                         psnrs.append(psnr.item())
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
-                imageio.imwrite(
-                    "acc_binary_test.png",
-                    ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
-                )
+                # imageio.imwrite(
+                #     "acc_binary_test.png",
+                #     ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
+                # )
 
                 psnrs = []
                 train_dataset.training = False
@@ -236,7 +249,7 @@ if __name__ == "__main__":
                         pixels = data["pixels"].to(device)
                         render_bkgd = data["color_bkgd"].to(device)
                         # rendering
-                        rgb, depth, acc, _, _ = render_image(
+                        rgb, acc, _, _ = render_image(
                             radiance_field, rays, render_bkgd, render_step_size
                         )
                         mse = F.mse_loss(rgb, pixels)
@@ -244,14 +257,14 @@ if __name__ == "__main__":
                         psnrs.append(psnr.item())
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation on train: {psnr_avg=}")
-                imageio.imwrite(
-                    "acc_binary_train.png",
-                    ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
-                )
-                imageio.imwrite(
-                    "rgb_train.png",
-                    (rgb.cpu().numpy() * 255).astype(np.uint8),
-                )
+                # imageio.imwrite(
+                #     "acc_binary_train.png",
+                #     ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
+                # )
+                # imageio.imwrite(
+                #     "rgb_train.png",
+                #     (rgb.cpu().numpy() * 255).astype(np.uint8),
+                # )
                 train_dataset.training = True
 
             if step == 20_000:
