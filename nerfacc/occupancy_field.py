@@ -6,7 +6,9 @@ from torch import nn
 # from torch_scatter import scatter_max
 
 
-def meshgrid3d(res: List[int], device: Union[torch.device, str] = "cpu") -> torch.Tensor:
+def meshgrid3d(
+    res: List[int], device: Union[torch.device, str] = "cpu"
+) -> torch.Tensor:
     """Create 3D grid coordinates.
 
     Args:
@@ -57,6 +59,7 @@ class OccupancyField(nn.Module):
         grid_coords: The grid coordinates. It is a tensor of shape (num_cells, num_dim).
         grid_indices: The grid indices. It is a tensor of shape (num_cells,).
     """
+
     aabb: torch.Tensor
     occ_grid: torch.Tensor
     occ_grid_binary: torch.Tensor
@@ -95,10 +98,6 @@ class OccupancyField(nn.Module):
         self.register_buffer("occ_grid", occ_grid)
         occ_grid_binary = torch.zeros(self.num_cells, dtype=torch.bool)
         self.register_buffer("occ_grid_binary", occ_grid_binary)
-
-        # Used for thresholding occ_grid
-        occ_grid_mean = occ_grid.mean()
-        self.register_buffer("occ_grid_mean", occ_grid_mean)
 
         # Grid coords & indices
         grid_coords = meshgrid3d(self.resolution).reshape(self.num_cells, self.num_dim)
@@ -142,25 +141,22 @@ class OccupancyField(nn.Module):
             indices = self._sample_uniform_and_occupied_cells(N)
 
         # infer occupancy: density * step_size
-        tmp_occ_grid = -torch.ones_like(self.occ_grid)
         grid_coords = self.grid_coords[indices]
         x = (
-            grid_coords + torch.rand_like(grid_coords.float())
+            grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
         ) / self.resolution_tensor
         bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
         x = x * (bb_max - bb_min) + bb_min
-        tmp_occ = self.occ_eval_fn(x).squeeze(-1)
-        tmp_occ_grid[indices] = tmp_occ
-        # tmp_occ_grid, _ = scatter_max(tmp_occ, indices, dim=0, out=tmp_occ_grid)
+        occ = self.occ_eval_fn(x).squeeze(-1)
 
         # ema update
-        ema_mask = (self.occ_grid >= 0) & (tmp_occ_grid >= 0)
-        self.occ_grid[ema_mask] = torch.maximum(
-            self.occ_grid[ema_mask] * ema_decay, tmp_occ_grid[ema_mask]
-        )
-        self.occ_grid_mean = self.occ_grid.mean()
+        self.occ_grid[indices] = torch.maximum(self.occ_grid[indices] * ema_decay, occ)
+        # suppose to use scatter max but emperically it is almost the same.
+        # self.occ_grid, _ = scatter_max(
+        #     occ, indices, dim=0, out=self.occ_grid * ema_decay
+        # )
         self.occ_grid_binary = self.occ_grid > torch.clamp(
-            self.occ_grid_mean, max=occ_thre
+            self.occ_grid.mean(), max=occ_thre
         )
 
     @torch.no_grad()

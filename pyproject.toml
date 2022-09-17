@@ -24,4 +24,5 @@ dependencies = [
 dev = [
     "black",
     "isort",
+    "pytest",
 ]
