@@ -1,4 +1,5 @@
-from typing import Callable, List, Tuple
+from typing import Callable, List, Optional, Tuple
+
 
 import torch
 
@@ -16,15 +17,26 @@ def volumetric_rendering(
     rays_o: torch.Tensor,
     rays_d: torch.Tensor,
     scene_aabb: torch.Tensor,
-    scene_resolution: List[int],
-    scene_occ_binary: torch.Tensor,
-    render_bkgd: torch.Tensor,
+    scene_resolution: Optional[List[int]] = None,
+    scene_occ_binary: Optional[torch.Tensor] = None,
+    render_bkgd: Optional[torch.Tensor] = None,
     render_step_size: float = 1e-3,
     near_plane: float = 0.0,
     stratified: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, int, int]:
     """Differentiable volumetric rendering."""
     n_rays = rays_o.shape[0]
+
+    if scene_occ_binary is None:
+        scene_occ_binary = torch.ones(
+            (1, 1, 1),
+            dtype=torch.bool,
+            device=rays_o.device,
+        )
+
+    if scene_resolution is None:
+        assert scene_occ_binary is not None and scene_occ_binary.dim() == 3
+        scene_resolution = scene_occ_binary.shape
 
     rays_o = rays_o.contiguous()
     rays_d = rays_d.contiguous()
@@ -106,6 +118,7 @@ def volumetric_rendering(
     #     n_rays=n_rays,
     # )
 
-    colors = colors + render_bkgd * (1.0 - opacities)
+    if render_bkgd is not None:
+        colors = colors + render_bkgd * (1.0 - opacities)
 
     return colors, opacities, n_marching_samples, n_rendering_samples
