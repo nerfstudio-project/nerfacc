@@ -14,6 +14,12 @@ Installation:
 
    $ pip install nerfacc
 
+.. toctree::
+   :glob:
+   :maxdepth: 1
+   :caption: Python API
+
+   apis/*
 
 .. toctree::
    :glob:
@@ -21,14 +27,6 @@ Installation:
    :caption: Example Usages
 
    examples/*
-
-
-.. toctree::
-   :glob:
-   :maxdepth: 1
-   :caption: Python API
-
-   apis/*
 
 .. toctree::
    :maxdepth: 1
