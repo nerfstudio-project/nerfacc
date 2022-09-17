@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, List
+from typing import List, Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -46,7 +46,7 @@ def volumetric_marching(
     t_max: Optional[Tensor] = None,
     render_step_size: float = 1e-3,
     near_plane: float = 0.0,
-    stratified: bool = False
+    stratified: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Volumetric marching with occupancy test.
 
@@ -142,8 +142,8 @@ def volumetric_rendering_steps(
 
     Args:
         packed_info: Stores infomation on which samples belong to the same ray. \
-            See volumetric_marching for details. Tensor with shape (n_rays, 2). \
-            sigmas: Densities at those samples. Tensor with shape (n_samples, 1).
+            See volumetric_marching for details. Tensor with shape (n_rays, 2).
+        sigmas: Densities at those samples. Tensor with shape (n_samples, 1).
         frustum_starts: Where the frustum-shape sample starts along a ray. Tensor with \
             shape (n_samples, 1).
         frustum_ends: Where the frustum-shape sample ends along a ray. Tensor with \
@@ -152,9 +152,9 @@ def volumetric_rendering_steps(
     Returns:
         A tuple of tensors containing
 
-            **compact_packed_info**: Compacted version of input packed_info.
-            **compact_frustum_starts**: Compacted version of input frustum_starts.
-            **compact_frustum_ends**: Compacted version of input frustum_ends.
+            - **compact_packed_info**: Compacted version of input packed_info.
+            - **compact_frustum_starts**: Compacted version of input frustum_starts.
+            - **compact_frustum_ends**: Compacted version of input frustum_ends.
 
     """
     if (
