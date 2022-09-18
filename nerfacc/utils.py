@@ -47,7 +47,7 @@ def volumetric_marching(
     render_step_size: float = 1e-3,
     near_plane: float = 0.0,
     stratified: bool = False,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Volumetric marching with occupancy test.
 
     Note: this function is not differentiable to inputs.
