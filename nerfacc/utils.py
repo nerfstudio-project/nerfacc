@@ -174,7 +174,7 @@ def volumetric_rendering_weights(
     sigmas: Tensor,
     frustum_starts: Tensor,
     frustum_ends: Tensor,
-) -> Tuple[Tensor, Tensor]:
+) -> Tensor:
     """Compute weights for volumetric rendering.
 
     Note: this function is only differentiable to `sigmas`.
@@ -189,9 +189,7 @@ def volumetric_rendering_weights(
             shape (n_samples, 1).
 
     Returns:
-        A tuple of tensors containing
-
-            - **weights**: Volumetric rendering weights for those samples. Tensor with shape (n_samples).
+        Volumetric rendering weights for those samples. Tensor with shape (n_samples).
 
     """
     if (
