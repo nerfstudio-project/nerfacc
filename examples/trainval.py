@@ -9,14 +9,9 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
-# from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
-from datasets.dnerf_synthetic import SubjectLoader, namedtuple_map
-from radiance_fields.mlp import DNeRFRadianceField, VanillaNeRFRadianceField
-from radiance_fields.ngp import NGPradianceField
-
 from nerfacc import OccupancyField, volumetric_rendering
 
-TARGET_SAMPLE_BATCH_SIZE = 1 << 16
+device = "cuda:0"
 
 
 def render_image(
@@ -53,11 +48,14 @@ def render_image(
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
-        if radiance_field.training:
-            t = timestamps[ray_indices]
+        if timestamps is None:
+            return radiance_field.query_density(positions)
         else:
-            t = timestamps.expand_as(positions[:, :1])
-        return radiance_field.query_density(positions, t)
+            if radiance_field.training:
+                t = timestamps[ray_indices]
+            else:
+                t = timestamps.expand_as(positions[:, :1])
+            return radiance_field.query_density(positions, t)
 
     def sigma_rgb_fn(frustum_starts, frustum_ends, ray_indices):
         ray_indices = ray_indices.long()
@@ -66,11 +64,14 @@ def render_image(
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
-        if radiance_field.training:
-            t = timestamps[ray_indices]
+        if timestamps is None:
+            return radiance_field(positions, frustum_dirs)
         else:
-            t = timestamps.expand_as(positions[:, :1])
-        return radiance_field(positions, t, frustum_dirs)
+            if radiance_field.training:
+                t = timestamps[ray_indices]
+            else:
+                t = timestamps.expand_as(positions[:, :1])
+            return radiance_field(positions, t, frustum_dirs)
 
     results = []
     chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
@@ -125,6 +126,7 @@ if __name__ == "__main__":
         type=str,
         default="lego",
         choices=[
+            # nerf synthetic
             "chair",
             "drums",
             "ficus",
@@ -146,17 +148,59 @@ if __name__ == "__main__":
         help="which scene to use",
     )
     parser.add_argument(
+        "--aabb",
+        type=list,
+        default=[-1.5, -1.5, -1.5, 1.5, 1.5, 1.5],
+    )
+    parser.add_argument(
         "--test_chunk_size",
         type=int,
         default=81920,
     )
+    parser.add_argument(
+        "--target_sample_batch_size",
+        type=int,
+        default=1 << 18,
+    )
     args = parser.parse_args()
 
-    device = "cuda:0"
+    if args.method == "ngp":
+        from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
+        from radiance_fields.ngp import NGPradianceField
+
+        radiance_field = NGPradianceField(aabb=args.aabb).to(device)
+        optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
+        max_steps = 20000
+        occ_field_warmup_steps = 256
+        grad_scaler = torch.cuda.amp.GradScaler(2**10)
+        data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
+
+    elif args.method == "vanilla":
+        from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
+        from radiance_fields.mlp import VanillaNeRFRadianceField
+
+        radiance_field = VanillaNeRFRadianceField().to(device)
+        optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
+        max_steps = 40000
+        occ_field_warmup_steps = 2000
+        grad_scaler = torch.cuda.amp.GradScaler(1)
+        data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
+
+    elif args.method == "dnerf":
+        from datasets.dnerf_synthetic import SubjectLoader, namedtuple_map
+        from radiance_fields.mlp import DNeRFRadianceField
+
+        radiance_field = DNeRFRadianceField().to(device)
+        optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
+        max_steps = 40000
+        occ_field_warmup_steps = 2000
+        grad_scaler = torch.cuda.amp.GradScaler(1)
+        data_root_fp = "/home/ruilongli/data/dnerf/"
+
     scene = args.scene
 
     # setup the scene bounding box.
-    scene_aabb = torch.tensor([-1.5, -1.5, -1.5, 1.5, 1.5, 1.5])
+    scene_aabb = torch.tensor(args.aabb)
     # setup some rendering settings
     render_n_samples = 1024
     render_step_size = (
@@ -166,64 +210,29 @@ if __name__ == "__main__":
     # setup dataset
     train_dataset = SubjectLoader(
         subject_id=scene,
-        root_fp="/home/ruilongli/data/dnerf/",
+        root_fp=data_root_fp,
         split=args.train_split,
-        num_rays=TARGET_SAMPLE_BATCH_SIZE // render_n_samples,
+        num_rays=args.target_sample_batch_size // render_n_samples,
         # color_bkgd_aug="random",
     )
 
     train_dataset.images = train_dataset.images.to(device)
     train_dataset.camtoworlds = train_dataset.camtoworlds.to(device)
     train_dataset.K = train_dataset.K.to(device)
-    train_dataset.timestamps = train_dataset.timestamps.to(device)
-    train_dataloader = torch.utils.data.DataLoader(
-        train_dataset,
-        num_workers=0,
-        batch_size=None,
-        # persistent_workers=True,
-        shuffle=True,
-    )
+    if hasattr(train_dataset, "timestamps"):
+        train_dataset.timestamps = train_dataset.timestamps.to(device)
 
     test_dataset = SubjectLoader(
         subject_id=scene,
-        root_fp="/home/ruilongli/data/dnerf/",
+        root_fp=data_root_fp,
         split="test",
         num_rays=None,
     )
     test_dataset.images = test_dataset.images.to(device)
     test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
     test_dataset.K = test_dataset.K.to(device)
-    test_dataset.timestamps = test_dataset.timestamps.to(device)
-    test_dataloader = torch.utils.data.DataLoader(
-        test_dataset,
-        num_workers=0,
-        batch_size=None,
-    )
-
-    # setup the scene radiance field. Assume you have a NeRF model and
-    # it has following functions:
-    # - query_density(): {x} -> {density}
-    # - forward(): {x, dirs} -> {rgb, density}
-    if args.method == "ngp":
-        radiance_field = NGPradianceField(aabb=scene_aabb).to(device)
-        optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
-        max_steps = 20000
-        occ_field_warmup_steps = 256
-        grad_scaler = torch.cuda.amp.GradScaler(2**10)
-
-    elif args.method == "vanilla":
-        radiance_field = VanillaNeRFRadianceField().to(device)
-        optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
-        max_steps = 40000
-        occ_field_warmup_steps = 2000
-        grad_scaler = torch.cuda.amp.GradScaler(1)
-
-    elif args.method == "dnerf":
-        radiance_field = DNeRFRadianceField().to(device)
-        optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
-        max_steps = 40000
-        occ_field_warmup_steps = 2000
-        grad_scaler = torch.cuda.amp.GradScaler(1)
+    if hasattr(train_dataset, "timestamps"):
+        test_dataset.timestamps = test_dataset.timestamps.to(device)
 
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer,
@@ -240,11 +249,14 @@ if __name__ == "__main__":
         Returns:
             occupancy values with shape (N, 1).
         """
-        idxs = torch.randint(
-            0, len(train_dataset.timestamps), (x.shape[0],), device=x.device
-        )
-        t = train_dataset.timestamps[idxs]
-        density_after_activation = radiance_field.query_density(x, t)
+        if args.method == "dnerf":
+            idxs = torch.randint(
+                0, len(train_dataset.timestamps), (x.shape[0],), device=x.device
+            )
+            t = train_dataset.timestamps[idxs]
+            density_after_activation = radiance_field.query_density(x, t)
+        else:
+            density_after_activation = radiance_field.query_density(x)
         # those two are similar when density is small.
         # occupancy = 1.0 - torch.exp(-density_after_activation * render_step_size)
         occupancy = density_after_activation * render_step_size
@@ -266,13 +278,10 @@ if __name__ == "__main__":
             data = train_dataset[i]
             data_time += time.time() - tic_data
 
-            # generate rays from data and the gt pixel color
-            # rays = namedtuple_map(lambda x: x.to(device), data["rays"])
-            # pixels = data["pixels"].to(device)
             render_bkgd = data["color_bkgd"]
             rays = data["rays"]
             pixels = data["pixels"]
-            timestamps = data["timestamps"]
+            timestamps = data.get("timestamps", None)
 
             # update occupancy grid
             occ_field.every_n_step(step, warmup_steps=occ_field_warmup_steps)
@@ -282,7 +291,7 @@ if __name__ == "__main__":
             )
             num_rays = len(pixels)
             num_rays = int(
-                num_rays * (TARGET_SAMPLE_BATCH_SIZE / float(compact_counter))
+                num_rays * (args.target_sample_batch_size / float(compact_counter))
             )
             train_dataset.update_num_rays(num_rays)
             alive_ray_mask = acc.squeeze(-1) > 0
@@ -313,12 +322,11 @@ if __name__ == "__main__":
 
                 psnrs = []
                 with torch.no_grad():
-                    for i, data in tqdm.tqdm(enumerate(test_dataloader)):
-                        # generate rays from data and the gt pixel color
-                        rays = namedtuple_map(lambda x: x.to(device), data["rays"])
-                        pixels = data["pixels"].to(device)
-                        render_bkgd = data["color_bkgd"].to(device)
-                        timestamps = data["timestamps"].to(device)
+                    for i, data in tqdm.tqdm(enumerate(test_dataset)):
+                        render_bkgd = data["color_bkgd"]
+                        rays = data["rays"]
+                        pixels = data["pixels"]
+                        timestamps = data.get("timestamps", None)
 
                         # rendering
                         rgb, acc, _, _ = render_image(
@@ -354,32 +362,6 @@ if __name__ == "__main__":
                             break
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
-
-                # psnrs = []
-                # train_dataset.training = False
-                # with torch.no_grad():
-                #     for data in tqdm.tqdm(train_dataloader):
-                #         # generate rays from data and the gt pixel color
-                #         rays = namedtuple_map(lambda x: x.to(device), data["rays"])
-                #         pixels = data["pixels"].to(device)
-                #         render_bkgd = data["color_bkgd"].to(device)
-                #         # rendering
-                #         rgb, acc, _, _ = render_image(
-                #             radiance_field, rays, render_bkgd, render_step_size
-                #         )
-                #         mse = F.mse_loss(rgb, pixels)
-                #         psnr = -10.0 * torch.log(mse) / np.log(10.0)
-                #         psnrs.append(psnr.item())
-                # psnr_avg = sum(psnrs) / len(psnrs)
-                # print(f"evaluation on train: {psnr_avg=}")
-                # imageio.imwrite(
-                #     "acc_binary_train.png",
-                #     ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
-                # )
-                # imageio.imwrite(
-                #     "rgb_train.png",
-                #     (rgb.cpu().numpy() * 255).astype(np.uint8),
-                # )
                 train_dataset.training = True
 
             if step == max_steps:
