@@ -46,12 +46,10 @@ def render_image(
     else:
         num_rays, _ = rays_shape
 
-    def sigma_fn(
-        frustum_origins, frustum_dirs, frustum_starts, frustum_ends, ray_indices
-    ):
+    def sigma_fn(frustum_starts, frustum_ends, ray_indices):
         ray_indices = ray_indices.long()
-        # frustum_origins = rays.origins[ray_indices]
-        # frustum_dirs = rays.viewdirs[ray_indices]
+        frustum_origins = chunk_rays.origins[ray_indices]
+        frustum_dirs = chunk_rays.viewdirs[ray_indices]
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
@@ -61,12 +59,10 @@ def render_image(
             t = timestamps.expand_as(positions[:, :1])
         return radiance_field.query_density(positions, t)
 
-    def sigma_rgb_fn(
-        frustum_origins, frustum_dirs, frustum_starts, frustum_ends, ray_indices
-    ):
+    def sigma_rgb_fn(frustum_starts, frustum_ends, ray_indices):
         ray_indices = ray_indices.long()
-        # frustum_origins = rays.origins[ray_indices]
-        # frustum_dirs = rays.viewdirs[ray_indices]
+        frustum_origins = chunk_rays.origins[ray_indices]
+        frustum_dirs = chunk_rays.viewdirs[ray_indices]
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )

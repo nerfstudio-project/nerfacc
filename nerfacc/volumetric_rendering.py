@@ -46,13 +46,7 @@ def volumetric_rendering(
 
     with torch.no_grad():
         # Ray marching and occupancy check.
-        (
-            packed_info,
-            frustum_origins,
-            frustum_dirs,
-            frustum_starts,
-            frustum_ends,
-        ) = volumetric_marching(
+        packed_info, frustum_starts, frustum_ends = volumetric_marching(
             rays_o,
             rays_d,
             aabb=scene_aabb,
@@ -66,48 +60,27 @@ def volumetric_rendering(
         ray_indices = unpack_to_ray_indices(packed_info)
 
         # Query sigma without gradients
-        sigmas = sigma_fn(
-            frustum_origins,
-            frustum_dirs,
-            frustum_starts,
-            frustum_ends,
-            ray_indices,
-        )
+        sigmas = sigma_fn(frustum_starts, frustum_ends, ray_indices)
 
         # Ray marching and rendering check.
-        (
-            packed_info,
-            frustum_starts,
-            frustum_ends,
-            frustum_origins,
-            frustum_dirs,
-        ) = volumetric_rendering_steps(
+        packed_info, frustum_starts, frustum_ends = volumetric_rendering_steps(
             packed_info,
             sigmas,
             frustum_starts,
             frustum_ends,
-            frustum_origins,
-            frustum_dirs,
         )
         n_rendering_samples = frustum_starts.shape[0]
-        _ray_indices = unpack_to_ray_indices(packed_info)
+        ray_indices = unpack_to_ray_indices(packed_info)
 
     # Query sigma and color with gradients
-    rgbs, sigmas = sigma_rgb_fn(
-        frustum_origins,
-        frustum_dirs,
-        frustum_starts,
-        frustum_ends,
-        _ray_indices,
-    )
+    rgbs, sigmas = sigma_rgb_fn(frustum_starts, frustum_ends, ray_indices)
     assert rgbs.shape[-1] == 3, "rgbs must have 3 channels"
     assert sigmas.shape[-1] == 1, "sigmas must have 1 channel"
 
     # Rendering: compute weights and ray indices.
-    weights, ray_indices = volumetric_rendering_weights(
+    weights = volumetric_rendering_weights(
         packed_info, sigmas, frustum_starts, frustum_ends
     )
-    assert (ray_indices == _ray_indices).all()
 
     # Rendering: accumulate rgbs and opacities along the rays.
     colors = volumetric_rendering_accumulate(

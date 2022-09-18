@@ -52,8 +52,7 @@ __global__ void volumetric_rendering_weights_forward_kernel(
     const scalar_t* ends,  // input end t
     const scalar_t* sigmas,  // input density after activation
     // should be all-zero initialized
-    scalar_t* weights,  // output
-    int* samples_ray_ids // output
+    scalar_t* weights  // output
 ) {
     CUDA_GET_THREAD_ID(i, n_rays);
 
@@ -66,11 +65,6 @@ __global__ void volumetric_rendering_weights_forward_kernel(
     ends += base;
     sigmas += base;
     weights += base;
-    samples_ray_ids += base;
-
-    for (int j = 0; j < steps; ++j) {
-        samples_ray_ids[j] = i;
-    }
 
     // accumulated rendering
     scalar_t T = 1.f;
@@ -184,7 +178,7 @@ std::vector<torch::Tensor> volumetric_rendering_steps(
 }
 
 
-std::vector<torch::Tensor> volumetric_rendering_weights_forward(
+torch::Tensor volumetric_rendering_weights_forward(
     torch::Tensor packed_info, 
     torch::Tensor starts, 
     torch::Tensor ends, 
@@ -208,7 +202,6 @@ std::vector<torch::Tensor> volumetric_rendering_weights_forward(
 
     // outputs
     torch::Tensor weights = torch::zeros({n_samples}, sigmas.options()); 
-    torch::Tensor ray_indices = torch::zeros({n_samples}, packed_info.options()); 
 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(
         sigmas.scalar_type(),
@@ -220,12 +213,11 @@ std::vector<torch::Tensor> volumetric_rendering_weights_forward(
                 starts.data_ptr<scalar_t>(),
                 ends.data_ptr<scalar_t>(),
                 sigmas.data_ptr<scalar_t>(),
-                weights.data_ptr<scalar_t>(),
-                ray_indices.data_ptr<int>()
+                weights.data_ptr<scalar_t>()
             ); 
         }));
 
-    return {weights, ray_indices};
+    return weights;
 }
 
 

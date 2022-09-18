@@ -14,7 +14,7 @@ std::vector<torch::Tensor> volumetric_rendering_steps(
     torch::Tensor sigmas
 );
 
-std::vector<torch::Tensor> volumetric_rendering_weights_forward(
+torch::Tensor volumetric_rendering_weights_forward(
     torch::Tensor packed_info, 
     torch::Tensor starts, 
     torch::Tensor ends, 
