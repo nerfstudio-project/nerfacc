@@ -1,6 +1,7 @@
 import argparse
 import math
 import os
+import random
 import time
 
 import imageio
@@ -12,6 +13,12 @@ import tqdm
 from nerfacc import OccupancyField, volumetric_rendering
 
 device = "cuda:0"
+
+
+def _set_random_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
 
 def render_image(
@@ -104,7 +111,7 @@ def render_image(
 
 
 if __name__ == "__main__":
-    torch.manual_seed(42)
+    _set_random_seed(42)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -157,11 +164,6 @@ if __name__ == "__main__":
         type=int,
         default=81920,
     )
-    parser.add_argument(
-        "--target_sample_batch_size",
-        type=int,
-        default=1 << 18,
-    )
     args = parser.parse_args()
 
     if args.method == "ngp":
@@ -174,6 +176,7 @@ if __name__ == "__main__":
         occ_field_warmup_steps = 256
         grad_scaler = torch.cuda.amp.GradScaler(2**10)
         data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
+        target_sample_batch_size = 1 << 18
 
     elif args.method == "vanilla":
         from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
@@ -185,6 +188,7 @@ if __name__ == "__main__":
         occ_field_warmup_steps = 2000
         grad_scaler = torch.cuda.amp.GradScaler(1)
         data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
+        target_sample_batch_size = 1 << 16
 
     elif args.method == "dnerf":
         from datasets.dnerf_synthetic import SubjectLoader, namedtuple_map
@@ -196,6 +200,7 @@ if __name__ == "__main__":
         occ_field_warmup_steps = 2000
         grad_scaler = torch.cuda.amp.GradScaler(1)
         data_root_fp = "/home/ruilongli/data/dnerf/"
+        target_sample_batch_size = 1 << 16
 
     scene = args.scene
 
@@ -212,7 +217,7 @@ if __name__ == "__main__":
         subject_id=scene,
         root_fp=data_root_fp,
         split=args.train_split,
-        num_rays=args.target_sample_batch_size // render_n_samples,
+        num_rays=target_sample_batch_size // render_n_samples,
         # color_bkgd_aug="random",
     )
 
@@ -291,7 +296,7 @@ if __name__ == "__main__":
             )
             num_rays = len(pixels)
             num_rays = int(
-                num_rays * (args.target_sample_batch_size / float(compact_counter))
+                num_rays * (target_sample_batch_size / float(compact_counter))
             )
             train_dataset.update_num_rays(num_rays)
             alive_ray_mask = acc.squeeze(-1) > 0
@@ -316,7 +321,7 @@ if __name__ == "__main__":
                 )
 
             # if time.time() - tic > 300:
-            if step >= 0 and step % 2000 == 0 and step > 0:
+            if step >= 0 and step % max_steps == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
@@ -340,26 +345,26 @@ if __name__ == "__main__":
                         mse = F.mse_loss(rgb, pixels)
                         psnr = -10.0 * torch.log(mse) / np.log(10.0)
                         psnrs.append(psnr.item())
-                        if step == max_steps:
-                            output_dir = os.path.join("./outputs/nerfacc/", scene)
-                            os.makedirs(output_dir, exist_ok=True)
-                            save = torch.cat([pixels, rgb], dim=1)
-                            imageio.imwrite(
-                                os.path.join(output_dir, "%05d.png" % i),
-                                (save.cpu().numpy() * 255).astype(np.uint8),
-                            )
-                        else:
-                            imageio.imwrite(
-                                "acc_binary_test.png",
-                                ((acc > 0).float().cpu().numpy() * 255).astype(
-                                    np.uint8
-                                ),
-                            )
-                            imageio.imwrite(
-                                "rgb_test.png",
-                                (rgb.cpu().numpy() * 255).astype(np.uint8),
-                            )
-                            break
+                        # if step == max_steps:
+                        #     output_dir = os.path.join("./outputs/nerfacc/", scene)
+                        #     os.makedirs(output_dir, exist_ok=True)
+                        #     save = torch.cat([pixels, rgb], dim=1)
+                        #     imageio.imwrite(
+                        #         os.path.join(output_dir, "%05d.png" % i),
+                        #         (save.cpu().numpy() * 255).astype(np.uint8),
+                        #     )
+                        # else:
+                        #     imageio.imwrite(
+                        #         "acc_binary_test.png",
+                        #         ((acc > 0).float().cpu().numpy() * 255).astype(
+                        #             np.uint8
+                        #         ),
+                        #     )
+                        #     imageio.imwrite(
+                        #         "rgb_test.png",
+                        #         (rgb.cpu().numpy() * 255).astype(np.uint8),
+                        #     )
+                        #     break
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
                 train_dataset.training = True
