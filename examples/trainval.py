@@ -327,7 +327,8 @@ if __name__ == "__main__":
 
                 psnrs = []
                 with torch.no_grad():
-                    for i, data in tqdm.tqdm(enumerate(test_dataset)):
+                    for i in tqdm.tqdm(range(len(test_dataset))):
+                        data = test_dataset[i]
                         render_bkgd = data["color_bkgd"]
                         rays = data["rays"]
                         pixels = data["pixels"]
