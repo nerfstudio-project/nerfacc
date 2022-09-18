@@ -10,7 +10,7 @@ def sigma_fn(frustum_starts, frustum_ends, ray_indices):
     return torch.rand_like(frustum_ends[:, :1])
 
 
-def sigma_rgb_fn(frustum_starts, frustum_ends, ray_indices):
+def rgb_sigma_fn(frustum_starts, frustum_ends, ray_indices):
     return torch.rand((frustum_ends.shape[0], 3), device=device), torch.rand_like(
         frustum_ends
     )
@@ -26,9 +26,9 @@ def test_rendering():
     render_bkgd = torch.ones(3, device=device)
 
     for step in tqdm.tqdm(range(1000)):
-        volumetric_rendering(
+        volumetric_rendering_pipeline(
             sigma_fn,
-            sigma_rgb_fn,
+            rgb_sigma_fn,
             rays_o,
             rays_d,
             scene_aabb,

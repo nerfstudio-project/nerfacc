@@ -260,6 +260,28 @@ def volumetric_rendering_accumulate(
     return outputs
 
 
+@torch.no_grad()
+def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
+    """Unpack `packed_info` to ray indices. Useful for converting per ray data to per sample data.
+
+    Note: this function is not differentiable to inputs.
+
+    Args:
+        packed_info: Stores infomation on which samples belong to the same ray. \
+            See ``volumetric_marching`` for details. Tensor with shape (n_rays, 2).
+
+    Returns:
+        Ray index of each sample. IntTensor with shape (n_sample).
+
+    """
+    if packed_info.is_cuda:
+        packed_info = packed_info.contiguous()
+        ray_indices = nerfacc_cuda.unpack_to_ray_indices(packed_info)
+    else:
+        raise NotImplementedError("Only support cuda inputs.")
+    return ray_indices
+
+
 class _volumetric_rendering_weights(torch.autograd.Function):
     @staticmethod
     def forward(ctx, packed_info, frustum_starts, frustum_ends, sigmas):

@@ -64,7 +64,7 @@ def render_image(
                 t = timestamps.expand_as(positions[:, :1])
             return radiance_field.query_density(positions, t)
 
-    def sigma_rgb_fn(frustum_starts, frustum_ends, ray_indices):
+    def rgb_sigma_fn(frustum_starts, frustum_ends, ray_indices):
         ray_indices = ray_indices.long()
         frustum_origins = chunk_rays.origins[ray_indices]
         frustum_dirs = chunk_rays.viewdirs[ray_indices]
@@ -84,9 +84,9 @@ def render_image(
     chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        chunk_results = volumetric_rendering(
+        chunk_results = volumetric_rendering_pipeline(
             sigma_fn=sigma_fn,
-            sigma_rgb_fn=sigma_rgb_fn,
+            rgb_sigma_fn=rgb_sigma_fn,
             rays_o=chunk_rays.origins,
             rays_d=chunk_rays.viewdirs,
             scene_aabb=occ_field.aabb,

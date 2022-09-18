@@ -59,7 +59,7 @@ Performance on test set:
 | - | - | - |
 | DNeRF paper PSNR (train set) | 21.64 | 32.79 |
 | Our PSNR (train set) | 24.66 | 33.98 |
-| Our train time & test FPS | 43min; 0.25FPS | 41min; 0.4FPS |
+| Our train time & test FPS | 43min; 0.15FPS | 41min; 0.4FPS |
 
 
 ## Tips:
