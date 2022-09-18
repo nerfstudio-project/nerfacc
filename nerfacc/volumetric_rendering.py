@@ -69,10 +69,10 @@ def volumetric_rendering_pipeline(
     rays_d = rays_d.contiguous()
     scene_aabb = scene_aabb.contiguous()
     scene_occ_binary = scene_occ_binary.contiguous()
-    render_bkgd = render_bkgd.contiguous()
 
     with torch.no_grad():
         # Ray marching and occupancy check.
+        assert scene_resolution is not None
         packed_info, frustum_starts, frustum_ends = volumetric_marching(
             rays_o,
             rays_d,
@@ -126,6 +126,7 @@ def volumetric_rendering_pipeline(
     # )
 
     if render_bkgd is not None:
+        render_bkgd = render_bkgd.contiguous()
         colors = colors + render_bkgd * (1.0 - opacities)
 
     return colors, opacities, n_marching_samples, n_rendering_samples
