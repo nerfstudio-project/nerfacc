@@ -44,6 +44,25 @@ Note: We only use a single MLP with more samples (1024), instead of two MLPs wit
 
 *FPS for some scenes are tested under `--test_chunk_size=8192` (default is `81920`) to avoid OOM.
 
+
+## Examples: MLP NeRF on Dynamic objects
+
+Here we trained something similar to D-NeRF on the dnerf dataset:
+
+``` bash
+python examples/trainval.py dnerf --train_split train --test_chunk_size=8192
+```
+
+Performance on test set:
+
+|  | Lego | Stand Up |
+| - | - | - |
+| DNeRF paper PSNR (train set) | 21.64 | 32.79 |
+| Our PSNR (train set) | 24.66 | 33.98 |
+| Our train time & test FPS | 43min; 0.25FPS | 41min; 0.4FPS |
+
+
+
 <!-- 
 
 Tested with the default settings on the Lego test set.

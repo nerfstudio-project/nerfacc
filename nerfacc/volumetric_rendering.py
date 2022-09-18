@@ -2,6 +2,7 @@ from typing import Callable, List, Optional, Tuple
 
 import torch
 
+from .cuda import unpack_to_ray_indices
 from .utils import (
     volumetric_marching,
     volumetric_rendering_accumulate,
@@ -62,6 +63,7 @@ def volumetric_rendering(
             stratified=stratified,
         )
         n_marching_samples = frustum_starts.shape[0]
+        ray_indices = unpack_to_ray_indices(packed_info)
 
         # Query sigma without gradients
         sigmas = sigma_fn(
@@ -69,6 +71,7 @@ def volumetric_rendering(
             frustum_dirs,
             frustum_starts,
             frustum_ends,
+            ray_indices,
         )
 
         # Ray marching and rendering check.
@@ -87,6 +90,7 @@ def volumetric_rendering(
             frustum_dirs,
         )
         n_rendering_samples = frustum_starts.shape[0]
+        _ray_indices = unpack_to_ray_indices(packed_info)
 
     # Query sigma and color with gradients
     rgbs, sigmas = sigma_rgb_fn(
@@ -94,6 +98,7 @@ def volumetric_rendering(
         frustum_dirs,
         frustum_starts,
         frustum_ends,
+        _ray_indices,
     )
     assert rgbs.shape[-1] == 3, "rgbs must have 3 channels"
     assert sigmas.shape[-1] == 1, "sigmas must have 1 channel"
@@ -102,6 +107,7 @@ def volumetric_rendering(
     weights, ray_indices = volumetric_rendering_weights(
         packed_info, sigmas, frustum_starts, frustum_ends
     )
+    assert (ray_indices == _ray_indices).all()
 
     # Rendering: accumulate rgbs and opacities along the rays.
     colors = volumetric_rendering_accumulate(

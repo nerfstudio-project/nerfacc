@@ -118,3 +118,4 @@ venv.bak/
 .vsocde
 
 benchmarks/
+outputs/

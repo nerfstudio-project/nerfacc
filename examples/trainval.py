@@ -1,13 +1,17 @@
 import argparse
 import math
+import os
 import time
 
+import imageio
 import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
-from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
-from radiance_fields.mlp import VanillaNeRFRadianceField
+
+# from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
+from datasets.dnerf_synthetic import SubjectLoader, namedtuple_map
+from radiance_fields.mlp import DNeRFRadianceField, VanillaNeRFRadianceField
 from radiance_fields.ngp import NGPradianceField
 
 from nerfacc import OccupancyField, volumetric_rendering
@@ -16,7 +20,12 @@ TARGET_SAMPLE_BATCH_SIZE = 1 << 16
 
 
 def render_image(
-    radiance_field, rays, render_bkgd, render_step_size, test_chunk_size=81920
+    radiance_field,
+    rays,
+    timestamps,
+    render_bkgd,
+    render_step_size,
+    test_chunk_size=81920,
 ):
     """Render the pixels of an image.
 
@@ -37,17 +46,35 @@ def render_image(
     else:
         num_rays, _ = rays_shape
 
-    def sigma_fn(frustum_origins, frustum_dirs, frustum_starts, frustum_ends):
+    def sigma_fn(
+        frustum_origins, frustum_dirs, frustum_starts, frustum_ends, ray_indices
+    ):
+        ray_indices = ray_indices.long()
+        # frustum_origins = rays.origins[ray_indices]
+        # frustum_dirs = rays.viewdirs[ray_indices]
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
-        return radiance_field.query_density(positions)
+        if radiance_field.training:
+            t = timestamps[ray_indices]
+        else:
+            t = timestamps.expand_as(positions[:, :1])
+        return radiance_field.query_density(positions, t)
 
-    def sigma_rgb_fn(frustum_origins, frustum_dirs, frustum_starts, frustum_ends):
+    def sigma_rgb_fn(
+        frustum_origins, frustum_dirs, frustum_starts, frustum_ends, ray_indices
+    ):
+        ray_indices = ray_indices.long()
+        # frustum_origins = rays.origins[ray_indices]
+        # frustum_dirs = rays.viewdirs[ray_indices]
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
-        return radiance_field(positions, frustum_dirs)
+        if radiance_field.training:
+            t = timestamps[ray_indices]
+        else:
+            t = timestamps.expand_as(positions[:, :1])
+        return radiance_field(positions, t, frustum_dirs)
 
     results = []
     chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
@@ -87,7 +114,7 @@ if __name__ == "__main__":
         "method",
         type=str,
         default="ngp",
-        choices=["ngp", "vanilla"],
+        choices=["ngp", "vanilla", "dnerf"],
         help="which nerf to use",
     )
     parser.add_argument(
@@ -110,6 +137,15 @@ if __name__ == "__main__":
             "materials",
             "mic",
             "ship",
+            # dnerf
+            "bouncingballs",
+            "hellwarrior",
+            "hook",
+            "jumpingjacks",
+            "lego",
+            "mutant",
+            "standup",
+            "trex",
         ],
         help="which scene to use",
     )
@@ -134,7 +170,7 @@ if __name__ == "__main__":
     # setup dataset
     train_dataset = SubjectLoader(
         subject_id=scene,
-        root_fp="/home/ruilongli/data/nerf_synthetic/",
+        root_fp="/home/ruilongli/data/dnerf/",
         split=args.train_split,
         num_rays=TARGET_SAMPLE_BATCH_SIZE // render_n_samples,
         # color_bkgd_aug="random",
@@ -143,6 +179,7 @@ if __name__ == "__main__":
     train_dataset.images = train_dataset.images.to(device)
     train_dataset.camtoworlds = train_dataset.camtoworlds.to(device)
     train_dataset.K = train_dataset.K.to(device)
+    train_dataset.timestamps = train_dataset.timestamps.to(device)
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
         num_workers=0,
@@ -153,13 +190,14 @@ if __name__ == "__main__":
 
     test_dataset = SubjectLoader(
         subject_id=scene,
-        root_fp="/home/ruilongli/data/nerf_synthetic/",
+        root_fp="/home/ruilongli/data/dnerf/",
         split="test",
         num_rays=None,
     )
     test_dataset.images = test_dataset.images.to(device)
     test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
     test_dataset.K = test_dataset.K.to(device)
+    test_dataset.timestamps = test_dataset.timestamps.to(device)
     test_dataloader = torch.utils.data.DataLoader(
         test_dataset,
         num_workers=0,
@@ -174,15 +212,22 @@ if __name__ == "__main__":
         radiance_field = NGPradianceField(aabb=scene_aabb).to(device)
         optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
         max_steps = 20000
-        occ_field_warmup_steps = 2000
-        grad_scaler = torch.cuda.amp.GradScaler(1)
+        occ_field_warmup_steps = 256
+        grad_scaler = torch.cuda.amp.GradScaler(2**10)
 
     elif args.method == "vanilla":
         radiance_field = VanillaNeRFRadianceField().to(device)
         optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
         max_steps = 40000
-        occ_field_warmup_steps = 256
-        grad_scaler = torch.cuda.amp.GradScaler(2**10)
+        occ_field_warmup_steps = 2000
+        grad_scaler = torch.cuda.amp.GradScaler(1)
+
+    elif args.method == "dnerf":
+        radiance_field = DNeRFRadianceField().to(device)
+        optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
+        max_steps = 40000
+        occ_field_warmup_steps = 2000
+        grad_scaler = torch.cuda.amp.GradScaler(1)
 
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer,
@@ -199,7 +244,11 @@ if __name__ == "__main__":
         Returns:
             occupancy values with shape (N, 1).
         """
-        density_after_activation = radiance_field.query_density(x)
+        idxs = torch.randint(
+            0, len(train_dataset.timestamps), (x.shape[0],), device=x.device
+        )
+        t = train_dataset.timestamps[idxs]
+        density_after_activation = radiance_field.query_density(x, t)
         # those two are similar when density is small.
         # occupancy = 1.0 - torch.exp(-density_after_activation * render_step_size)
         occupancy = density_after_activation * render_step_size
@@ -227,12 +276,13 @@ if __name__ == "__main__":
             render_bkgd = data["color_bkgd"]
             rays = data["rays"]
             pixels = data["pixels"]
+            timestamps = data["timestamps"]
 
             # update occupancy grid
             occ_field.every_n_step(step, warmup_steps=occ_field_warmup_steps)
 
             rgb, acc, counter, compact_counter = render_image(
-                radiance_field, rays, render_bkgd, render_step_size
+                radiance_field, rays, timestamps, render_bkgd, render_step_size
             )
             num_rays = len(pixels)
             num_rays = int(
@@ -261,21 +311,24 @@ if __name__ == "__main__":
                 )
 
             # if time.time() - tic > 300:
-            if step >= max_steps and step % max_steps == 0 and step > 0:
+            if step >= 0 and step % 2000 == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
                 psnrs = []
                 with torch.no_grad():
-                    for data in tqdm.tqdm(test_dataloader):
+                    for i, data in tqdm.tqdm(enumerate(test_dataloader)):
                         # generate rays from data and the gt pixel color
                         rays = namedtuple_map(lambda x: x.to(device), data["rays"])
                         pixels = data["pixels"].to(device)
                         render_bkgd = data["color_bkgd"].to(device)
+                        timestamps = data["timestamps"].to(device)
+
                         # rendering
                         rgb, acc, _, _ = render_image(
                             radiance_field,
                             rays,
+                            timestamps,
                             render_bkgd,
                             render_step_size,
                             test_chunk_size=args.test_chunk_size,
@@ -283,12 +336,28 @@ if __name__ == "__main__":
                         mse = F.mse_loss(rgb, pixels)
                         psnr = -10.0 * torch.log(mse) / np.log(10.0)
                         psnrs.append(psnr.item())
+                        if step == max_steps:
+                            output_dir = os.path.join("./outputs/nerfacc/", scene)
+                            os.makedirs(output_dir, exist_ok=True)
+                            save = torch.cat([pixels, rgb], dim=1)
+                            imageio.imwrite(
+                                os.path.join(output_dir, "%05d.png" % i),
+                                (save.cpu().numpy() * 255).astype(np.uint8),
+                            )
+                        else:
+                            imageio.imwrite(
+                                "acc_binary_test.png",
+                                ((acc > 0).float().cpu().numpy() * 255).astype(
+                                    np.uint8
+                                ),
+                            )
+                            imageio.imwrite(
+                                "rgb_test.png",
+                                (rgb.cpu().numpy() * 255).astype(np.uint8),
+                            )
+                            break
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
-                # imageio.imwrite(
-                #     "acc_binary_test.png",
-                #     ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
-                # )
 
                 # psnrs = []
                 # train_dataset.training = False

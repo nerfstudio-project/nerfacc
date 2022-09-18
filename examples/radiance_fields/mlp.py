@@ -1,6 +1,7 @@
 """ The MLPs and Voxels. """
+import functools
 import math
-from typing import Callable, Dict, Optional
+from typing import Callable, Optional
 
 import torch
 import torch.nn as nn
@@ -170,13 +171,15 @@ class SinusoidalEncoder(nn.Module):
     def latent_dim(self) -> int:
         return (int(self.use_identity) + (self.max_deg - self.min_deg) * 2) * self.x_dim
 
-    def forward(self, x: torch.Tensor) -> Dict:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
             x: [..., x_dim]
         Returns:
             latent: [..., latent_dim]
         """
+        if self.max_deg == self.min_deg:
+            return x
         xb = torch.reshape(
             (x[Ellipsis, None, :] * self.scales[:, None]),
             list(x.shape[:-1]) + [(self.max_deg - self.min_deg) * self.x_dim],
@@ -220,3 +223,31 @@ class VanillaNeRFRadianceField(nn.Module):
             condition = self.view_encoder(condition)
         rgb, sigma = self.mlp(x, condition=condition)
         return torch.sigmoid(rgb), F.relu(sigma)
+
+
+class DNeRFRadianceField(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.posi_encoder = SinusoidalEncoder(3, 0, 0, True)
+        self.time_encoder = SinusoidalEncoder(1, 0, 0, True)
+        self.warp = MLP(
+            input_dim=self.posi_encoder.latent_dim + self.time_encoder.latent_dim,
+            output_dim=3,
+            net_depth=4,
+            net_width=64,
+            skip_layer=2,
+            output_init=functools.partial(torch.nn.init.uniform_, b=1e-4),
+        )
+        self.nerf = VanillaNeRFRadianceField()
+
+    def query_density(self, x, t):
+        x = x + self.warp(
+            torch.cat([self.posi_encoder(x), self.time_encoder(t)], dim=-1)
+        )
+        return self.nerf.query_density(x)
+
+    def forward(self, x, t, condition=None):
+        x = x + self.warp(
+            torch.cat([self.posi_encoder(x), self.time_encoder(t)], dim=-1)
+        )
+        return self.nerf(x, condition=condition)

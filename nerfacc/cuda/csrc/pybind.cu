@@ -44,6 +44,8 @@ std::vector<torch::Tensor> volumetric_marching(
     const float dt
 );
 
+torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
@@ -51,4 +53,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("volumetric_rendering_steps", &volumetric_rendering_steps);
     m.def("volumetric_rendering_weights_forward", &volumetric_rendering_weights_forward);
     m.def("volumetric_rendering_weights_backward", &volumetric_rendering_weights_backward);
+    m.def("unpack_to_ray_indices", &unpack_to_ray_indices);   
 }
