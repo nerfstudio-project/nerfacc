@@ -144,8 +144,6 @@ __global__ void marching_forward_kernel(
     const float dt,
     const int* packed_info,
     // frustrum outputs
-    float* frustum_origins,
-    float* frustum_dirs,
     float* frustum_starts,
     float* frustum_ends 
 ) {
@@ -165,8 +163,6 @@ __global__ void marching_forward_kernel(
     const float near = t_min[0], far = t_max[0];
 
     // locate
-    frustum_origins += base * 3;
-    frustum_dirs += base * 3;
     frustum_starts += base;
     frustum_ends += base;
 
@@ -182,12 +178,6 @@ __global__ void marching_forward_kernel(
         const float z = oz + t_mid * dz;
         
         if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary)) {
-            frustum_origins[j * 3 + 0] = ox;
-            frustum_origins[j * 3 + 1] = oy;
-            frustum_origins[j * 3 + 2] = oz;
-            frustum_dirs[j * 3 + 0] = dx;
-            frustum_dirs[j * 3 + 1] = dy;
-            frustum_dirs[j * 3 + 2] = dz;
             frustum_starts[j] = t0;   
             frustum_ends[j] = t1;     
             ++j;
@@ -209,6 +199,27 @@ __global__ void marching_forward_kernel(
         printf("WTF %d v.s. %d\n", j, steps);
     }
     return;
+}
+
+__global__ void ray_indices_kernel(
+    // input
+    const int n_rays,
+    const int* packed_info,
+    // output
+    int* ray_indices
+) {
+    CUDA_GET_THREAD_ID(i, n_rays);
+
+    // locate
+    const int base = packed_info[i * 2 + 0];  // point idx start.
+    const int steps = packed_info[i * 2 + 1];  // point idx shift.
+    if (steps == 0) return;
+
+    ray_indices += base;
+
+    for (int j = 0; j < steps; ++j) {
+        ray_indices[j] = i;
+    }
 }
 
 
@@ -271,8 +282,6 @@ std::vector<torch::Tensor> volumetric_marching(
 
     // output frustum samples
     int total_steps = cum_steps[cum_steps.size(0) - 1].item<int>();
-    torch::Tensor frustum_origins = torch::zeros({total_steps, 3}, rays_o.options());
-    torch::Tensor frustum_dirs = torch::zeros({total_steps, 3}, rays_o.options());
     torch::Tensor frustum_starts = torch::zeros({total_steps, 1}, rays_o.options());
     torch::Tensor frustum_ends = torch::zeros({total_steps, 1}, rays_o.options());
 
@@ -293,12 +302,32 @@ std::vector<torch::Tensor> volumetric_marching(
         dt,
         packed_info.data_ptr<int>(),
         // outputs
-        frustum_origins.data_ptr<float>(),
-        frustum_dirs.data_ptr<float>(), 
         frustum_starts.data_ptr<float>(),
         frustum_ends.data_ptr<float>()
     ); 
 
-    return {packed_info, frustum_origins, frustum_dirs, frustum_starts, frustum_ends};
+    return {packed_info, frustum_starts, frustum_ends};
 }
+
+
+torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info) {
+    DEVICE_GUARD(packed_info);
+    CHECK_INPUT(packed_info);
+
+    const int n_rays = packed_info.size(0);
+    const int threads = 256;
+    const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
+
+    int n_samples = packed_info[n_rays - 1].sum(0).item<int>();
+    torch::Tensor ray_indices = torch::zeros(
+        {n_samples}, packed_info.options().dtype(torch::kInt32));
+
+    ray_indices_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+        n_rays,
+        packed_info.data_ptr<int>(),
+        ray_indices.data_ptr<int>()
+    ); 
+    return ray_indices;
+}
+
 

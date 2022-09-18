@@ -1,17 +1,19 @@
 import torch
 import tqdm
 
-from nerfacc import volumetric_rendering
+from nerfacc import volumetric_rendering_pipeline
 
 device = "cuda:0"
 
 
-def sigma_fn(frustum_origins, frustum_dirs, frustum_starts, frustum_ends):
+def sigma_fn(frustum_starts, frustum_ends, ray_indices):
     return torch.rand_like(frustum_ends[:, :1])
 
 
-def sigma_rgb_fn(frustum_origins, frustum_dirs, frustum_starts, frustum_ends):
-    return torch.rand_like(frustum_ends[:, :1]), torch.rand_like(frustum_ends[:, :3])
+def rgb_sigma_fn(frustum_starts, frustum_ends, ray_indices):
+    return torch.rand((frustum_ends.shape[0], 3), device=device), torch.rand_like(
+        frustum_ends
+    )
 
 
 def test_rendering():
@@ -24,9 +26,9 @@ def test_rendering():
     render_bkgd = torch.ones(3, device=device)
 
     for step in tqdm.tqdm(range(1000)):
-        volumetric_rendering(
+        volumetric_rendering_pipeline(
             sigma_fn,
-            sigma_rgb_fn,
+            rgb_sigma_fn,
             rays_o,
             rays_d,
             scene_aabb,

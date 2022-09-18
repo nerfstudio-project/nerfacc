@@ -12,9 +12,9 @@ Performance on TITAN RTX :
 
 | trainval | Lego | Mic | Materials | Chair | Hotdog |
 | - | - | - | - | - | - |
-| Time | 300s  | 272s  | 258s  | 331s  | 287s |
-| PSNR | 36.61 | 37.45 | 30.15 | 36.06 | 38.17 |
-| FPS  | 11.49 | 21.48 | 8.86  | 15.61 | 7.38 |
+| Time | 300s  | 274s  | 266s  | 341s  | 277s  |
+| PSNR | 36.61 | 37.62 | 30.11 | 36.09 | 38.09 |
+| FPS  | 12.87 | 23.67 | 9.33  | 16.91 | 7.48  |
 
 Instant-NGP paper (5 min) on 3090 (w/ mask):
 
@@ -44,17 +44,23 @@ Note: We only use a single MLP with more samples (1024), instead of two MLPs wit
 
 *FPS for some scenes are tested under `--test_chunk_size=8192` (default is `81920`) to avoid OOM.
 
-<!-- 
 
-Tested with the default settings on the Lego test set.
+## Examples: MLP NeRF on Dynamic objects
 
-| Model | Split | PSNR | Train Time | Test Speed | GPU | Train Memory |
-| - | - | - | - | - | - | - |
-| instant-ngp (paper)            | trainval?            | 36.39  |  -   | -    | 3090    |
-| instant-ngp (code)             | train (35k steps)    | 36.08  |  308 sec  | 55.32 fps  | TITAN RTX  |  1734MB |
-| instant-ngp (code) w/o rng bkgd| train (35k steps)    | 34.17  |  -  | -  | - |  - |
-| torch-ngp (`-O`)               | train (30K steps)    | 34.15  |  310 sec  | 7.8 fps    | V100 |
-| ours                           | trainval (35K steps) | 36.22  |  378 sec  | 12.08 fps    | TITAN RTX  | -->
+Here we trained something similar to D-NeRF on the dnerf dataset:
+
+``` bash
+python examples/trainval.py dnerf --train_split train --test_chunk_size=8192
+```
+
+Performance on test set:
+
+|  | Lego | Stand Up |
+| - | - | - |
+| DNeRF paper PSNR (train set) | 21.64 | 32.79 |
+| Our PSNR (train set) | 24.66 | 33.98 |
+| Our train time & test FPS | 43min; 0.15FPS | 41min; 0.4FPS |
+
 
 ## Tips:
 

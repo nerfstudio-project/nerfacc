@@ -75,8 +75,6 @@ def volumetric_marching(
                 It is a tensor with shape (n_rays, 2). For each ray, the two values \
                 indicate the start index and the number of samples for this ray, \
                 respectively.
-            - **frustum_origins**: Sampled frustum origins. Tensor with shape (n_samples, 3).
-            - **frustum_dirs**: Sampled frustum directions. Tensor with shape (n_samples, 3).
             - **frustum_starts**: Sampled frustum directions. Tensor with shape (n_samples, 3).
             - **frustum_ends**: Sampled frustum directions. Tensor with shape (n_samples, 3).
 
@@ -94,13 +92,7 @@ def volumetric_marching(
 
     if stratified:
         t_min = t_min + torch.rand_like(t_min) * render_step_size
-    (
-        packed_info,
-        frustum_origins,
-        frustum_dirs,
-        frustum_starts,
-        frustum_ends,
-    ) = nerfacc_cuda.volumetric_marching(
+    packed_info, frustum_starts, frustum_ends = nerfacc_cuda.volumetric_marching(
         # rays
         rays_o.contiguous(),
         rays_d.contiguous(),
@@ -114,13 +106,7 @@ def volumetric_marching(
         render_step_size,
     )
 
-    return (
-        packed_info,
-        frustum_origins,
-        frustum_dirs,
-        frustum_starts,
-        frustum_ends,
-    )
+    return packed_info, frustum_starts, frustum_ends
 
 
 @torch.no_grad()
@@ -206,7 +192,6 @@ def volumetric_rendering_weights(
         A tuple of tensors containing
 
             - **weights**: Volumetric rendering weights for those samples. Tensor with shape (n_samples).
-            - **ray_indices**: Ray index of each sample. IntTensor with shape (n_sample).
 
     """
     if (
@@ -219,12 +204,12 @@ def volumetric_rendering_weights(
         frustum_starts = frustum_starts.contiguous()
         frustum_ends = frustum_ends.contiguous()
         sigmas = sigmas.contiguous()
-        weights, ray_indices = _volumetric_rendering_weights.apply(
+        weights = _volumetric_rendering_weights.apply(
             packed_info, frustum_starts, frustum_ends, sigmas
         )
     else:
         raise NotImplementedError("Only support cuda inputs.")
-    return weights, ray_indices
+    return weights
 
 
 def volumetric_rendering_accumulate(
@@ -275,10 +260,32 @@ def volumetric_rendering_accumulate(
     return outputs
 
 
+@torch.no_grad()
+def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
+    """Unpack `packed_info` to ray indices. Useful for converting per ray data to per sample data.
+
+    Note: this function is not differentiable to inputs.
+
+    Args:
+        packed_info: Stores infomation on which samples belong to the same ray. \
+            See ``volumetric_marching`` for details. Tensor with shape (n_rays, 2).
+
+    Returns:
+        Ray index of each sample. IntTensor with shape (n_sample).
+
+    """
+    if packed_info.is_cuda:
+        packed_info = packed_info.contiguous()
+        ray_indices = nerfacc_cuda.unpack_to_ray_indices(packed_info)
+    else:
+        raise NotImplementedError("Only support cuda inputs.")
+    return ray_indices
+
+
 class _volumetric_rendering_weights(torch.autograd.Function):
     @staticmethod
     def forward(ctx, packed_info, frustum_starts, frustum_ends, sigmas):
-        weights, ray_indices = nerfacc_cuda.volumetric_rendering_weights_forward(
+        weights = nerfacc_cuda.volumetric_rendering_weights_forward(
             packed_info, frustum_starts, frustum_ends, sigmas
         )
         ctx.save_for_backward(
@@ -288,10 +295,10 @@ class _volumetric_rendering_weights(torch.autograd.Function):
             sigmas,
             weights,
         )
-        return weights, ray_indices
+        return weights
 
     @staticmethod
-    def backward(ctx, grad_weights, _grad_ray_indices):
+    def backward(ctx, grad_weights):
         (
             packed_info,
             frustum_starts,
