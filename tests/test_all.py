@@ -1,7 +1,7 @@
 import torch
 import tqdm
 
-from nerfacc import volumetric_rendering
+from nerfacc import volumetric_rendering_pipeline
 
 device = "cuda:0"
 

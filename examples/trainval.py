@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
-from nerfacc import OccupancyField, volumetric_rendering
+from nerfacc import OccupancyField, volumetric_rendering_pipeline
 
 device = "cuda:0"
 
