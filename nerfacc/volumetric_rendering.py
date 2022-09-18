@@ -74,8 +74,10 @@ def volumetric_rendering(
 
     # Query sigma and color with gradients
     rgbs, sigmas = sigma_rgb_fn(frustum_starts, frustum_ends, ray_indices)
-    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels"
-    assert sigmas.shape[-1] == 1, "sigmas must have 1 channel"
+    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(rgbs.shape)
+    assert sigmas.shape[-1] == 1, "sigmas must have 1 channel, got {}".format(
+        sigmas.shape
+    )
 
     # Rendering: compute weights and ray indices.
     weights = volumetric_rendering_weights(

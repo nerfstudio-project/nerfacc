@@ -6,12 +6,14 @@ from nerfacc import volumetric_rendering
 device = "cuda:0"
 
 
-def sigma_fn(frustum_origins, frustum_dirs, frustum_starts, frustum_ends):
+def sigma_fn(frustum_starts, frustum_ends, ray_indices):
     return torch.rand_like(frustum_ends[:, :1])
 
 
-def sigma_rgb_fn(frustum_origins, frustum_dirs, frustum_starts, frustum_ends):
-    return torch.rand_like(frustum_ends[:, :1]), torch.rand_like(frustum_ends[:, :3])
+def sigma_rgb_fn(frustum_starts, frustum_ends, ray_indices):
+    return torch.rand((frustum_ends.shape[0], 3), device=device), torch.rand_like(
+        frustum_ends
+    )
 
 
 def test_rendering():
