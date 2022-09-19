@@ -17,12 +17,14 @@ def volumetric_rendering_pipeline(
     rays_o: torch.Tensor,
     rays_d: torch.Tensor,
     scene_aabb: torch.Tensor,
-    scene_resolution: Optional[List[int]] = None,
-    scene_occ_binary: Optional[torch.Tensor] = None,
+    scene_resolution: List[int],
+    scene_occ_binary: torch.Tensor,
     render_bkgd: Optional[torch.Tensor] = None,
     render_step_size: float = 1e-3,
     near_plane: float = 0.0,
     stratified: bool = False,
+    contraction: Optional[str] = None,
+    cone_angle: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor, int, int]:
     """Differentiable volumetric rendering pipeline.
 
@@ -48,6 +50,8 @@ def volumetric_rendering_pipeline(
         render_step_size: The step size for the volumetric rendering. Default: 1e-3.
         near_plane: The near plane for the volumetric rendering. Default: 0.0.
         stratified: Whether to use stratified sampling. Default: False.
+        contraction: Optional. Contraction method. Default is None.
+        cone_angle: Cone angle for non-unifrom sampling. 0 means uniform. Default is 0.0.
 
     Returns:
         Ray colors (n_rays, 3), and opacities (n_rays, 1), the number of marching steps, and the number of rendering steps.
@@ -64,6 +68,11 @@ def volumetric_rendering_pipeline(
     if scene_resolution is None:
         assert scene_occ_binary is not None and scene_occ_binary.dim() == 3
         scene_resolution = scene_occ_binary.shape
+
+    assert contraction in [
+        None,
+        "mipnerf360",
+    ], f"Unknown contraction method: {contraction}"
 
     rays_o = rays_o.contiguous()
     rays_d = rays_d.contiguous()
@@ -82,6 +91,8 @@ def volumetric_rendering_pipeline(
             render_step_size=render_step_size,
             near_plane=near_plane,
             stratified=stratified,
+            contraction=contraction,
+            cone_angle=cone_angle,
         )
         n_marching_samples = frustum_starts.shape[0]
         ray_indices = unpack_to_ray_indices(packed_info)

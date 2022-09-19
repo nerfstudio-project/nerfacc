@@ -47,6 +47,8 @@ def volumetric_marching(
     render_step_size: float = 1e-3,
     near_plane: float = 0.0,
     stratified: bool = False,
+    contraction: Optional[str] = None,
+    cone_angle: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Volumetric marching with occupancy test.
 
@@ -67,6 +69,8 @@ def volumetric_marching(
         render_step_size: Marching step size. Default is 1e-3.
         near_plane: Near plane of the camera. Default is 0.0.
         stratified: Whether to use stratified sampling. Default is False.
+        contraction: Optional. Contraction method. Default is None.
+        cone_angle: Cone angle for non-unifrom sampling. 0 means uniform. Default is 0.0.
 
     Returns:
         A tuple of tensors containing
@@ -81,14 +85,31 @@ def volumetric_marching(
     """
     if not rays_o.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
-    if t_min is None or t_max is None:
-        t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabb)
-        if near_plane > 0.0:
-            t_min = torch.clamp(t_min, min=near_plane)
+
     assert (
         scene_occ_binary.numel()
         == scene_resolution[0] * scene_resolution[1] * scene_resolution[2]
     ), f"Shape {scene_occ_binary.shape} is not right!"
+
+    if contraction is None:
+        contraction_type = 0
+        if t_min is None or t_max is None:
+            t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabb)
+
+    elif contraction == "mipnerf360":
+        contraction_type = 1
+        # Unbounded scene: The aabb defines a sphere in which the samples are
+        # not modified. The samples outside the sphere are contracted into a 2x
+        # radius sphere.
+        if t_min is None or t_max is None:
+            t_min = torch.zeros_like(rays_o[:, :1])
+            t_max = torch.zeros_like(rays_o[:, :1]) + 10  # HACK for now
+
+    else:
+        raise NotImplementedError(f"Unknown contraction method {contraction}")
+
+    if near_plane > 0.0:
+        t_min = torch.clamp(t_min, min=near_plane)
 
     if stratified:
         t_min = t_min + torch.rand_like(t_min) * render_step_size
@@ -104,6 +125,8 @@ def volumetric_marching(
         scene_occ_binary.contiguous(),
         # sampling
         render_step_size,
+        contraction_type,
+        cone_angle,
     )
 
     return packed_info, frustum_starts, frustum_ends

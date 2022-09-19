@@ -41,7 +41,9 @@ std::vector<torch::Tensor> volumetric_marching(
     const pybind11::list resolution,
     const torch::Tensor occ_binary, 
     // sampling
-    const float dt
+    const float step_size,
+    const int contraction_type,
+    const float cone_angle
 );
 
 torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info);

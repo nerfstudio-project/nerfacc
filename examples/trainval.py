@@ -21,6 +21,38 @@ def _set_random_seed(seed):
     torch.manual_seed(seed)
 
 
+def scene_contraction_mipnerf360(x: torch.Tensor, aabb: torch.Tensor) -> torch.Tensor:
+    """MipNerf360 scene contraction.
+
+    Args:
+        x: the samples. (n_samples, 3)
+        aabb: the scene axis-aligned bounding box {xmin, ymin, zmin, xmax, ymax, zmax}.
+
+    Returns:
+        The contracted samples. (n_samples, 3)
+    """
+    x = (x - aabb[:3]) / (aabb[3:] - aabb[:3]) * 2.0 - 1.0
+    norm = x.norm(dim=-1)
+    selector = norm > 1.0
+    x[selector] = ((2.0 - 1.0 / norm[:, None]) * (x / norm[:, None]))[selector]
+    x = (x * 0.5 + 1.0) * 0.5
+    return x
+
+
+def scale_aabb(aabb: torch.Tensor, scale: float) -> torch.Tensor:
+    """Half the axis-aligned bounding box.
+
+    Args:
+        aabb: the scene axis-aligned bounding box {xmin, ymin, zmin, xmax, ymax, zmax}.
+
+    Returns:
+        The halfed axis-aligned bounding box.
+    """
+    center = (aabb[:3] + aabb[3:]) / 2.0
+    half = (aabb[3:] - aabb[:3]) / 2.0
+    return torch.cat([center - half * scale, center + half * scale], dim=-1)
+
+
 def render_image(
     radiance_field,
     rays,
@@ -28,6 +60,8 @@ def render_image(
     render_bkgd,
     render_step_size,
     test_chunk_size=81920,
+    contraction: str = None,
+    cone_angle: float = 0.0,
 ):
     """Render the pixels of an image.
 
@@ -55,6 +89,14 @@ def render_image(
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
+        if contraction == "mipnerf360":
+            positions = scene_contraction_mipnerf360(
+                positions, scale_aabb(radiance_field.aabb, 0.5)
+            )
+            positions = (
+                positions * (radiance_field.aabb[3:] - radiance_field.aabb[:3])
+                + radiance_field.aabb[:3]
+            )
         if timestamps is None:
             return radiance_field.query_density(positions)
         else:
@@ -71,6 +113,14 @@ def render_image(
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
+        if contraction == "mipnerf360":
+            positions = scene_contraction_mipnerf360(
+                positions, scale_aabb(radiance_field.aabb, 0.5)
+            )
+            positions = (
+                positions * (radiance_field.aabb[3:] - radiance_field.aabb[:3])
+                + radiance_field.aabb[:3]
+            )
         if timestamps is None:
             return radiance_field(positions, frustum_dirs)
         else:
@@ -89,13 +139,17 @@ def render_image(
             rgb_sigma_fn=rgb_sigma_fn,
             rays_o=chunk_rays.origins,
             rays_d=chunk_rays.viewdirs,
-            scene_aabb=occ_field.aabb,
+            scene_aabb=scale_aabb(
+                occ_field.aabb, 0.5 if contraction == "mipnerf360" else 1.0
+            ),
             scene_occ_binary=occ_field.occ_grid_binary,
             scene_resolution=occ_field.resolution,
             render_bkgd=render_bkgd,
             render_step_size=render_step_size,
             near_plane=0.0,
             stratified=radiance_field.training,
+            contraction=contraction,
+            cone_angle=cone_angle,
         )
         results.append(chunk_results)
     colors, opacities, n_marching_samples, n_rendering_samples = [
@@ -157,20 +211,30 @@ if __name__ == "__main__":
     parser.add_argument(
         "--aabb",
         type=list,
-        default=[-1.5, -1.5, -1.5, 1.5, 1.5, 1.5],
+        default=[-0.3, -0.3, -0.3, 0.3, 0.3, 0.3],
     )
     parser.add_argument(
         "--test_chunk_size",
         type=int,
         default=81920,
     )
+    parser.add_argument(
+        "--contraction", type=str, default=None, choices=[None, "mipnerf360"]
+    )
+    parser.add_argument("--cone_angle", type=float, default=0.0)
     args = parser.parse_args()
+
+    # setup the scene bounding box.
+    scene_aabb = torch.tensor(args.aabb, dtype=torch.float32)
 
     if args.method == "ngp":
         from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
         from radiance_fields.ngp import NGPradianceField
 
-        radiance_field = NGPradianceField(aabb=args.aabb).to(device)
+        radiance_aabb = (
+            scene_aabb if args.contraction is None else scale_aabb(scene_aabb, 2.0)
+        )
+        radiance_field = NGPradianceField(aabb=radiance_aabb).to(device)
         optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
         max_steps = 20000
         occ_field_warmup_steps = 256
@@ -204,8 +268,6 @@ if __name__ == "__main__":
 
     scene = args.scene
 
-    # setup the scene bounding box.
-    scene_aabb = torch.tensor(args.aabb)
     # setup some rendering settings
     render_n_samples = 1024
     render_step_size = (
@@ -267,8 +329,9 @@ if __name__ == "__main__":
         occupancy = density_after_activation * render_step_size
         return occupancy
 
+    occ_aabb = scene_aabb if args.contraction is None else scale_aabb(scene_aabb, 2.0)
     occ_field = OccupancyField(
-        occ_eval_fn=occ_eval_fn, aabb=scene_aabb, resolution=128
+        occ_eval_fn=occ_eval_fn, aabb=occ_aabb, resolution=128
     ).to(device)
 
     # training
@@ -292,7 +355,13 @@ if __name__ == "__main__":
             occ_field.every_n_step(step, warmup_steps=occ_field_warmup_steps)
 
             rgb, acc, counter, compact_counter = render_image(
-                radiance_field, rays, timestamps, render_bkgd, render_step_size
+                radiance_field,
+                rays,
+                timestamps,
+                render_bkgd,
+                render_step_size,
+                contraction=args.contraction,
+                cone_angle=args.cone_angle,
             )
             num_rays = len(pixels)
             num_rays = int(
@@ -321,7 +390,7 @@ if __name__ == "__main__":
                 )
 
             # if time.time() - tic > 300:
-            if step >= 0 and step % max_steps == 0 and step > 0:
+            if step >= 0 and step % 1000 == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
@@ -342,6 +411,8 @@ if __name__ == "__main__":
                             render_bkgd,
                             render_step_size,
                             test_chunk_size=args.test_chunk_size,
+                            contraction=args.contraction,
+                            cone_angle=args.cone_angle,
                         )
                         mse = F.mse_loss(rgb, pixels)
                         psnr = -10.0 * torch.log(mse) / np.log(10.0)
@@ -355,17 +426,15 @@ if __name__ == "__main__":
                         #         (save.cpu().numpy() * 255).astype(np.uint8),
                         #     )
                         # else:
-                        #     imageio.imwrite(
-                        #         "acc_binary_test.png",
-                        #         ((acc > 0).float().cpu().numpy() * 255).astype(
-                        #             np.uint8
-                        #         ),
-                        #     )
-                        #     imageio.imwrite(
-                        #         "rgb_test.png",
-                        #         (rgb.cpu().numpy() * 255).astype(np.uint8),
-                        #     )
-                        #     break
+                        imageio.imwrite(
+                            "acc_binary_test.png",
+                            ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
+                        )
+                        imageio.imwrite(
+                            "rgb_test.png",
+                            (rgb.cpu().numpy() * 255).astype(np.uint8),
+                        )
+                        break
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
                 train_dataset.training = True

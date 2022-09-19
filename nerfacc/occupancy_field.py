@@ -6,6 +6,24 @@ from torch import nn
 # from torch_scatter import scatter_max
 
 
+# def scene_contraction_mipnerf360(x: torch.Tensor, aabb: torch.Tensor) -> torch.Tensor:
+#     """MipNerf360 scene contraction.
+
+#     Args:
+#         x: the samples. (n_samples, 3)
+#         aabb: the scene axis-aligned bounding box {xmin, ymin, zmin, xmax, ymax, zmax}.
+
+#     Returns:
+#         The contracted samples. (n_samples, 3)
+#     """
+#     x = (x - aabb[:3]) / (aabb[3:] - aabb[:3]) * 2.0 - 1.0
+#     norm = x.norm(dim=-1)
+#     selector = norm > 1.0
+#     x[selector] = (2.0 - 1.0 / norm) * (x / norm[:, None])[selector]
+#     x = (x * 0.5 + 1.0) * 0.5
+#     return x
+
+
 def meshgrid3d(
     res: List[int], device: Union[torch.device, str] = "cpu"
 ) -> torch.Tensor:
@@ -72,6 +90,7 @@ class OccupancyField(nn.Module):
         aabb: Union[torch.Tensor, List[float]],
         resolution: Union[int, List[int]] = 128,
         num_dim: int = 3,
+        contraction: str = None,
     ) -> None:
         super().__init__()
         self.occ_eval_fn = occ_eval_fn
@@ -86,6 +105,11 @@ class OccupancyField(nn.Module):
         assert (
             len(resolution) == num_dim
         ), f"length of resolution ({len(resolution)}) should be num_dim ({num_dim})."
+        assert contraction in [
+            None,
+            "mipnerf360",
+        ], "Currently only supports mipnerf360 scene contraction."
+        self.contraction = contraction
 
         self.register_buffer("aabb", aabb)
         self.resolution = resolution
@@ -169,6 +193,7 @@ class OccupancyField(nn.Module):
         Returns:
             float and binary occupancy values with shape (...) respectively.
         """
+        assert self.contraction is None, "Currently only supports no contraction."
         assert (
             x.shape[-1] == self.num_dim
         ), "The samples are not drawn from a proper space!"

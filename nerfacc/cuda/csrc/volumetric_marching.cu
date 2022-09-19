@@ -1,16 +1,20 @@
 #include <pybind11/pybind11.h>
 #include "include/helpers_cuda.h"
 
+// Perform fixed-size stepping in unit-cube scenes (like original NeRF) and exponential
+// stepping in larger scenes. 
+inline __device__ float calc_dt(float t, float cone_angle, float dt_min, float dt_max) {
+    return __clamp(t * cone_angle, dt_min, dt_max);
+}
 
 inline __device__ int cascaded_grid_idx_at(
     const float x, const float y, const float z, 
-    const int resx, const int resy, const int resz, 
-    const float* aabb
+    const int resx, const int resy, const int resz
 ) {
     // TODO(ruilongli): if the x, y, z is outside the aabb, it will be clipped into aabb!!! We should just return false
-    int ix = (int)(((x - aabb[0]) / (aabb[3] - aabb[0])) * resx);
-    int iy = (int)(((y - aabb[1]) / (aabb[4] - aabb[1])) * resy);
-    int iz = (int)(((z - aabb[2]) / (aabb[5] - aabb[2])) * resz);
+    int ix = (int)(x * resx);
+    int iy = (int)(y * resy);
+    int iz = (int)(z * resz);
     ix = __clamp(ix, 0, resx-1);
     iy = __clamp(iy, 0, resy-1);
     iz = __clamp(iz, 0, resz-1);
@@ -20,11 +24,37 @@ inline __device__ int cascaded_grid_idx_at(
 }
 
 inline __device__ bool grid_occupied_at(
-    const float x, const float y, const float z, 
+    float x, float y, float z, 
     const int resx, const int resy, const int resz, 
-    const float* aabb, const bool* occ_binary
+    const float* aabb, const bool* occ_binary, const int contraction_type
 ) {
-    int idx = cascaded_grid_idx_at(x, y, z, resx, resy, resz, aabb);
+    switch(contraction_type) {
+        case 0:
+            // no contraction
+            x = (x - aabb[0]) / (aabb[3] - aabb[0]);
+            y = (y - aabb[1]) / (aabb[4] - aabb[1]);
+            z = (z - aabb[2]) / (aabb[5] - aabb[2]);
+            break;
+        case 1:
+            // mipnerf360 scene contraction
+            // The aabb defines a sphere in which the samples are
+            // not modified. The samples outside the sphere are contracted into a 2x
+            // radius sphere.
+            x = (x - aabb[0]) / (aabb[3] - aabb[0]) * 2.0f - 1.0f;
+            y = (y - aabb[1]) / (aabb[4] - aabb[1]) * 2.0f - 1.0f;
+            z = (z - aabb[2]) / (aabb[5] - aabb[2]) * 2.0f - 1.0f;
+            float norm = sqrt(x*x + y*y + z*z);
+            if (norm > 1.0f) {
+                x = (2.0f - 1.0f / norm) * (x / norm);
+                y = (2.0f - 1.0f / norm) * (y / norm);
+                z = (2.0f - 1.0f / norm) * (z / norm);
+            }
+            x = (x * 0.5f + 1.0f) * 0.5f;  // the first 0.5f is bc of the 2x radius
+            y = (y * 0.5f + 1.0f) * 0.5f;
+            z = (z * 0.5f + 1.0f) * 0.5f;
+            break;
+    }
+    int idx = cascaded_grid_idx_at(x, y, z, resx, resy, resz);
     return occ_binary[idx];
 }
 
@@ -69,13 +99,15 @@ __global__ void marching_steps_kernel(
     const float* t_min,  // shape (n_rays,)
     const float* t_max,  // shape (n_rays,)
     // density grid
-    const float* aabb,  // [min_x, min_y, min_z, max_x, max_y, max_y]
+    const float* aabb,  // [min_x, min_y, min_z, max_x, max_y, max_z]
     const int resx,
     const int resy,
     const int resz,
     const bool* occ_binary,  // shape (reso_x, reso_y, reso_z)
     // sampling
-    const float dt,
+    const float step_size,
+    const int contraction_type,
+    const float cone_angle,
     // outputs
     int* num_steps
 ) {
@@ -93,8 +125,12 @@ __global__ void marching_steps_kernel(
     const float rdx = 1 / dx, rdy = 1 / dy, rdz = 1 / dz;
     const float near = t_min[0], far = t_max[0];
 
+    float dt_min = step_size;
+    float dt_max = 1e10f;  // TODO: if not contraction, calculate from occ res and aabb
+
     int j = 0;
-    float t0 = near;  // TODO(ruilongli): perturb `near` as in ngp_pl?
+    float t0 = near;
+    float dt = calc_dt(t0, cone_angle, dt_min, dt_max);
     float t1 = t0 + dt;
     float t_mid = (t0 + t1) * 0.5f;
 
@@ -104,18 +140,19 @@ __global__ void marching_steps_kernel(
         const float y = oy + t_mid * dy;
         const float z = oz + t_mid * dz;
         
-        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary)) {
+        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary, contraction_type)) {
             ++j;
             // march to next sample
             t0 = t1;
-            t1 = t0 + dt;
+            t1 = t0 + calc_dt(t0, cone_angle, dt_min, dt_max);
             t_mid = (t0 + t1) * 0.5f;
         }
         else {
             // march to next sample
             t_mid = advance_to_next_voxel(
-                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt
+                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt_min
             );
+            dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
             t0 = t_mid - dt * 0.5f;
             t1 = t_mid + dt * 0.5f;
         }
@@ -141,7 +178,9 @@ __global__ void marching_forward_kernel(
     const int resz,
     const bool* occ_binary,  // shape (reso_x, reso_y, reso_z)
     // sampling
-    const float dt,
+    const float step_size,
+    const int contraction_type,
+    const float cone_angle,
     const int* packed_info,
     // frustrum outputs
     float* frustum_starts,
@@ -166,10 +205,14 @@ __global__ void marching_forward_kernel(
     frustum_starts += base;
     frustum_ends += base;
 
+    float dt_min = step_size;
+    float dt_max = 1e10f;  // TODO: if not contraction, calculate from occ res and aabb
+
     int j = 0;
     float t0 = near;
+    float dt = calc_dt(t0, cone_angle, dt_min, dt_max);
     float t1 = t0 + dt;
-    float t_mid = (t0 + t1) / 2.;
+    float t_mid = (t0 + t1) * 0.5f;
 
     while (t_mid < far) {
         // current center
@@ -177,24 +220,26 @@ __global__ void marching_forward_kernel(
         const float y = oy + t_mid * dy;
         const float z = oz + t_mid * dz;
         
-        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary)) {
-            frustum_starts[j] = t0;   
-            frustum_ends[j] = t1;     
+        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary, contraction_type)) {
+            frustum_starts[j] = t0;
+            frustum_ends[j] = t1;
             ++j;
             // march to next sample
             t0 = t1;
-            t1 = t0 + dt;
+            t1 = t0 + calc_dt(t0, cone_angle, dt_min, dt_max);
             t_mid = (t0 + t1) * 0.5f;
         }
         else {
             // march to next sample
             t_mid = advance_to_next_voxel(
-                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt
+                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt_min
             );
+            dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
             t0 = t_mid - dt * 0.5f;
             t1 = t_mid + dt * 0.5f;
-		}
-	}
+        }
+    }
+
     if (j != steps) {
         printf("WTF %d v.s. %d\n", j, steps);
     }
@@ -234,7 +279,9 @@ std::vector<torch::Tensor> volumetric_marching(
     const pybind11::list resolution,
     const torch::Tensor occ_binary, 
     // sampling
-    const float dt
+    const float step_size,
+    const int contraction_type,
+    const float cone_angle
 ) {
     DEVICE_GUARD(rays_o);
 
@@ -269,7 +316,9 @@ std::vector<torch::Tensor> volumetric_marching(
         resolution[2].cast<int>(),
         occ_binary.data_ptr<bool>(),
         // sampling
-        dt,
+        step_size,
+        contraction_type,
+        cone_angle,
         // outputs
         num_steps.data_ptr<int>()
     ); 
@@ -299,7 +348,9 @@ std::vector<torch::Tensor> volumetric_marching(
         resolution[2].cast<int>(),
         occ_binary.data_ptr<bool>(),
         // sampling
-        dt,
+        step_size,
+        contraction_type,
+        cone_angle,
         packed_info.data_ptr<int>(),
         // outputs
         frustum_starts.data_ptr<float>(),
