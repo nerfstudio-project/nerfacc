@@ -1,7 +1,7 @@
 Instant-NGP
 ====================
 
-See code at our github repository: https://github.com/KAIR-BAIR/nerfacc/examples/
+See code at our github repository: https://github.com/KAIR-BAIR/nerfacc/tree/master/examples/
 
 Benchmarks
 ------------
