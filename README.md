@@ -62,10 +62,13 @@ Performance on test set:
 | Our train time & test FPS | 43min; 0.15FPS | 41min; 0.4FPS |
 
 
+Note the numbers here are tested with version `v0.0.8`
+
+<!-- 
 ## Tips:
 
 1. sample rays over all images per iteration (`batch_over_images=True`) is better: `PSNR 33.31 -> 33.75`.
 2. make use of scheduler (`MultiStepLR(optimizer, milestones=[20000, 30000], gamma=0.1)`) to adjust learning rate gives: `PSNR 33.75 -> 34.40`.
 3. increasing chunk size (`chunk: 8192 -> 81920`) during inference gives speedup: `FPS 4.x -> 6.2`
 4. random bkgd color (`color_bkgd_aug="random"`) for the `Lego` scene actually hurts: `PNSR 35.42 -> 34.38`
-
+ -->
