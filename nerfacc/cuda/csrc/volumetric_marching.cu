@@ -7,7 +7,6 @@ inline __device__ int cascaded_grid_idx_at(
     const int resx, const int resy, const int resz, 
     const float* aabb
 ) {
-    // TODO(ruilongli): if the x, y, z is outside the aabb, it will be clipped into aabb!!! We should just return false
     int ix = (int)(((x - aabb[0]) / (aabb[3] - aabb[0])) * resx);
     int iy = (int)(((y - aabb[1]) / (aabb[4] - aabb[1])) * resy);
     int iz = (int)(((z - aabb[2]) / (aabb[5] - aabb[2])) * resz);
@@ -15,7 +14,6 @@ inline __device__ int cascaded_grid_idx_at(
     iy = __clamp(iy, 0, resy-1);
     iz = __clamp(iz, 0, resz-1);
     int idx = ix * resy * resz + iy * resz + iz;
-    // printf("(ix, iy, iz) = (%d, %d, %d)\n", ix, iy, iz);
     return idx;
 }
 
@@ -35,13 +33,16 @@ inline __device__ float distance_to_next_voxel(
     float x, float y, float z, 
     float dir_x, float dir_y, float dir_z, 
     float idir_x, float idir_y, float idir_z,
-    const int resx, const int resy, const int resz
+    const int resx, const int resy, const int resz,
+    const float* aabb
 ) { // dda like step
-    // TODO: warning: expression has no effect?
-    x, y, z = resx * x, resy * y, resz * z;
-    float tx = ((floorf(x + 0.5f + 0.5f * __sign(dir_x)) - x) * idir_x) / resx;
-    float ty = ((floorf(y + 0.5f + 0.5f * __sign(dir_y)) - y) * idir_y) / resy;
-    float tz = ((floorf(z + 0.5f + 0.5f * __sign(dir_z)) - z) * idir_z) / resz;
+    // TODO: this is ugly -- optimize this.
+    float _x = ((x - aabb[0]) / (aabb[3] - aabb[0])) * resx;
+    float _y = ((y - aabb[1]) / (aabb[4] - aabb[1])) * resy;
+    float _z = ((z - aabb[2]) / (aabb[5] - aabb[2])) * resz;
+    float tx = ((floorf(_x + 0.5f + 0.5f * __sign(dir_x)) - _x) * idir_x) / resx * (aabb[3] - aabb[0]);
+    float ty = ((floorf(_y + 0.5f + 0.5f * __sign(dir_y)) - _y) * idir_y) / resy * (aabb[4] - aabb[1]);
+    float tz = ((floorf(_z + 0.5f + 0.5f * __sign(dir_z)) - _z) * idir_z) / resz * (aabb[5] - aabb[2]);
     float t = min(min(tx, ty), tz);
     return fmaxf(t, 0.0f);
 }
@@ -51,11 +52,14 @@ inline __device__ float advance_to_next_voxel(
     float x, float y, float z, 
     float dir_x, float dir_y, float dir_z, 
     float idir_x, float idir_y, float idir_z,
-    const int resx, const int resy, const int resz,
+    const int resx, const int resy, const int resz, const float* aabb,
     float dt_min) {
     // Regular stepping (may be slower but matches non-empty space)
     float t_target = t + distance_to_next_voxel(
-        x, y, z, dir_x, dir_y, dir_z, idir_x, idir_y, idir_z, resx, resy, resz
+        x, y, z, 
+        dir_x, dir_y, dir_z, 
+        idir_x, idir_y, idir_z, 
+        resx, resy, resz, aabb
     );
     do {
         t += dt_min;
@@ -106,7 +110,6 @@ __global__ void marching_steps_kernel(
         const float x = ox + t_mid * dx;
         const float y = oy + t_mid * dy;
         const float z = oz + t_mid * dz;
-        
         if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary)) {
             ++j;
             // march to next sample
@@ -117,7 +120,7 @@ __global__ void marching_steps_kernel(
         else {
             // march to next sample
             t_mid = advance_to_next_voxel(
-                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt
+                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, aabb, dt
             );
             t0 = t_mid - dt * 0.5f;
             t1 = t_mid + dt * 0.5f;
@@ -192,7 +195,7 @@ __global__ void marching_forward_kernel(
         else {
             // march to next sample
             t_mid = advance_to_next_voxel(
-                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt
+                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, aabb, dt
             );
             t0 = t_mid - dt * 0.5f;
             t1 = t_mid + dt * 0.5f;
