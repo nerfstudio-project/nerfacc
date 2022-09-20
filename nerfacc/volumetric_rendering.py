@@ -29,7 +29,7 @@ def volumetric_rendering_pipeline(
     This function is the integration of those individual functions:
 
     - ray_aabb_intersect
-    - volumetric_marhcing
+    - volumetric_marching
     - volumetric_rendering_steps
     - volumetric_rendering_weights
     - volumetric_rendering_accumulate
