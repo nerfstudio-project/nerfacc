@@ -49,7 +49,7 @@ def volumetric_marching(
     stratified: bool = False,
     contraction: Optional[str] = None,
     cone_angle: float = 0.0,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Volumetric marching with occupancy test.
 
     Note: this function is not differentiable to inputs.
@@ -75,7 +75,7 @@ def volumetric_marching(
     Returns:
         A tuple of tensors containing
 
-            - **packed_info**: Stores infomation on which samples belong to the same ray. \
+            - **packed_info**: Stores information on which samples belong to the same ray. \
                 It is a tensor with shape (n_rays, 2). For each ray, the two values \
                 indicate the start index and the number of samples for this ray, \
                 respectively.
@@ -203,7 +203,7 @@ def volumetric_rendering_weights(
     Note: this function is only differentiable to `sigmas`.
 
     Args:
-        packed_info: Stores infomation on which samples belong to the same ray. \
+        packed_info: Stores information on which samples belong to the same ray. \
             See ``volumetric_marching`` for details. Tensor with shape (n_rays, 2).
         sigmas: Densities at those samples. Tensor with shape (n_samples, 1).
         frustum_starts: Where the frustum-shape sample starts along a ray. Tensor with \
@@ -288,7 +288,7 @@ def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
     Note: this function is not differentiable to inputs.
 
     Args:
-        packed_info: Stores infomation on which samples belong to the same ray. \
+        packed_info: Stores information on which samples belong to the same ray. \
             See ``volumetric_marching`` for details. Tensor with shape (n_rays, 2).
 
     Returns:

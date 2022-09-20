@@ -2,115 +2,127 @@
 #include "include/helpers_cuda.h"
 
 // Perform fixed-size stepping in unit-cube scenes (like original NeRF) and exponential
-// stepping in larger scenes. 
-inline __device__ float calc_dt(float t, float cone_angle, float dt_min, float dt_max) {
+// stepping in larger scenes.
+inline __device__ float calc_dt(float t, float cone_angle, float dt_min, float dt_max)
+{
     return __clamp(t * cone_angle, dt_min, dt_max);
 }
 
 inline __device__ int cascaded_grid_idx_at(
-    const float x, const float y, const float z, 
-    const int resx, const int resy, const int resz
-) {
+    const float x, const float y, const float z,
+    const int resx, const int resy, const int resz)
+{
     // TODO(ruilongli): if the x, y, z is outside the aabb, it will be clipped into aabb!!! We should just return false
     int ix = (int)(x * resx);
     int iy = (int)(y * resy);
     int iz = (int)(z * resz);
-    ix = __clamp(ix, 0, resx-1);
-    iy = __clamp(iy, 0, resy-1);
-    iz = __clamp(iz, 0, resz-1);
+    ix = __clamp(ix, 0, resx - 1);
+    iy = __clamp(iy, 0, resy - 1);
+    iz = __clamp(iz, 0, resz - 1);
     int idx = ix * resy * resz + iy * resz + iz;
-    // printf("(ix, iy, iz) = (%d, %d, %d)\n", ix, iy, iz);
     return idx;
 }
 
 inline __device__ bool grid_occupied_at(
-    float x, float y, float z, 
-    const int resx, const int resy, const int resz, 
-    const float* aabb, const bool* occ_binary, const int contraction_type
-) {
-    switch(contraction_type) {
-        case 0:
-            // no contraction
-            x = (x - aabb[0]) / (aabb[3] - aabb[0]);
-            y = (y - aabb[1]) / (aabb[4] - aabb[1]);
-            z = (z - aabb[2]) / (aabb[5] - aabb[2]);
-            break;
-        case 1:
-            // mipnerf360 scene contraction
-            // The aabb defines a sphere in which the samples are
-            // not modified. The samples outside the sphere are contracted into a 2x
-            // radius sphere.
-            x = (x - aabb[0]) / (aabb[3] - aabb[0]) * 2.0f - 1.0f;
-            y = (y - aabb[1]) / (aabb[4] - aabb[1]) * 2.0f - 1.0f;
-            z = (z - aabb[2]) / (aabb[5] - aabb[2]) * 2.0f - 1.0f;
-            float norm = sqrt(x*x + y*y + z*z);
-            if (norm > 1.0f) {
-                x = (2.0f - 1.0f / norm) * (x / norm);
-                y = (2.0f - 1.0f / norm) * (y / norm);
-                z = (2.0f - 1.0f / norm) * (z / norm);
-            }
-            x = (x * 0.5f + 1.0f) * 0.5f;  // the first 0.5f is bc of the 2x radius
-            y = (y * 0.5f + 1.0f) * 0.5f;
-            z = (z * 0.5f + 1.0f) * 0.5f;
-            break;
+    float x, float y, float z,
+    const int resx, const int resy, const int resz,
+    const float *aabb, const bool *occ_binary, const int contraction_type)
+{
+    switch (contraction_type)
+    {
+    case 0:
+        // no contraction
+        if (x <= aabb[0] || x >= aabb[3] || y <= aabb[1] || y >= aabb[4] || z <= aabb[2] || z >= aabb[5])
+        {
+            return false;
+        }
+        x = (x - aabb[0]) / (aabb[3] - aabb[0]);
+        y = (y - aabb[1]) / (aabb[4] - aabb[1]);
+        z = (z - aabb[2]) / (aabb[5] - aabb[2]);
+        break;
+    case 1:
+        // mipnerf360 scene contraction
+        // The aabb defines a sphere in which the samples are
+        // not modified. The samples outside the sphere are contracted into a 2x
+        // radius sphere.
+        x = (x - aabb[0]) / (aabb[3] - aabb[0]) * 2.0f - 1.0f;
+        y = (y - aabb[1]) / (aabb[4] - aabb[1]) * 2.0f - 1.0f;
+        z = (z - aabb[2]) / (aabb[5] - aabb[2]) * 2.0f - 1.0f;
+        float norm = sqrt(x * x + y * y + z * z);
+        if (norm > 1.0f)
+        {
+            x = (2.0f - 1.0f / norm) * (x / norm);
+            y = (2.0f - 1.0f / norm) * (y / norm);
+            z = (2.0f - 1.0f / norm) * (z / norm);
+        }
+        x = (x * 0.5f + 1.0f) * 0.5f; // the first 0.5f is bc of the 2x radius
+        y = (y * 0.5f + 1.0f) * 0.5f;
+        z = (z * 0.5f + 1.0f) * 0.5f;
+        break;
     }
     int idx = cascaded_grid_idx_at(x, y, z, resx, resy, resz);
     return occ_binary[idx];
 }
 
 inline __device__ float distance_to_next_voxel(
-    float x, float y, float z, 
-    float dir_x, float dir_y, float dir_z, 
+    float x, float y, float z,
+    float dir_x, float dir_y, float dir_z,
     float idir_x, float idir_y, float idir_z,
-    const int resx, const int resy, const int resz
-) { // dda like step
-    // TODO: warning: expression has no effect?
-    x, y, z = resx * x, resy * y, resz * z;
-    float tx = ((floorf(x + 0.5f + 0.5f * __sign(dir_x)) - x) * idir_x) / resx;
-    float ty = ((floorf(y + 0.5f + 0.5f * __sign(dir_y)) - y) * idir_y) / resy;
-    float tz = ((floorf(z + 0.5f + 0.5f * __sign(dir_z)) - z) * idir_z) / resz;
+    const int resx, const int resy, const int resz,
+    const float *aabb)
+{ // dda like step
+    // TODO: this is ugly -- optimize this.
+    float _x = ((x - aabb[0]) / (aabb[3] - aabb[0])) * resx;
+    float _y = ((y - aabb[1]) / (aabb[4] - aabb[1])) * resy;
+    float _z = ((z - aabb[2]) / (aabb[5] - aabb[2])) * resz;
+    float tx = ((floorf(_x + 0.5f + 0.5f * __sign(dir_x)) - _x) * idir_x) / resx * (aabb[3] - aabb[0]);
+    float ty = ((floorf(_y + 0.5f + 0.5f * __sign(dir_y)) - _y) * idir_y) / resy * (aabb[4] - aabb[1]);
+    float tz = ((floorf(_z + 0.5f + 0.5f * __sign(dir_z)) - _z) * idir_z) / resz * (aabb[5] - aabb[2]);
     float t = min(min(tx, ty), tz);
     return fmaxf(t, 0.0f);
 }
 
 inline __device__ float advance_to_next_voxel(
     float t,
-    float x, float y, float z, 
-    float dir_x, float dir_y, float dir_z, 
+    float x, float y, float z,
+    float dir_x, float dir_y, float dir_z,
     float idir_x, float idir_y, float idir_z,
-    const int resx, const int resy, const int resz,
-    float dt_min) {
+    const int resx, const int resy, const int resz, const float *aabb,
+    float dt_min)
+{
     // Regular stepping (may be slower but matches non-empty space)
     float t_target = t + distance_to_next_voxel(
-        x, y, z, dir_x, dir_y, dir_z, idir_x, idir_y, idir_z, resx, resy, resz
-    );
-    do {
+                             x, y, z,
+                             dir_x, dir_y, dir_z,
+                             idir_x, idir_y, idir_z,
+                             resx, resy, resz, aabb);
+    do
+    {
         t += dt_min;
     } while (t < t_target);
     return t;
 }
 
-
 __global__ void marching_steps_kernel(
     // rays info
     const uint32_t n_rays,
-    const float* rays_o,  // shape (n_rays, 3)
-    const float* rays_d,  // shape (n_rays, 3)
-    const float* t_min,  // shape (n_rays,)
-    const float* t_max,  // shape (n_rays,)
+    const float *rays_o, // shape (n_rays, 3)
+    const float *rays_d, // shape (n_rays, 3)
+    const float *t_min,  // shape (n_rays,)
+    const float *t_max,  // shape (n_rays,)
     // density grid
-    const float* aabb,  // [min_x, min_y, min_z, max_x, max_y, max_z]
+    const float *aabb, // [min_x, min_y, min_z, max_x, max_y, max_z]
     const int resx,
     const int resy,
     const int resz,
-    const bool* occ_binary,  // shape (reso_x, reso_y, reso_z)
+    const bool *occ_binary, // shape (reso_x, reso_y, reso_z)
     // sampling
     const float step_size,
     const int contraction_type,
     const float cone_angle,
     // outputs
-    int* num_steps
-) {
+    int *num_steps)
+{
     CUDA_GET_THREAD_ID(i, n_rays);
 
     // locate
@@ -126,7 +138,7 @@ __global__ void marching_steps_kernel(
     const float near = t_min[0], far = t_max[0];
 
     float dt_min = step_size;
-    float dt_max = 1e10f;  // TODO: if not contraction, calculate from occ res and aabb
+    float dt_max = 1e10f; // TODO: if not contraction, calculate from occ res and aabb
 
     int j = 0;
     float t0 = near;
@@ -134,58 +146,60 @@ __global__ void marching_steps_kernel(
     float t1 = t0 + dt;
     float t_mid = (t0 + t1) * 0.5f;
 
-    while (t_mid < far) {
+    while (t_mid < far)
+    {
         // current center
         const float x = ox + t_mid * dx;
         const float y = oy + t_mid * dy;
         const float z = oz + t_mid * dz;
-        
-        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary, contraction_type)) {
+
+        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary, contraction_type))
+        {
             ++j;
             // march to next sample
             t0 = t1;
             t1 = t0 + calc_dt(t0, cone_angle, dt_min, dt_max);
             t_mid = (t0 + t1) * 0.5f;
         }
-        else {
+        else
+        {
             // march to next sample
             t_mid = advance_to_next_voxel(
-                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt_min
-            );
+                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, aabb, dt_min);
             dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
             t0 = t_mid - dt * 0.5f;
             t1 = t_mid + dt * 0.5f;
         }
     }
-    if (j == 0) return;
+    if (j == 0)
+        return;
 
     num_steps[0] = j;
     return;
 }
 
-
 __global__ void marching_forward_kernel(
     // rays info
     const uint32_t n_rays,
-    const float* rays_o,  // shape (n_rays, 3)
-    const float* rays_d,  // shape (n_rays, 3)
-    const float* t_min,  // shape (n_rays,)
-    const float* t_max,  // shape (n_rays,)
+    const float *rays_o, // shape (n_rays, 3)
+    const float *rays_d, // shape (n_rays, 3)
+    const float *t_min,  // shape (n_rays,)
+    const float *t_max,  // shape (n_rays,)
     // density grid
-    const float* aabb,  // [min_x, min_y, min_z, max_x, max_y, max_y]
+    const float *aabb, // [min_x, min_y, min_z, max_x, max_y, max_y]
     const int resx,
     const int resy,
     const int resz,
-    const bool* occ_binary,  // shape (reso_x, reso_y, reso_z)
+    const bool *occ_binary, // shape (reso_x, reso_y, reso_z)
     // sampling
     const float step_size,
     const int contraction_type,
     const float cone_angle,
-    const int* packed_info,
+    const int *packed_info,
     // frustrum outputs
-    float* frustum_starts,
-    float* frustum_ends 
-) {
+    float *frustum_starts,
+    float *frustum_ends)
+{
     CUDA_GET_THREAD_ID(i, n_rays);
 
     // locate
@@ -206,7 +220,7 @@ __global__ void marching_forward_kernel(
     frustum_ends += base;
 
     float dt_min = step_size;
-    float dt_max = 1e10f;  // TODO: if not contraction, calculate from occ res and aabb
+    float dt_max = 1e10f; // TODO: if not contraction, calculate from occ res and aabb
 
     int j = 0;
     float t0 = near;
@@ -214,13 +228,15 @@ __global__ void marching_forward_kernel(
     float t1 = t0 + dt;
     float t_mid = (t0 + t1) * 0.5f;
 
-    while (t_mid < far) {
+    while (t_mid < far)
+    {
         // current center
         const float x = ox + t_mid * dx;
         const float y = oy + t_mid * dy;
         const float z = oz + t_mid * dz;
-        
-        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary, contraction_type)) {
+
+        if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary, contraction_type))
+        {
             frustum_starts[j] = t0;
             frustum_ends[j] = t1;
             ++j;
@@ -229,18 +245,19 @@ __global__ void marching_forward_kernel(
             t1 = t0 + calc_dt(t0, cone_angle, dt_min, dt_max);
             t_mid = (t0 + t1) * 0.5f;
         }
-        else {
+        else
+        {
             // march to next sample
             t_mid = advance_to_next_voxel(
-                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, dt_min
-            );
+                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, aabb, dt_min);
             dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
             t0 = t_mid - dt * 0.5f;
             t1 = t_mid + dt * 0.5f;
         }
     }
 
-    if (j != steps) {
+    if (j != steps)
+    {
         printf("WTF %d v.s. %d\n", j, steps);
     }
     return;
@@ -249,40 +266,68 @@ __global__ void marching_forward_kernel(
 __global__ void ray_indices_kernel(
     // input
     const int n_rays,
-    const int* packed_info,
+    const int *packed_info,
     // output
-    int* ray_indices
-) {
+    int *ray_indices)
+{
     CUDA_GET_THREAD_ID(i, n_rays);
 
     // locate
     const int base = packed_info[i * 2 + 0];  // point idx start.
-    const int steps = packed_info[i * 2 + 1];  // point idx shift.
-    if (steps == 0) return;
+    const int steps = packed_info[i * 2 + 1]; // point idx shift.
+    if (steps == 0)
+        return;
 
     ray_indices += base;
 
-    for (int j = 0; j < steps; ++j) {
+    for (int j = 0; j < steps; ++j)
+    {
         ray_indices[j] = i;
     }
 }
 
+__global__ void occ_query_kernel(
+    // rays info
+    const uint32_t n_samples,
+    const float *samples, // shape (n_samples, 3)
+    // density grid
+    const float *aabb, // [min_x, min_y, min_z, max_x, max_y, max_y]
+    const int resx,
+    const int resy,
+    const int resz,
+    const bool *occ_binary, // shape (reso_x, reso_y, reso_z)
+    // sampling
+    const int contraction_type,
+    // outputs
+    bool *occs)
+{
+    CUDA_GET_THREAD_ID(i, n_samples);
+
+    // locate
+    samples += i * 3;
+    occs += i;
+
+    occs[0] = grid_occupied_at(
+        samples[0], samples[1], samples[2],
+        resx, resy, resz, aabb, occ_binary, contraction_type);
+    return;
+}
 
 std::vector<torch::Tensor> volumetric_marching(
     // rays
-    const torch::Tensor rays_o, 
-    const torch::Tensor rays_d, 
-    const torch::Tensor t_min, 
+    const torch::Tensor rays_o,
+    const torch::Tensor rays_d,
+    const torch::Tensor t_min,
     const torch::Tensor t_max,
     // density grid
     const torch::Tensor aabb,
     const pybind11::list resolution,
-    const torch::Tensor occ_binary, 
+    const torch::Tensor occ_binary,
     // sampling
     const float step_size,
     const int contraction_type,
-    const float cone_angle
-) {
+    const float cone_angle)
+{
     DEVICE_GUARD(rays_o);
 
     CHECK_INPUT(rays_o);
@@ -291,7 +336,7 @@ std::vector<torch::Tensor> volumetric_marching(
     CHECK_INPUT(t_max);
     CHECK_INPUT(aabb);
     CHECK_INPUT(occ_binary);
-    
+
     const int n_rays = rays_o.size(0);
 
     const int threads = 256;
@@ -320,8 +365,7 @@ std::vector<torch::Tensor> volumetric_marching(
         contraction_type,
         cone_angle,
         // outputs
-        num_steps.data_ptr<int>()
-    ); 
+        num_steps.data_ptr<int>());
 
     torch::Tensor cum_steps = num_steps.cumsum(0, torch::kInt32);
     torch::Tensor packed_info = torch::stack({cum_steps - num_steps, num_steps}, 1);
@@ -354,14 +398,13 @@ std::vector<torch::Tensor> volumetric_marching(
         packed_info.data_ptr<int>(),
         // outputs
         frustum_starts.data_ptr<float>(),
-        frustum_ends.data_ptr<float>()
-    ); 
+        frustum_ends.data_ptr<float>());
 
     return {packed_info, frustum_starts, frustum_ends};
 }
 
-
-torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info) {
+torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info)
+{
     DEVICE_GUARD(packed_info);
     CHECK_INPUT(packed_info);
 
@@ -376,9 +419,41 @@ torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info) {
     ray_indices_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         n_rays,
         packed_info.data_ptr<int>(),
-        ray_indices.data_ptr<int>()
-    ); 
+        ray_indices.data_ptr<int>());
     return ray_indices;
 }
 
+torch::Tensor query_occ(
+    const torch::Tensor samples,
+    // density grid
+    const torch::Tensor aabb,
+    const pybind11::list resolution,
+    const torch::Tensor occ_binary,
+    // sampling
+    const int contraction_type)
+{
+    DEVICE_GUARD(samples);
+    CHECK_INPUT(samples);
 
+    const int n_samples = samples.size(0);
+    const int threads = 256;
+    const int blocks = CUDA_N_BLOCKS_NEEDED(n_samples, threads);
+
+    torch::Tensor occs = torch::zeros(
+        {n_samples}, samples.options().dtype(torch::kBool));
+
+    occ_query_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+        n_samples,
+        samples.data_ptr<float>(),
+        // density grid
+        aabb.data_ptr<float>(),
+        resolution[0].cast<int>(),
+        resolution[1].cast<int>(),
+        resolution[2].cast<int>(),
+        occ_binary.data_ptr<bool>(),
+        // sampling
+        contraction_type,
+        // outputs
+        occs.data_ptr<bool>());
+    return occs;
+}

@@ -1,4 +1,4 @@
-from typing import Callable, List, Tuple, Union
+from typing import Callable, List, Tuple, Union, Literal, Optional
 
 import torch
 from torch import nn
@@ -66,7 +66,7 @@ class OccupancyField(nn.Module):
         aabb: Scene bounding box. If ``num_dim=2`` it should be {min_x, min_y,max_x, max_y}.
             If ``num_dim=3`` it should be {min_x, min_y, min_z, max_x, max_y, max_z}.
         resolution: The field resolution. It can either be a int of a list of ints
-            to specify resolution on each dimention.  If ``num_dim=2`` it is for {res_x, res_y}.
+            to specify resolution on each dimension.  If ``num_dim=2`` it is for {res_x, res_y}.
             If ``num_dim=3`` it is for {res_x, res_y, res_z}. Default is 128.
         num_dim: The space dimension. Either 2 or 3. Default is 3.
 
@@ -90,7 +90,7 @@ class OccupancyField(nn.Module):
         aabb: Union[torch.Tensor, List[float]],
         resolution: Union[int, List[int]] = 128,
         num_dim: int = 3,
-        contraction: str = None,
+        contraction: Optional[Literal["mipnerf360"]] = None,
     ) -> None:
         super().__init__()
         self.occ_eval_fn = occ_eval_fn
@@ -241,7 +241,7 @@ class OccupancyField(nn.Module):
             occ_thre: Threshold to binarize the occupancy field.
             ema_decay: The decay rate for EMA updates.
             warmup_steps: Sample all cells during the warmup stage. After the warmup
-                stage we change the sampling strategy to 1/4 unifromly sampled cells
+                stage we change the sampling strategy to 1/4 uniformly sampled cells
                 together with 1/4 occupied cells.
             n: Update the field every n steps.
 

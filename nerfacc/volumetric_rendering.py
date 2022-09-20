@@ -31,7 +31,7 @@ def volumetric_rendering_pipeline(
     This function is the integration of those individual functions:
 
     - ray_aabb_intersect
-    - volumetric_marhcing
+    - volumetric_marching
     - volumetric_rendering_steps
     - volumetric_rendering_weights
     - volumetric_rendering_accumulate
@@ -60,10 +60,11 @@ def volumetric_rendering_pipeline(
 
     if scene_occ_binary is None:
         scene_occ_binary = torch.ones(
-            (1, 1, 1),
+            (1),
             dtype=torch.bool,
             device=rays_o.device,
         )
+        scene_resolution = [1, 1, 1]
 
     if scene_resolution is None:
         assert scene_occ_binary is not None and scene_occ_binary.dim() == 3
@@ -78,10 +79,10 @@ def volumetric_rendering_pipeline(
     rays_d = rays_d.contiguous()
     scene_aabb = scene_aabb.contiguous()
     scene_occ_binary = scene_occ_binary.contiguous()
-    render_bkgd = render_bkgd.contiguous()
 
     with torch.no_grad():
         # Ray marching and occupancy check.
+        assert scene_resolution is not None
         packed_info, frustum_starts, frustum_ends = volumetric_marching(
             rays_o,
             rays_d,
@@ -137,6 +138,7 @@ def volumetric_rendering_pipeline(
     # )
 
     if render_bkgd is not None:
+        render_bkgd = render_bkgd.contiguous()
         colors = colors + render_bkgd * (1.0 - opacities)
 
     return colors, opacities, n_marching_samples, n_rendering_samples
