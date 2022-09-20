@@ -56,10 +56,11 @@ def volumetric_rendering_pipeline(
 
     if scene_occ_binary is None:
         scene_occ_binary = torch.ones(
-            (1, 1, 1),
+            (1),
             dtype=torch.bool,
             device=rays_o.device,
         )
+        scene_resolution = [1, 1, 1]
 
     if scene_resolution is None:
         assert scene_occ_binary is not None and scene_occ_binary.dim() == 3

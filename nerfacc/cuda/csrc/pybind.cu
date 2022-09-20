@@ -44,6 +44,14 @@ std::vector<torch::Tensor> volumetric_marching(
     const float dt
 );
 
+torch::Tensor query_occ(
+    const torch::Tensor samples,
+    // density grid
+    const torch::Tensor aabb,
+    const pybind11::list resolution,
+    const torch::Tensor occ_binary
+);
+
 torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
@@ -54,4 +62,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("volumetric_rendering_weights_forward", &volumetric_rendering_weights_forward);
     m.def("volumetric_rendering_weights_backward", &volumetric_rendering_weights_backward);
     m.def("unpack_to_ray_indices", &unpack_to_ray_indices);   
+    m.def("query_occ", &query_occ);   
 }
