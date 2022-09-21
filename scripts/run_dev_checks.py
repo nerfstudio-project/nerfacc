@@ -63,7 +63,9 @@ def run_github_actions_file(filename: str):
     # Add checks for building documentation
     console.line()
     console.rule("[bold green]Building Documentation")
-    success = success and run_command("cd docs/; make html SPHINXOPTS='-W;'")
+    success = success and run_command(
+        "cd docs/; make clean; make html SPHINXOPTS='-W;'"
+    )
 
     if success:
         console.line()
