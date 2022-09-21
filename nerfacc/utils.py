@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -47,7 +47,7 @@ def volumetric_marching(
     render_step_size: float = 1e-3,
     near_plane: float = 0.0,
     stratified: bool = False,
-    contraction: Optional[str] = None,
+    contraction: Optional[Literal["mipnerf360"]] = None,
     cone_angle: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Volumetric marching with occupancy test.
@@ -113,7 +113,11 @@ def volumetric_marching(
 
     if stratified:
         t_min = t_min + torch.rand_like(t_min) * render_step_size
-    packed_info, frustum_starts, frustum_ends = nerfacc_cuda.volumetric_marching(
+    (
+        packed_info,
+        frustum_starts,
+        frustum_ends,
+    ) = nerfacc_cuda.volumetric_marching(
         # rays
         rays_o.contiguous(),
         rays_d.contiguous(),
@@ -176,7 +180,10 @@ def volumetric_rendering_steps(
         frustum_starts = frustum_starts.contiguous()
         frustum_ends = frustum_ends.contiguous()
         sigmas = sigmas.contiguous()
-        compact_packed_info, compact_selector = nerfacc_cuda.volumetric_rendering_steps(
+        (
+            compact_packed_info,
+            compact_selector,
+        ) = nerfacc_cuda.volumetric_rendering_steps(
             packed_info, frustum_starts, frustum_ends, sigmas
         )
         compact_frustum_starts = frustum_starts[compact_selector]
@@ -305,7 +312,9 @@ def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
 
 @torch.no_grad()
 def contract(
-    samples: Tensor, aabb: Tensor, contraction: Optional[str] = "mipnerf360"
+    samples: Tensor,
+    aabb: Tensor,
+    contraction: Optional[Literal["mipnerf360"]] = "mipnerf360",
 ) -> Tensor:
     """Scene contraction on samples.
 
