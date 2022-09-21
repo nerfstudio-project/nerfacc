@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
-from nerfacc import OccupancyField, volumetric_rendering_pipeline
+from nerfacc import OccupancyField, contract, volumetric_rendering_pipeline
 
 device = "cuda:0"
 
@@ -19,24 +19,6 @@ def _set_random_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-
-
-def scene_contraction_mipnerf360(x: torch.Tensor, aabb: torch.Tensor) -> torch.Tensor:
-    """MipNerf360 scene contraction.
-
-    Args:
-        x: the samples. (n_samples, 3)
-        aabb: the scene axis-aligned bounding box {xmin, ymin, zmin, xmax, ymax, zmax}.
-
-    Returns:
-        The contracted samples. (n_samples, 3)
-    """
-    x = (x - aabb[:3]) / (aabb[3:] - aabb[:3]) * 2.0 - 1.0
-    norm = x.norm(dim=-1)
-    selector = norm > 1.0
-    x[selector] = ((2.0 - 1.0 / norm[:, None]) * (x / norm[:, None]))[selector]
-    x = (x * 0.5 + 1.0) * 0.5
-    return x
 
 
 def scale_aabb(aabb: torch.Tensor, scale: float) -> torch.Tensor:
@@ -89,14 +71,9 @@ def render_image(
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
-        if contraction == "mipnerf360":
-            positions = scene_contraction_mipnerf360(
-                positions, scale_aabb(radiance_field.aabb, 0.5)
-            )
-            positions = (
-                positions * (radiance_field.aabb[3:] - radiance_field.aabb[:3])
-                + radiance_field.aabb[:3]
-            )
+        positions = contract(
+            positions, scale_aabb(radiance_field.aabb, 0.5), contraction=contraction
+        )
         if timestamps is None:
             return radiance_field.query_density(positions)
         else:
@@ -113,14 +90,9 @@ def render_image(
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
-        if contraction == "mipnerf360":
-            positions = scene_contraction_mipnerf360(
-                positions, scale_aabb(radiance_field.aabb, 0.5)
-            )
-            positions = (
-                positions * (radiance_field.aabb[3:] - radiance_field.aabb[:3])
-                + radiance_field.aabb[:3]
-            )
+        positions = contract(
+            positions, scale_aabb(radiance_field.aabb, 0.5), contraction=contraction
+        )
         if timestamps is None:
             return radiance_field(positions, frustum_dirs)
         else:

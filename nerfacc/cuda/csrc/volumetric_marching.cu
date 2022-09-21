@@ -23,28 +23,33 @@ inline __device__ int cascaded_grid_idx_at(
     return idx;
 }
 
-inline __device__ bool grid_occupied_at(
+inline __device__ bool normalize_with_contraction(
     float x, float y, float z,
-    const int resx, const int resy, const int resz,
-    const float *aabb, const bool *occ_binary, const int contraction_type)
-{
+    const float *aabb, 
+    const int contraction_type, 
+    const bool normalize, // If true, it will output normalized coordinates in [0, 1]
+    float *outx, float *outy, float *outz
+){
+    // normalize and contract to a unit space.
     switch (contraction_type)
     {
     case 0:
         // no contraction
-        if (x <= aabb[0] || x >= aabb[3] || y <= aabb[1] || y >= aabb[4] || z <= aabb[2] || z >= aabb[5])
-        {
-            return false;
+        if (normalize) {
+            *outx = (x - aabb[0]) / (aabb[3] - aabb[0]);
+            *outy = (y - aabb[1]) / (aabb[4] - aabb[1]);
+            *outz = (z - aabb[2]) / (aabb[5] - aabb[2]);
         }
-        x = (x - aabb[0]) / (aabb[3] - aabb[0]);
-        y = (y - aabb[1]) / (aabb[4] - aabb[1]);
-        z = (z - aabb[2]) / (aabb[5] - aabb[2]);
+        else {
+            *outx = x;
+            *outy = y;
+            *outz = z;
+        }
         break;
     case 1:
         // mipnerf360 scene contraction
-        // The aabb defines a sphere in which the samples are
-        // not modified. The samples outside the sphere are contracted into a 2x
-        // radius sphere.
+        // The aabb defines a sphere in which the samples are not modified. 
+        // The samples outside the sphere are contracted into a 2x radius sphere.
         x = (x - aabb[0]) / (aabb[3] - aabb[0]) * 2.0f - 1.0f;
         y = (y - aabb[1]) / (aabb[4] - aabb[1]) * 2.0f - 1.0f;
         z = (z - aabb[2]) / (aabb[5] - aabb[2]) * 2.0f - 1.0f;
@@ -58,9 +63,30 @@ inline __device__ bool grid_occupied_at(
         x = (x * 0.5f + 1.0f) * 0.5f; // the first 0.5f is bc of the 2x radius
         y = (y * 0.5f + 1.0f) * 0.5f;
         z = (z * 0.5f + 1.0f) * 0.5f;
+        if (normalize) {
+            *outx = x;
+            *outy = y;
+            *outz = z;
+        }
+        else {
+            *outx = 2.0f * (x - 0.25f) * (aabb[3] - aabb[0]) + aabb[0];
+            *outy = 2.0f * (y - 0.25f) * (aabb[4] - aabb[1]) + aabb[1];
+            *outz = 2.0f * (z - 0.25f) * (aabb[5] - aabb[2]) + aabb[2];
+        }
         break;
     }
-    int idx = cascaded_grid_idx_at(x, y, z, resx, resy, resz);
+}
+
+inline __device__ bool grid_occupied_at(
+    float x, float y, float z,
+    const int resx, const int resy, const int resz,
+    const float *aabb, const bool *occ_binary, const int contraction_type)
+{
+    // normalize and maybe contract the coordinates.
+    float _x, _y, _z;
+    normalize_with_contraction(
+        x, y, z, aabb, contraction_type, true, &_x, &_y, &_z);
+    int idx = cascaded_grid_idx_at(_x, _y, _z, resx, resy, resz);
     return occ_binary[idx];
 }
 
@@ -313,6 +339,30 @@ __global__ void occ_query_kernel(
     return;
 }
 
+__global__ void contraction_kernel(
+    // rays info
+    const uint32_t n_samples,
+    const float *samples, // shape (n_samples, 3)
+    // contraction
+    const float *aabb, // [min_x, min_y, min_z, max_x, max_y, max_y]
+    const int contraction_type,
+    // outputs
+    float *out_samples)
+{
+    CUDA_GET_THREAD_ID(i, n_samples);
+
+    // locate
+    samples += i * 3;
+    out_samples += i * 3;
+
+    normalize_with_contraction(
+        samples[0], samples[1], samples[2],
+        aabb, contraction_type, false, 
+        &out_samples[0], &out_samples[1], &out_samples[2]
+    );
+    return;
+}
+
 std::vector<torch::Tensor> volumetric_marching(
     // rays
     const torch::Tensor rays_o,
@@ -456,4 +506,31 @@ torch::Tensor query_occ(
         // outputs
         occs.data_ptr<bool>());
     return occs;
+}
+
+torch::Tensor contraction(
+    const torch::Tensor samples,
+    // contraction
+    const torch::Tensor aabb,
+    const int contraction_type)
+{
+    DEVICE_GUARD(samples);
+    CHECK_INPUT(samples);
+
+    const int n_samples = samples.size(0);
+    const int threads = 256;
+    const int blocks = CUDA_N_BLOCKS_NEEDED(n_samples, threads);
+
+    torch::Tensor out_samples = torch::zeros({n_samples, 3}, samples.options());
+
+    contraction_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+        n_samples,
+        samples.data_ptr<float>(),
+        // density grid
+        aabb.data_ptr<float>(),
+        contraction_type,
+        // outputs
+        out_samples.data_ptr<float>()
+    );
+    return out_samples;
 }

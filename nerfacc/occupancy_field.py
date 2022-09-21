@@ -1,27 +1,9 @@
-from typing import Callable, List, Tuple, Union, Literal, Optional
+from typing import Callable, List, Literal, Optional, Tuple, Union
 
 import torch
 from torch import nn
 
 # from torch_scatter import scatter_max
-
-
-# def scene_contraction_mipnerf360(x: torch.Tensor, aabb: torch.Tensor) -> torch.Tensor:
-#     """MipNerf360 scene contraction.
-
-#     Args:
-#         x: the samples. (n_samples, 3)
-#         aabb: the scene axis-aligned bounding box {xmin, ymin, zmin, xmax, ymax, zmax}.
-
-#     Returns:
-#         The contracted samples. (n_samples, 3)
-#     """
-#     x = (x - aabb[:3]) / (aabb[3:] - aabb[:3]) * 2.0 - 1.0
-#     norm = x.norm(dim=-1)
-#     selector = norm > 1.0
-#     x[selector] = (2.0 - 1.0 / norm) * (x / norm[:, None])[selector]
-#     x = (x * 0.5 + 1.0) * 0.5
-#     return x
 
 
 def meshgrid3d(

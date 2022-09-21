@@ -22,3 +22,4 @@ volumetric_rendering_weights_backward = _make_lazy_cuda(
 )
 unpack_to_ray_indices = _make_lazy_cuda("unpack_to_ray_indices")
 query_occ = _make_lazy_cuda("query_occ")
+contraction = _make_lazy_cuda("contraction")

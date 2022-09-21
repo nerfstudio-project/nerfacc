@@ -51,6 +51,13 @@ torch::Tensor query_occ(
 
 torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info);
 
+torch::Tensor contraction(
+    const torch::Tensor samples,
+    // contraction
+    const torch::Tensor aabb,
+    const int contraction_type
+);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
@@ -60,4 +67,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("volumetric_rendering_weights_backward", &volumetric_rendering_weights_backward);
     m.def("unpack_to_ray_indices", &unpack_to_ray_indices);
     m.def("query_occ", &query_occ);
+    m.def("contraction", &contraction);
 }

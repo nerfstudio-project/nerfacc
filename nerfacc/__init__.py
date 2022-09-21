@@ -1,5 +1,6 @@
 from .occupancy_field import OccupancyField
 from .utils import (
+    contract,
     ray_aabb_intersect,
     unpack_to_ray_indices,
     volumetric_marching,
@@ -18,4 +19,5 @@ __all__ = [
     "volumetric_rendering_weights",
     "volumetric_rendering_pipeline",
     "unpack_to_ray_indices",
+    "contract",
 ]

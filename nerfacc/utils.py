@@ -303,6 +303,28 @@ def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
     return ray_indices
 
 
+@torch.no_grad()
+def contract(
+    samples: Tensor, aabb: Tensor, contraction: Optional[str] = "mipnerf360"
+) -> Tensor:
+    """Scene contraction on samples.
+
+    Args:
+        samples: Samples to be contracted. Tensor with shape (n_samples, 3).
+        aabb: Axis-aligned bounding box of the scene. Tensor with shape (6,).
+        contraction: The contraction method. Currently only support "mipnerf360".
+
+    Returns:
+        Contracted samples. Tensor with shape (n_samples, 3).
+    """
+    if contraction is None:
+        return samples
+    elif contraction == "mipnerf360":
+        return nerfacc_cuda.contraction(samples, aabb, 1)
+    else:
+        raise NotImplementedError(f"Unknown contraction method {contraction}.")
+
+
 class _volumetric_rendering_weights(torch.autograd.Function):
     @staticmethod
     def forward(ctx, packed_info, frustum_starts, frustum_ends, sigmas):
