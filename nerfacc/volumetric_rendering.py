@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Literal, Optional, Tuple
 
 import torch
 
@@ -23,7 +23,7 @@ def volumetric_rendering_pipeline(
     render_step_size: float = 1e-3,
     near_plane: float = 0.0,
     stratified: bool = False,
-    contraction: Optional[str] = None,
+    contraction: Optional[Literal["mipnerf360"]] = None,
     cone_angle: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor, int, int]:
     """Differentiable volumetric rendering pipeline.
@@ -113,7 +113,9 @@ def volumetric_rendering_pipeline(
 
     # Query sigma and color with gradients
     rgbs, sigmas = rgb_sigma_fn(frustum_starts, frustum_ends, ray_indices)
-    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(rgbs.shape)
+    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
+        rgbs.shape
+    )
     assert sigmas.shape[-1] == 1, "sigmas must have 1 channel, got {}".format(
         sigmas.shape
     )
