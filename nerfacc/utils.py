@@ -1,4 +1,5 @@
-from typing import List, Optional, Tuple
+""" Volumetric rendering utilities. """
+from typing import Any, List, Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -92,7 +93,11 @@ def volumetric_marching(
 
     if stratified:
         t_min = t_min + torch.rand_like(t_min) * render_step_size
-    packed_info, frustum_starts, frustum_ends = nerfacc_cuda.volumetric_marching(
+    (
+        packed_info,
+        frustum_starts,
+        frustum_ends,
+    ) = nerfacc_cuda.volumetric_marching(
         # rays
         rays_o.contiguous(),
         rays_d.contiguous(),
@@ -153,7 +158,10 @@ def volumetric_rendering_steps(
         frustum_starts = frustum_starts.contiguous()
         frustum_ends = frustum_ends.contiguous()
         sigmas = sigmas.contiguous()
-        compact_packed_info, compact_selector = nerfacc_cuda.volumetric_rendering_steps(
+        (
+            compact_packed_info,
+            compact_selector,
+        ) = nerfacc_cuda.volumetric_rendering_steps(
             packed_info, frustum_starts, frustum_ends, sigmas
         )
         compact_frustum_starts = frustum_starts[compact_selector]
@@ -202,7 +210,7 @@ def volumetric_rendering_weights(
         frustum_starts = frustum_starts.contiguous()
         frustum_ends = frustum_ends.contiguous()
         sigmas = sigmas.contiguous()
-        weights = _volumetric_rendering_weights.apply(
+        weights = _VolumetricRenderingWeights.apply(
             packed_info, frustum_starts, frustum_ends, sigmas
         )
     else:
@@ -280,9 +288,11 @@ def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
     return ray_indices
 
 
-class _volumetric_rendering_weights(torch.autograd.Function):
+class _VolumetricRenderingWeights(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, packed_info, frustum_starts, frustum_ends, sigmas):
+    def forward(
+        ctx, packed_info, frustum_starts, frustum_ends, sigmas
+    ):  # pylint: disable=arguments-differ
         weights = nerfacc_cuda.volumetric_rendering_weights_forward(
             packed_info, frustum_starts, frustum_ends, sigmas
         )
@@ -296,7 +306,7 @@ class _volumetric_rendering_weights(torch.autograd.Function):
         return weights
 
     @staticmethod
-    def backward(ctx, grad_weights):
+    def backward(ctx, grad_weights):  # pylint: disable=arguments-differ
         (
             packed_info,
             frustum_starts,
@@ -313,3 +323,7 @@ class _volumetric_rendering_weights(torch.autograd.Function):
             sigmas,
         )
         return None, None, None, grad_sigmas
+
+    @staticmethod
+    def jvp(ctx: Any, *grad_inputs: Any) -> Any:
+        raise NotImplementedError("Not implemented.")

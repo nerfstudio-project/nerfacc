@@ -1,3 +1,4 @@
+"""nerfacc - A Python package for the fast volumetric rendering."""
 from .occupancy_field import OccupancyField
 from .utils import (
     ray_aabb_intersect,
