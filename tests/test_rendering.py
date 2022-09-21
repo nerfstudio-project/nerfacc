@@ -2,6 +2,7 @@ import torch
 import tqdm
 
 from nerfacc import (
+    unpack_to_ray_indices,
     volumetric_marching,
     volumetric_rendering_accumulate,
     volumetric_rendering_steps,
@@ -19,13 +20,7 @@ def test_rendering():
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
     for step in tqdm.tqdm(range(1000)):
-        (
-            packed_info,
-            frustum_origins,
-            frustum_dirs,
-            frustum_starts,
-            frustum_ends,
-        ) = volumetric_marching(
+        (packed_info, frustum_starts, frustum_ends,) = volumetric_marching(
             rays_o,
             rays_d,
             aabb=scene_aabb,
@@ -39,25 +34,22 @@ def test_rendering():
             packed_info,
             frustum_starts,
             frustum_ends,
-            frustum_origins,
-            frustum_dirs,
         ) = volumetric_rendering_steps(
             packed_info,
             sigmas,
             frustum_starts,
             frustum_ends,
-            frustum_origins,
-            frustum_dirs,
         )
+        ray_indices = unpack_to_ray_indices(packed_info)
 
-        weights, ray_indices = volumetric_rendering_weights(
+        sigmas = torch.rand_like(frustum_ends[:, :1], requires_grad=True) * 100
+        values = torch.rand_like(frustum_starts, requires_grad=True)
+        weights = volumetric_rendering_weights(
             packed_info,
             sigmas,
             frustum_starts,
             frustum_ends,
         )
-
-        values = torch.rand_like(sigmas, requires_grad=True)
 
         accum_values = volumetric_rendering_accumulate(
             weights,

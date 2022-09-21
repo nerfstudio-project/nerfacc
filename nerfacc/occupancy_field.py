@@ -1,3 +1,4 @@
+""" Occupancy field for accelerating volumetric rendering. """
 from typing import Callable, List, Tuple, Union
 
 import torch
@@ -100,7 +101,9 @@ class OccupancyField(nn.Module):
         self.register_buffer("occ_grid_binary", occ_grid_binary)
 
         # Grid coords & indices
-        grid_coords = meshgrid3d(self.resolution).reshape(self.num_cells, self.num_dim)
+        grid_coords = meshgrid3d(self.resolution).reshape(
+            self.num_cells, self.num_dim
+        )
         self.register_buffer("grid_coords", grid_coords)
         grid_indices = torch.arange(self.num_cells)
         self.register_buffer("grid_indices", grid_indices)
@@ -145,12 +148,16 @@ class OccupancyField(nn.Module):
         x = (
             grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
         ) / self.resolution_tensor
-        bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
+        bb_min, bb_max = torch.split(
+            self.aabb, [self.num_dim, self.num_dim], dim=0
+        )
         x = x * (bb_max - bb_min) + bb_min
         occ = self.occ_eval_fn(x).squeeze(-1)
 
         # ema update
-        self.occ_grid[indices] = torch.maximum(self.occ_grid[indices] * ema_decay, occ)
+        self.occ_grid[indices] = torch.maximum(
+            self.occ_grid[indices] * ema_decay, occ
+        )
         # suppose to use scatter max but emperically it is almost the same.
         # self.occ_grid, _ = scatter_max(
         #     occ, indices, dim=0, out=self.occ_grid * ema_decay
@@ -174,7 +181,9 @@ class OccupancyField(nn.Module):
         ), "The samples are not drawn from a proper space!"
         resolution = torch.tensor(self.resolution).to(self.occ_grid.device)
 
-        bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
+        bb_min, bb_max = torch.split(
+            self.aabb, [self.num_dim, self.num_dim], dim=0
+        )
         x = (x - bb_min) / (bb_max - bb_min)
         selector = ((x > 0.0) & (x < 1.0)).all(dim=-1)
 
@@ -193,7 +202,9 @@ class OccupancyField(nn.Module):
             raise NotImplementedError("Currently only supports 2D or 3D field.")
         occs = torch.zeros(x.shape[:-1], device=x.device)
         occs[selector] = self.occ_grid[grid_indices[selector]]
-        occs_binary = torch.zeros(x.shape[:-1], device=x.device, dtype=torch.bool)
+        occs_binary = torch.zeros(
+            x.shape[:-1], device=x.device, dtype=torch.bool
+        )
         occs_binary[selector] = self.occ_grid_binary[grid_indices[selector]]
         return occs, occs_binary
 
@@ -236,3 +247,14 @@ class OccupancyField(nn.Module):
                 ema_decay=ema_decay,
                 warmup_steps=warmup_steps,
             )
+
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Query the occupancy, given samples.
+
+        Args:
+            x: Samples with shape (..., 2) or (..., 3).
+
+        Returns:
+            float and binary occupancy values with shape (...) respectively.
+        """
+        return self.query_occ(x)

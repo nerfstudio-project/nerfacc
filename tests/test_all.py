@@ -11,9 +11,9 @@ def sigma_fn(frustum_starts, frustum_ends, ray_indices):
 
 
 def rgb_sigma_fn(frustum_starts, frustum_ends, ray_indices):
-    return torch.rand((frustum_ends.shape[0], 3), device=device), torch.rand_like(
-        frustum_ends
-    )
+    return torch.rand(
+        (frustum_ends.shape[0], 3), device=device
+    ), torch.rand_like(frustum_ends)
 
 
 def test_rendering():
