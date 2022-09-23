@@ -153,6 +153,7 @@ class OccupancyField(nn.Module):
         ) / self.resolution_tensor
         bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
         x = x * (bb_max - bb_min) + bb_min
+        # TODO needs an inverse contraction
         occ = self.occ_eval_fn(x).squeeze(-1)
 
         # ema update
@@ -175,6 +176,7 @@ class OccupancyField(nn.Module):
         Returns:
             float and binary occupancy values with shape (...) respectively.
         """
+        # TODO needs an contraction
         assert self.contraction is None, "Currently only supports no contraction."
         assert (
             x.shape[-1] == self.num_dim

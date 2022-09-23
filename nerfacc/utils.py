@@ -118,11 +118,7 @@ def volumetric_marching(
 
     if stratified:
         t_min = t_min + torch.rand_like(t_min) * render_step_size
-    (
-        packed_info,
-        frustum_starts,
-        frustum_ends,
-    ) = nerfacc_cuda.volumetric_marching(
+    (packed_info, frustum_starts, frustum_ends,) = nerfacc_cuda.volumetric_marching(
         # rays
         rays_o.contiguous(),
         rays_d.contiguous(),
@@ -334,9 +330,13 @@ def contract(
     if contraction is None:
         return samples
     elif contraction == "mipnerf360":
-        return nerfacc_cuda.contraction(samples, aabb, 1)
+        return nerfacc_cuda.contraction(samples.contiguous(), aabb.contiguous(), 1)
     else:
         raise NotImplementedError(f"Unknown contraction method {contraction}.")
+
+
+# TODO needs an inverse contraction
+# TODO needs an contraction scaling
 
 
 class _volumetric_rendering_weights(torch.autograd.Function):

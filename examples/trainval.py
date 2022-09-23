@@ -303,6 +303,7 @@ if __name__ == "__main__":
     )
 
     # setup occupancy field with eval function
+    @torch.no_grad()
     def occ_eval_fn(x: torch.Tensor) -> torch.Tensor:
         """Evaluate occupancy given positions.
 
@@ -319,9 +320,24 @@ if __name__ == "__main__":
             density_after_activation = radiance_field.query_density(x, t)
         else:
             density_after_activation = radiance_field.query_density(x)
+        if args.contraction == "mipnerf360":
+            # TODO: goes into radiance field: defined by user.
+            # mipnerf360 contract scene into a sphere
+            x_norm = (x - occ_field.aabb[:3]) / (
+                occ_field.aabb[3:] - occ_field.aabb[:3]
+            )
+            x_norm = x_norm * 4 - 2  # to [-2, 2]
+            r = torch.linalg.norm(x_norm, dim=-1, keepdim=True)
+            contraction_scaling = 1 / ((2 - r) ** 2)
+            contraction_scaling[r < 1] = 1
+            contraction_scaling[r > 2] = 0
+            contraction_scaling = torch.clamp(contraction_scaling, max=1e10)
+            step_size = render_step_size * contraction_scaling
+        else:
+            step_size = render_step_size
         # those two are similar when density is small.
-        # occupancy = 1.0 - torch.exp(-density_after_activation * render_step_size)
-        occupancy = density_after_activation * render_step_size
+        occupancy = 1.0 - torch.exp(-density_after_activation * step_size)
+        # occupancy = density_after_activation * step_size
         return occupancy
 
     occ_aabb = scene_aabb if args.contraction is None else scale_aabb(scene_aabb, 2.0)
@@ -423,9 +439,7 @@ if __name__ == "__main__":
                         # else:
                         #     imageio.imwrite(
                         #         "acc_binary_test.png",
-                        #         ((acc > 0).float().cpu().numpy() * 255).astype(
-                        #             np.uint8
-                        #         ),
+                        #         ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
                         #     )
                         #     imageio.imwrite(
                         #         "rgb_test.png",
