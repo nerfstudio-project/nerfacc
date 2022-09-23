@@ -75,10 +75,10 @@ python examples/trainval.py ngp --train_split train --scene garden --test_chunk_
 
 Performance on test set:
 
-|  | Lego |
+|  | Garden |
 | - | - |
-| Our PSNR (train set) | 34.09 |
-| Our train time & test FPS | 500s;0.8FPS |
+| Our PSNR (train set) | 25.13 |
+| Our train time & test FPS | 1051s;0.3FPS |
 
 
 <!-- 
