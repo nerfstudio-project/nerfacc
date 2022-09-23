@@ -71,6 +71,13 @@ Note the numbers above are tested with version `v0.0.8`
 python examples/trainval.py ngp --train_split trainval --scene lego --test_chunk_size=8192 --contraction mipnerf360 --aabb="-0.3,-0.3,-0.3,0.3,0.3,0.3"
 ```
 
+Performance on test set:
+
+|  | Lego |
+| - | - |
+| Our PSNR (train set) | 34.09 |
+| Our train time & test FPS | 500s;0.8FPS |
+
 
 <!-- 
 ## Tips:
