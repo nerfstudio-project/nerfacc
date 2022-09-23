@@ -67,8 +67,10 @@ Note the numbers above are tested with version `v0.0.8`
 
 ## Examples: NGP with MipNeRF360 scene contraction
 
+On MipNeRF360 Garden scene
+
 ```bash
-python examples/trainval.py ngp --train_split trainval --scene lego --test_chunk_size=8192 --contraction mipnerf360 --aabb="-0.3,-0.3,-0.3,0.3,0.3,0.3"
+python examples/trainval.py ngp --train_split train --scene garden --test_chunk_size=8192 --aabb="-4,-4,-4,4,4,4" --contraction "mipnerf360" --cone_angle=0.004
 ```
 
 Performance on test set:

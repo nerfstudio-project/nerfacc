@@ -118,7 +118,8 @@ def render_image(
             scene_resolution=occ_field.resolution,
             render_bkgd=render_bkgd,
             render_step_size=render_step_size,
-            near_plane=0.0,
+            near_plane=0.2 if contraction == "mipnerf360" else None,
+            far_plane=1e4 if contraction == "mipnerf360" else None,
             stratified=radiance_field.training,
             contraction=contraction,
             cone_angle=cone_angle,
@@ -177,6 +178,8 @@ if __name__ == "__main__":
             "mutant",
             "standup",
             "trex",
+            # 360
+            "garden",
         ],
         help="which scene to use",
     )
@@ -200,8 +203,21 @@ if __name__ == "__main__":
     # setup the scene bounding box.
     scene_aabb = torch.tensor(args.aabb, dtype=torch.float32)
 
+    train_dataset_kwargs = {}
+    test_dataset_kwargs = {}
     if args.method == "ngp":
-        from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
+        if args.scene == "garden":
+            from datasets.nerf_360_v2 import SubjectLoader, namedtuple_map
+
+            data_root_fp = "/home/ruilongli/data/360_v2/"
+            target_sample_batch_size = 1 << 20
+            train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
+            test_dataset_kwargs = {"factor": 4}
+        else:
+            from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
+
+            data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
+            target_sample_batch_size = 1 << 18
         from radiance_fields.ngp import NGPradianceField
 
         radiance_aabb = (
@@ -212,8 +228,6 @@ if __name__ == "__main__":
         max_steps = 20000
         occ_field_warmup_steps = 256
         grad_scaler = torch.cuda.amp.GradScaler(2**10)
-        data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
-        target_sample_batch_size = 1 << 18
 
     elif args.method == "vanilla":
         from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
@@ -253,7 +267,7 @@ if __name__ == "__main__":
         root_fp=data_root_fp,
         split=args.train_split,
         num_rays=target_sample_batch_size // render_n_samples,
-        # color_bkgd_aug="random",
+        **train_dataset_kwargs,
     )
 
     train_dataset.images = train_dataset.images.to(device)
@@ -262,11 +276,19 @@ if __name__ == "__main__":
     if hasattr(train_dataset, "timestamps"):
         train_dataset.timestamps = train_dataset.timestamps.to(device)
 
+    sg_aabb_center = train_dataset.camtoworlds[:, :3, -1].mean(dim=0)
+    sg_aabb_half = (
+        (train_dataset.camtoworlds[:, :3, -1] - sg_aabb_center).norm(dim=-1).mean()
+    )
+    sg_aabb = torch.cat([sg_aabb_center - sg_aabb_half, sg_aabb_center + sg_aabb_half])
+    print(f"suggested aabb from train dataset: {sg_aabb.tolist()}")
+
     test_dataset = SubjectLoader(
         subject_id=scene,
         root_fp=data_root_fp,
         split="test",
         num_rays=None,
+        **test_dataset_kwargs,
     )
     test_dataset.images = test_dataset.images.to(device)
     test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
@@ -363,7 +385,7 @@ if __name__ == "__main__":
                 )
 
             # if time.time() - tic > 300:
-            if step >= 0 and step % max_steps == 0 and step > 0:
+            if step >= 0 and step % 2000 == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
@@ -409,7 +431,7 @@ if __name__ == "__main__":
                         #         "rgb_test.png",
                         #         (rgb.cpu().numpy() * 255).astype(np.uint8),
                         #     )
-                        #    break
+                        #     break
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
                 train_dataset.training = True

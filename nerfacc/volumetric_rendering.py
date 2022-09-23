@@ -21,7 +21,8 @@ def volumetric_rendering_pipeline(
     scene_occ_binary: torch.Tensor,
     render_bkgd: Optional[torch.Tensor] = None,
     render_step_size: float = 1e-3,
-    near_plane: float = 0.0,
+    near_plane: Optional[float] = None,
+    far_plane: Optional[float] = None,
     stratified: bool = False,
     contraction: Optional[Literal["mipnerf360"]] = None,
     cone_angle: float = 0.0,
@@ -48,7 +49,8 @@ def volumetric_rendering_pipeline(
         scene_occ_binary: The scene occupancy binary tensor used to skip samples (n_cells,). Defaults to None.
         render_bkgd: The background color (3,). Default: None.
         render_step_size: The step size for the volumetric rendering. Default: 1e-3.
-        near_plane: The near plane for the volumetric rendering. Default: 0.0.
+        near_plane: Optional. The near plane for the volumetric rendering. Default: None.
+        far_plane: Optional. The far plane for the volumetric rendering. Default: None
         stratified: Whether to use stratified sampling. Default: False.
         contraction: Optional. Contraction method. Default is None.
         cone_angle: Cone angle for non-unifrom sampling. 0 means uniform. Default is 0.0.
@@ -91,6 +93,7 @@ def volumetric_rendering_pipeline(
             scene_occ_binary=scene_occ_binary,
             render_step_size=render_step_size,
             near_plane=near_plane,
+            far_plane=far_plane,
             stratified=stratified,
             contraction=contraction,
             cone_angle=cone_angle,

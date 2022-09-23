@@ -45,7 +45,8 @@ def volumetric_marching(
     t_min: Optional[Tensor] = None,
     t_max: Optional[Tensor] = None,
     render_step_size: float = 1e-3,
-    near_plane: float = 0.0,
+    near_plane: Optional[float] = None,
+    far_plane: Optional[float] = None,
     stratified: bool = False,
     contraction: Optional[Literal["mipnerf360"]] = None,
     cone_angle: float = 0.0,
@@ -67,7 +68,8 @@ def volumetric_marching(
         t_max: Optional. Ray far planes. Tensor with shape (n_ray,). \
             If not given it will be calculated using aabb test. Default is None.
         render_step_size: Marching step size. Default is 1e-3.
-        near_plane: Near plane of the camera. Default is 0.0.
+        near_plane: Optional. Near plane of the camera. Default is None.
+        far_plane: Optional Far plane of the camera. Default is None.
         stratified: Whether to use stratified sampling. Default is False.
         contraction: Optional. Contraction method. Default is None.
         cone_angle: Cone angle for non-unifrom sampling. 0 means uniform. Default is 0.0.
@@ -103,13 +105,16 @@ def volumetric_marching(
         # radius sphere.
         if t_min is None or t_max is None:
             t_min = torch.zeros_like(rays_o[:, :1])
-            t_max = torch.zeros_like(rays_o[:, :1]) + 10  # HACK for now
+            t_max = torch.zeros_like(rays_o[:, :1]) + 1e6
 
     else:
         raise NotImplementedError(f"Unknown contraction method {contraction}")
 
     if near_plane > 0.0:
         t_min = torch.clamp(t_min, min=near_plane)
+
+    if far_plane is not None:
+        t_max = torch.clamp(t_max, max=far_plane)
 
     if stratified:
         t_min = t_min + torch.rand_like(t_min) * render_step_size
