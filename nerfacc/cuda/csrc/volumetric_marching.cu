@@ -190,11 +190,24 @@ __global__ void marching_steps_kernel(
         else
         {
             // march to next sample
-            t_mid = advance_to_next_voxel(
-                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, aabb, dt_min);
-            dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
-            t0 = t_mid - dt * 0.5f;
-            t1 = t_mid + dt * 0.5f;
+            switch (contraction_type)
+            {
+            case 0:
+                // no contraction
+                t_mid = advance_to_next_voxel(
+                    t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, aabb, dt_min);
+                dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
+                t0 = t_mid - dt * 0.5f;
+                t1 = t_mid + dt * 0.5f;
+                break;
+            
+            default:
+                // any type of scene contraction does not work with DDA.
+                t0 = t1;
+                t1 = t0 + calc_dt(t0, cone_angle, dt_min, dt_max);
+                t_mid = (t0 + t1) * 0.5f;
+                break;
+            }
         }
     }
     if (j == 0)
@@ -274,11 +287,24 @@ __global__ void marching_forward_kernel(
         else
         {
             // march to next sample
-            t_mid = advance_to_next_voxel(
-                t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, aabb, dt_min);
-            dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
-            t0 = t_mid - dt * 0.5f;
-            t1 = t_mid + dt * 0.5f;
+            switch (contraction_type)
+            {
+            case 0:
+                // no contraction
+                t_mid = advance_to_next_voxel(
+                    t_mid, x, y, z, dx, dy, dz, rdx, rdy, rdz, resx, resy, resz, aabb, dt_min);
+                dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
+                t0 = t_mid - dt * 0.5f;
+                t1 = t_mid + dt * 0.5f;
+                break;
+            
+            default:
+                // any type of scene contraction does not work with DDA.
+                t0 = t1;
+                t1 = t0 + calc_dt(t0, cone_angle, dt_min, dt_max);
+                t_mid = (t0 + t1) * 0.5f;
+                break;
+            }
         }
     }
 

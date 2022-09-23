@@ -182,8 +182,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--aabb",
-        type=list,
-        default=[-0.3, -0.3, -0.3, 0.3, 0.3, 0.3],
+        type=lambda s: [float(item) for item in s.split(",")],
+        default="-1.5,-1.5,-1.5,1.5,1.5,1.5",
+        help="delimited list input",
     )
     parser.add_argument(
         "--test_chunk_size",
@@ -362,7 +363,7 @@ if __name__ == "__main__":
                 )
 
             # if time.time() - tic > 300:
-            if step >= 0 and step % 1000 == 0 and step > 0:
+            if step >= 0 and step % max_steps == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
@@ -398,15 +399,17 @@ if __name__ == "__main__":
                         #         (save.cpu().numpy() * 255).astype(np.uint8),
                         #     )
                         # else:
-                        imageio.imwrite(
-                            "acc_binary_test.png",
-                            ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
-                        )
-                        imageio.imwrite(
-                            "rgb_test.png",
-                            (rgb.cpu().numpy() * 255).astype(np.uint8),
-                        )
-                        break
+                        #     imageio.imwrite(
+                        #         "acc_binary_test.png",
+                        #         ((acc > 0).float().cpu().numpy() * 255).astype(
+                        #             np.uint8
+                        #         ),
+                        #     )
+                        #     imageio.imwrite(
+                        #         "rgb_test.png",
+                        #         (rgb.cpu().numpy() * 255).astype(np.uint8),
+                        #     )
+                        #    break
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
                 train_dataset.training = True

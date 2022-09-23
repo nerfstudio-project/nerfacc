@@ -49,7 +49,7 @@ Note: We only use a single MLP with more samples (1024), instead of two MLPs wit
 
 Here we trained something similar to D-NeRF on the dnerf dataset:
 
-``` bash
+```bash
 python examples/trainval.py dnerf --train_split train --test_chunk_size=8192
 ```
 
@@ -62,7 +62,15 @@ Performance on test set:
 | Our train time & test FPS | 43min; 0.15FPS | 41min; 0.4FPS |
 
 
-Note the numbers here are tested with version `v0.0.8`
+Note the numbers above are tested with version `v0.0.8`
+
+
+## Examples: NGP with MipNeRF360 scene contraction
+
+```bash
+python examples/trainval.py ngp --train_split trainval --scene lego --test_chunk_size=8192 --contraction mipnerf360 --aabb="-0.3,-0.3,-0.3,0.3,0.3,0.3"
+```
+
 
 <!-- 
 ## Tips:
