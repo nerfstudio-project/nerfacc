@@ -385,7 +385,7 @@ if __name__ == "__main__":
                 )
 
             # if time.time() - tic > 300:
-            if step >= 0 and step % 2000 == 0 and step > 0:
+            if step >= 0 and step % max_steps == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
