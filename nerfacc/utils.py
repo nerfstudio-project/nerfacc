@@ -124,13 +124,13 @@ def volumetric_marching(
         rays_d.contiguous(),
         t_min.contiguous(),
         t_max.contiguous(),
-        # density grid
+        # scene
         aabb.contiguous(),
-        scene_resolution,
-        scene_occ_binary.contiguous(),
+        # density grid
+        scene_occ_binary.contiguous().view(scene_resolution),
+        nerfacc_cuda.ContractionType.NONE,
         # sampling
         render_step_size,
-        contraction_type,
         cone_angle,
     )
 

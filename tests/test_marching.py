@@ -15,13 +15,14 @@ def test_marching():
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
     for step in tqdm.tqdm(range(5000)):
-        volumetric_marching(
+        packed_info, t_starts, t_ends = volumetric_marching(
             rays_o,
             rays_d,
             aabb=scene_aabb,
             scene_resolution=[128, 128, 128],
             scene_occ_binary=scene_occ_binary,
         )
+    print(t_starts.mean())
 
 
 if __name__ == "__main__":

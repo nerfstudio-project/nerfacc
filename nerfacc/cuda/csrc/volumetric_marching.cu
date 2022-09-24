@@ -20,6 +20,7 @@ inline __device__ int cascaded_grid_idx_at(
     iy = __clamp(iy, 0, resy - 1);
     iz = __clamp(iz, 0, resz - 1);
     int idx = ix * resy * resz + iy * resz + iz;
+    // printf("ixyz: %d %d %d, idx: %d\n", ix, iy, iz, idx);
     return idx;
 }
 
@@ -105,6 +106,7 @@ inline __device__ float distance_to_next_voxel(
     float ty = ((floorf(_y + 0.5f + 0.5f * __sign(dir_y)) - _y) * idir_y) / resy * (aabb[4] - aabb[1]);
     float tz = ((floorf(_z + 0.5f + 0.5f * __sign(dir_z)) - _z) * idir_z) / resz * (aabb[5] - aabb[2]);
     float t = min(min(tx, ty), tz);
+    // printf("txyz: %f, %f, %f, t: %f\n", tx, ty, tz, t);
     return fmaxf(t, 0.0f);
 }
 
@@ -181,6 +183,7 @@ __global__ void marching_steps_kernel(
 
         if (grid_occupied_at(x, y, z, resx, resy, resz, aabb, occ_binary, contraction_type))
         {
+            // printf("t_mid: %f, xyz: %f, %f, %f\n", t_mid, x, y, z);
             ++j;
             // march to next sample
             t0 = t1;
@@ -199,6 +202,7 @@ __global__ void marching_steps_kernel(
                 dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
                 t0 = t_mid - dt * 0.5f;
                 t1 = t_mid + dt * 0.5f;
+                // printf("[march] t_mid: %f, xyz: %f, %f, %f\n", t_mid, x, y, z);
                 break;
             
             default:
