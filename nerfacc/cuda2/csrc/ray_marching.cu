@@ -402,11 +402,17 @@ __global__ void contract_kernel(
     const float3 aabb_min = make_float3(aabb[0], aabb[1], aabb[2]);
     const float3 aabb_max = make_float3(aabb[3], aabb[4], aabb[5]);
 
+    // [-inf, inf]
     float3 xyz = make_float3(samples[0], samples[1], samples[2]);
-    float3 _xyz = __contract(xyz, type, false);
-    out_samples[0] = _xyz.x;
-    out_samples[1] = _xyz.y;
-    out_samples[2] = _xyz.z;
+    // [-inf, inf] with aabb <-> [-1, 1]
+    xyz = aabb_normalize(xyz, aabb_min, aabb_max);
+    // [-inf, inf] -> [-1, 1]
+    xyz = __contract(xyz, type, true);
+    // [-1, 1] -> [0, 1]
+    xyz = (xyz + 1.0f) * 0.5f; // [-1, 1] -> [0, 1]
+    out_samples[0] = xyz.x;
+    out_samples[1] = xyz.y;
+    out_samples[2] = xyz.z;
     return;
 }
 
@@ -427,6 +433,69 @@ torch::Tensor contract(
     torch::Tensor out_samples = torch::zeros({n_samples, 3}, samples.options());
 
     contract_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+        n_samples,
+        samples.data_ptr<float>(),
+        // scene
+        aabb.data_ptr<float>(),
+        // contraction
+        type,
+        // outputs
+        out_samples.data_ptr<float>());
+    return out_samples;
+}
+
+
+__global__ void contract_inv_kernel(
+    // samples info
+    const uint32_t n_samples,
+    const float *samples, // (n_samples, 3)
+    // scene
+    const float *aabb,
+    // contraction
+    const ContractionType type,
+    // outputs
+    float *out_samples)
+{
+    CUDA_GET_THREAD_ID(i, n_samples);
+
+    // locate
+    samples += i * 3;
+    out_samples += i * 3;
+
+    const float3 aabb_min = make_float3(aabb[0], aabb[1], aabb[2]);
+    const float3 aabb_max = make_float3(aabb[3], aabb[4], aabb[5]);
+
+    // [0, 1]
+    float3 xyz = make_float3(samples[0], samples[1], samples[2]);
+    // [0, 1] -> [-1, 1]
+    xyz = xyz * 2.0f - 1.0f;
+    // [-1, 1] -> [-inf, inf] with aabb <-> [-1, 1]
+    xyz = __contract_inv(xyz, type, true);
+    // [-inf, inf]
+    xyz = aabb_unnormalize(xyz, aabb_min, aabb_max);
+    out_samples[0] = xyz.x;
+    out_samples[1] = xyz.y;
+    out_samples[2] = xyz.z;
+    return;
+}
+
+torch::Tensor contract_inv(
+    const torch::Tensor samples,
+    // scene
+    const torch::Tensor aabb,
+    // contraction
+    const ContractionType type)
+{
+    DEVICE_GUARD(samples);
+    CHECK_INPUT(samples);
+
+    const int n_samples = samples.size(0);
+    const int threads = 256;
+    const int blocks = CUDA_N_BLOCKS_NEEDED(n_samples, threads);
+
+    torch::Tensor out_samples = torch::zeros({n_samples, 3}, samples.options());
+
+    contract_inv_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         n_samples,
         samples.data_ptr<float>(),
         // scene

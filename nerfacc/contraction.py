@@ -1,10 +1,51 @@
 from enum import Enum
 
+import torch
+
 import nerfacc.cuda2 as nerfacc_cuda
 
+ContractionType = nerfacc_cuda.ContractionType
 
-class ContractionType(Enum):
-    """Scene contraction type."""
 
-    NONE = nerfacc_cuda.ContractionType.NONE
-    MipNeRF360_L2 = nerfacc_cuda.ContractionType.MipNeRF360_L2
+def contract(
+    samples: torch.Tensor,
+    aabb: torch.Tensor,
+    type: ContractionType = nerfacc_cuda.ContractionType.NONE,
+) -> torch.Tensor:
+    """Contract the scene.
+
+    Args:
+        samples (torch.Tensor): Samples.
+        aabb (torch.Tensor): AABB.
+        contraction_type (ContractionType): Contraction type.
+
+    Returns:
+        torch.Tensor: Contracted samples ([0, 1]^3).
+    """
+    return nerfacc_cuda.contract(
+        samples.contiguous(),
+        aabb.contiguous(),
+        type,
+    )
+
+
+def contract_inv(
+    samples: torch.Tensor,
+    aabb: torch.Tensor,
+    type: ContractionType = nerfacc_cuda.ContractionType.NONE,
+) -> torch.Tensor:
+    """Invsere contract the scene.
+
+    Args:
+        samples (torch.Tensor): Samples ([0, 1]^3).
+        aabb (torch.Tensor): AABB.
+        type (ContractionType): Contraction type.
+
+    Returns:
+        torch.Tensor: Contracted samples.
+    """
+    return nerfacc_cuda.contract_inv(
+        samples.contiguous(),
+        aabb.contiguous(),
+        type,
+    )

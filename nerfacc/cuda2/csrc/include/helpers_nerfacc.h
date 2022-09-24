@@ -41,12 +41,13 @@ inline __device__ __host__ float3 __contract(
         // MipNeRF360: The 1.0x sphere at [-1, 1]^3 is untouched. The rest space is
         // contracted to a 2.0x sphere at [-2, 2]^3.
         float3 _xyz = xyz;
-        float _norm = sqrt(_xyz.x*_xyz.x + _xyz.y*_xyz.y + _xyz.z*_xyz.z);
+        float _norm_sq = dot(_xyz, _xyz);
+        float _norm = sqrt(_norm_sq);
         if (_norm > 1.0f)
         {
             // sphere of [-1, 1]^3 -> sphere of [-1, 1]^3
             // [-inf, inf]^3 -> sphere of [-2, 2]^3
-            _xyz = (2.0f - 1.0f / _norm) * (_xyz / _norm);
+            _xyz = _xyz * (2.0f / _norm - 1.0f / _norm_sq);
         }
         if (normalize)
         {
@@ -60,7 +61,8 @@ inline __device__ __host__ float3 __contract(
 
 inline __device__ __host__ float3 __contract_inv(
     const float3 xyz, // contracted points
-    const ContractionType type)
+    const ContractionType type,
+    const bool normalize)
 {
     // xyz should have been normalized by aabb (aabb -> [-1, 1]^3).
     switch (type)
@@ -73,12 +75,17 @@ inline __device__ __host__ float3 __contract_inv(
     case ContractionType::MipNeRF360_L2:
         // input is in [-2, 2]^3, return [-inf, inf]^3.
         float3 _xyz = xyz;
-        float _norm = sqrt(_xyz.x*_xyz.x + _xyz.y*_xyz.y + _xyz.z*_xyz.z);
+        if (normalize) {
+            // revert normalization: [-1, 1]^3 -> [-2, 2]^3
+            _xyz = _xyz * 2.0f;
+        }
+        float _norm_sq = dot(_xyz, _xyz);
+        float _norm = sqrt(_norm_sq);
         if (_norm > 1.0f)
         {
             // sphere of [-1, 1]^3 -> sphere of [-1, 1]^3
             // [-2, 2]^3 -> sphere of [-inf, inf]^3
-            _xyz = (2 - 1.0f * _norm) * (xyz / _norm);
+            _xyz = _xyz / (2 * _norm - 1.0f * _norm_sq);
         }
         return _xyz;
         break;

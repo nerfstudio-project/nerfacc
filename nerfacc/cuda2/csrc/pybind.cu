@@ -57,6 +57,13 @@ torch::Tensor contract(
     // contraction
     const ContractionType type);
 
+torch::Tensor contract_inv(
+    const torch::Tensor samples,
+    // scene
+    const torch::Tensor aabb,
+    // contraction
+    const ContractionType type);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     py::enum_<ContractionType>(m, "ContractionType")
@@ -72,4 +79,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("unpack_to_ray_indices", &unpack_to_ray_indices);
     m.def("query_occ", &query_occ);
     m.def("contract", &contract);
+    m.def("contract_inv", &contract_inv);
 }

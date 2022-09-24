@@ -5,6 +5,7 @@ import torch.nn as nn
 
 from .contraction import ContractionType
 
+# TODO: add this to the dependency
 # from torch_scatter import scatter_max
 
 
@@ -24,7 +25,7 @@ class Grid(nn.Module):
             not visible (either not occupied or occluded).
 
     For unbounded scene, a mapping function (:math:`f: x \\rightarrow x'`) is
-    used to contract the infinite 3D space into a finite grid. See 
+    used to contract the infinite 3D space into a finite voxel grid. See 
     :class:`nerfacc.contraction.ContractionType` for more details.
     """
 
@@ -62,47 +63,42 @@ class Grid(nn.Module):
 class OccupancyGrid(Grid):
     """Occupancy grid."""
 
+    NUM_DIM: int = 3
+
     def __init__(
         self,
-        occ_eval_fn: Callable,
-        aabb: Union[torch.Tensor, List[float]],
-        resolution: Union[int, List[int]] = 128,
-        num_dim: int = 3,
-        contraction: Optional[Literal["mipnerf360"]] = None,
+        aabb: Union[List[int], torch.Tensor],
+        resolution: Union[int, List[int], torch.Tensor] = 128,
+        contraction: ContractionType = ContractionType.NONE,
     ) -> None:
         super().__init__()
-        self.occ_eval_fn = occ_eval_fn
-        if not isinstance(aabb, torch.Tensor):
+        if isinstance(resolution, int):
+            resolution = [resolution] * self.NUM_DIM
+        if isinstance(resolution, (list, tuple)):
+            resolution = torch.tensor(resolution, dtype=torch.int32)
+        assert isinstance(resolution, torch.Tensor), f"Invalid type: {type(resolution)}"
+        assert resolution.shape == (self.NUM_DIM,), f"Invalid shape: {resolution.shape}"
+
+        if isinstance(aabb, (list, tuple)):
             aabb = torch.tensor(aabb, dtype=torch.float32)
-        if not isinstance(resolution, (list, tuple)):
-            resolution = [resolution] * num_dim
-        assert num_dim in [2, 3], "Currently only supports 2D or 3D field."
-        assert aabb.shape == (
-            num_dim * 2,
-        ), f"shape of aabb ({aabb.shape}) should be num_dim * 2 ({num_dim * 2})."
-        assert (
-            len(resolution) == num_dim
-        ), f"length of resolution ({len(resolution)}) should be num_dim ({num_dim})."
-        assert contraction in [
-            None,
-            "mipnerf360",
-        ], "Currently only supports mipnerf360 scene contraction."
+        assert isinstance(aabb, torch.Tensor), f"Invalid type: {type(aabb)}"
+        assert aabb.shape == (self.NUM_DIM * 2), f"Invalid shape: {aabb.shape}"
+
+        self.register_buffer("resolution", torch.tensor(resolution))
+        self.register_buffer("aabb", torch.tensor(aabb))
         self.contraction = contraction
 
-        self.register_buffer("aabb", aabb)
-        self.resolution = resolution
-        self.register_buffer("resolution_tensor", torch.tensor(resolution))
-        self.num_dim = num_dim
-        self.num_cells = int(torch.tensor(resolution).prod().item())
+        # total number of voxels
+        self.num_cells = int(self.resolution.prod().item())
 
         # Stores cell occupancy values ranged in [0, 1].
-        occ_grid = torch.zeros(self.num_cells)
-        self.register_buffer("occ_grid", occ_grid)
-        occ_grid_binary = torch.zeros(self.num_cells, dtype=torch.bool)
-        self.register_buffer("occ_grid_binary", occ_grid_binary)
+        occs = torch.zeros(self.num_cells)
+        self.register_buffer("occs", occs)
+        occs_binary = torch.zeros_like(occs, dtype=torch.bool)
+        self.register_buffer("occs_binary", occs_binary)
 
         # Grid coords & indices
-        grid_coords = meshgrid3d(self.resolution).reshape(self.num_cells, self.num_dim)
+        grid_coords = _meshgrid3d(self.resolution).reshape(self.num_cells, self.NUM_DIM)
         self.register_buffer("grid_coords", grid_coords)
         grid_indices = torch.arange(self.num_cells)
         self.register_buffer("grid_indices", grid_indices)
@@ -115,13 +111,10 @@ class OccupancyGrid(Grid):
     @torch.no_grad()
     def _sample_uniform_and_occupied_cells(self, n: int) -> torch.Tensor:
         """Samples both n uniform and occupied cells."""
-        device = self.occ_grid.device
-
-        uniform_indices = torch.randint(self.num_cells, (n,), device=device)
-
+        uniform_indices = torch.randint(self.num_cells, (n,), device=self.device)
         occupied_indices = torch.nonzero(self.occ_grid_binary)[:, 0]
         if n < len(occupied_indices):
-            selector = torch.randint(len(occupied_indices), (n,), device=device)
+            selector = torch.randint(len(occupied_indices), (n,), device=self.device)
             occupied_indices = occupied_indices[selector]
         indices = torch.cat([uniform_indices, occupied_indices], dim=0)
         return indices
@@ -130,6 +123,7 @@ class OccupancyGrid(Grid):
     def _update(
         self,
         step: int,
+        occ_eval_fn: Callable,
         occ_thre: float = 0.01,
         ema_decay: float = 0.95,
         warmup_steps: int = 256,
@@ -146,66 +140,34 @@ class OccupancyGrid(Grid):
         grid_coords = self.grid_coords[indices]
         x = (
             grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
-        ) / self.resolution_tensor
-        bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
-        x = x * (bb_max - bb_min) + bb_min
-        # TODO needs an inverse contraction
-        occ = self.occ_eval_fn(x).squeeze(-1)
+        ) / self.resolution
+        # e.g. of cube_to_world_fn():
+        # bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
+        # x = x * (bb_max - bb_min) + bb_min
+        x = self.cube_to_world_fn(x)
+        occ = occ_eval_fn(x).squeeze(-1)
 
         # ema update
-        self.occ_grid[indices] = torch.maximum(self.occ_grid[indices] * ema_decay, occ)
+        self.occs[indices] = torch.maximum(self.occ_grid[indices] * ema_decay, occ)
         # suppose to use scatter max but emperically it is almost the same.
         # self.occ_grid, _ = scatter_max(
         #     occ, indices, dim=0, out=self.occ_grid * ema_decay
         # )
-        self.occ_grid_binary = self.occ_grid > torch.clamp(
-            self.occ_grid.mean(), max=occ_thre
-        )
+        self.occs_binary = self.occs > torch.clamp(self.occs.mean(), max=occ_thre)
 
     @torch.no_grad()
-    def query_occ(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Query the occupancy, given samples.
+    def binarize(self):
+        return self.occs_binary.reshape(self.resolution)
 
-        Args:
-            x: Samples with shape (..., 2) or (..., 3).
-
-        Returns:
-            float and binary occupancy values with shape (...) respectively.
-        """
-        # TODO needs an contraction
-        assert self.contraction is None, "Currently only supports no contraction."
-        assert (
-            x.shape[-1] == self.num_dim
-        ), "The samples are not drawn from a proper space!"
-        resolution = torch.tensor(self.resolution).to(self.occ_grid.device)
-
-        bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
-        x = (x - bb_min) / (bb_max - bb_min)
-        selector = ((x > 0.0) & (x < 1.0)).all(dim=-1)
-
-        grid_coords = torch.floor(x * resolution).long()
-        if self.num_dim == 2:
-            grid_indices = (
-                grid_coords[..., 0] * self.resolution[-1] + grid_coords[..., 1]
-            )
-        elif self.num_dim == 3:
-            grid_indices = (
-                grid_coords[..., 0] * self.resolution[-1] * self.resolution[-2]
-                + grid_coords[..., 1] * self.resolution[-1]
-                + grid_coords[..., 2]
-            )
-        else:
-            raise NotImplementedError("Currently only supports 2D or 3D field.")
-        occs = torch.zeros(x.shape[:-1], device=x.device)
-        occs[selector] = self.occ_grid[grid_indices[selector]]
-        occs_binary = torch.zeros(x.shape[:-1], device=x.device, dtype=torch.bool)
-        occs_binary[selector] = self.occ_grid_binary[grid_indices[selector]]
-        return occs, occs_binary
+    @torch.no_grad()
+    def contraction_type(self):
+        return ContractionType.NONE
 
     @torch.no_grad()
     def every_n_step(
         self,
         step: int,
+        occ_eval_fn: Callable,
         occ_thre: float = 1e-2,
         ema_decay: float = 0.95,
         warmup_steps: int = 256,
@@ -237,24 +199,19 @@ class OccupancyGrid(Grid):
         if step % n == 0 and self.training:
             self._update(
                 step=step,
+                occ_eval_fn=occ_eval_fn,
                 occ_thre=occ_thre,
                 ema_decay=ema_decay,
                 warmup_steps=warmup_steps,
             )
 
 
-def meshgrid3d(
-    res: List[int], device: Union[torch.device, str] = "cpu"
+def _meshgrid3d(
+    res: torch.Tensor, device: Union[torch.device, str] = "cpu"
 ) -> torch.Tensor:
-    """Create 3D grid coordinates.
-
-    Args:
-        res: resolutions for {x, y, z} dimensions.
-
-    Returns:
-        torch.long with shape (res[0], res[1], res[2], 3): dense 3D grid coordinates.
-    """
+    """Create 3D grid coordinates."""
     assert len(res) == 3
+    res = res.tolist()
     return (
         torch.stack(
             torch.meshgrid(
