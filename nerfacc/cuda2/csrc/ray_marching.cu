@@ -14,7 +14,6 @@ inline __device__ __host__ int grid_idx_at(
     ixyz = clamp(ixyz, make_int3(0, 0, 0), occ_res - 1);
     int3 grid_offset = make_int3(occ_res.y * occ_res.z, occ_res.z, 1);
     int idx = dot(ixyz, grid_offset);
-    // printf("ixyz: %d %d %d, idx: %d, xyz: %f, %f, %f\n", ixyz.x, ixyz.y, ixyz.z, idx, xyz.x, xyz.y, xyz.z);
     return idx;
 }
 
@@ -22,7 +21,7 @@ inline __device__ __host__ bool grid_occupied_at(
     const float3 xyz, const float3 aabb_min, const float3 aabb_max,
     const int3 occ_res, const bool *occ_binary, ContractionType occ_type)
 {
-    float3 _xyz = contract(aabb_normalize(xyz, aabb_min, aabb_max), occ_type, true);
+    float3 _xyz = __contract(aabb_normalize(xyz, aabb_min, aabb_max), occ_type, true);
     int idx = grid_idx_at(_xyz, occ_res);
     return occ_binary[idx];
 }
@@ -34,11 +33,8 @@ inline __device__ __host__ float distance_to_next_voxel(
 {
     float3 _occ_res = make_float3(occ_res);
     float3 _xyz = (aabb_normalize(xyz, aabb_min, aabb_max) + 1.0f) * 0.5f * _occ_res;
-    float3 txyz = (
-        (floorf(_xyz + 0.5f + 0.5f * sign(dir)) - _xyz) * inv_dir
-    ) / _occ_res * (aabb_max - aabb_min);
+    float3 txyz = ((floorf(_xyz + 0.5f + 0.5f * sign(dir)) - _xyz) * inv_dir) / _occ_res * (aabb_max - aabb_min);
     float t = min(min(txyz.x, txyz.y), txyz.z);
-    // printf("txyz: %f, %f, %f, t: %f\n", txyz.x, txyz.y, txyz.z, t);
     return fmaxf(t, 0.0f);
 }
 
@@ -49,7 +45,7 @@ inline __device__ __host__ float advance_to_next_voxel(
 {
     // Regular stepping (may be slower but matches non-empty space)
     float t_target = t + distance_to_next_voxel(
-        xyz, dir, inv_dir, aabb_min, aabb_max, occ_res);
+                             xyz, dir, inv_dir, aabb_min, aabb_max, occ_res);
     float _t = t;
     do
     {
@@ -58,7 +54,11 @@ inline __device__ __host__ float advance_to_next_voxel(
     return _t;
 }
 
-__global__ void marching_kernel(
+// -------------------------------------------------------------------------------
+// Raymarching
+// -------------------------------------------------------------------------------
+
+__global__ void ray_marching_kernel(
     // rays info
     const uint32_t n_rays,
     const float *rays_o, // shape (n_rays, 3)
@@ -91,9 +91,12 @@ __global__ void marching_kernel(
     t_min += i;
     t_max += i;
 
-    if (is_first_round) {
+    if (is_first_round)
+    {
         num_steps += i;
-    } else {
+    }
+    else
+    {
         int base = packed_info[i * 2 + 0];
         int steps = packed_info[i * 2 + 1];
         t_starts += base;
@@ -106,7 +109,7 @@ __global__ void marching_kernel(
     const float near = t_min[0], far = t_max[0];
 
     const float3 aabb_min = make_float3(aabb[0], aabb[1], aabb[2]);
-    const float3 aabb_max = make_float3(aabb[3], aabb[4], aabb[5]);    
+    const float3 aabb_max = make_float3(aabb[3], aabb[4], aabb[5]);
 
     // TODO: compute dt_max from occ resolution.
     float dt_min = step_size;
@@ -124,8 +127,8 @@ __global__ void marching_kernel(
         const float3 xyz = origin + t_mid * dir;
         if (grid_occupied_at(xyz, aabb_min, aabb_max, occ_res, occ_binary, occ_type))
         {
-            if (!is_first_round) {
-                // printf("t_mid: %f, xyz: %f, %f, %f\n", t_mid, xyz.x, xyz.y, xyz.z);
+            if (!is_first_round)
+            {
                 t_starts[j] = t0;
                 t_ends[j] = t1;
             }
@@ -147,7 +150,6 @@ __global__ void marching_kernel(
                 dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
                 t0 = t_mid - dt * 0.5f;
                 t1 = t_mid + dt * 0.5f;
-                // printf("[march] t_mid: %f, xyz: %f, %f, %f\n", t_mid, xyz.x, xyz.y, xyz.z);
                 break;
 
             default:
@@ -167,85 +169,7 @@ __global__ void marching_kernel(
     return;
 }
 
-__global__ void ray_indices_kernel(
-    // input
-    const int n_rays,
-    const int *packed_info,
-    // output
-    int *ray_indices)
-{
-    CUDA_GET_THREAD_ID(i, n_rays);
-
-    // locate
-    const int base = packed_info[i * 2 + 0];  // point idx start.
-    const int steps = packed_info[i * 2 + 1]; // point idx shift.
-    if (steps == 0)
-        return;
-
-    ray_indices += base;
-
-    for (int j = 0; j < steps; ++j)
-    {
-        ray_indices[j] = i;
-    }
-}
-
-__global__ void occ_query_kernel(
-    // rays info
-    const uint32_t n_samples,
-    const float *samples, // shape (n_samples, 3)
-    // scene
-    const float *aabb,
-    // occupancy grid
-    const int3 occ_res,
-    const bool *occ_binary, // shape (reso_x, reso_y, reso_z)
-    const ContractionType occ_type,
-    // outputs
-    bool *occs)
-{
-    CUDA_GET_THREAD_ID(i, n_samples);
-
-    // locate
-    samples += i * 3;
-    occs += i;
-
-    const float3 aabb_min = make_float3(aabb[0], aabb[1], aabb[2]);
-    const float3 aabb_max = make_float3(aabb[3], aabb[4], aabb[5]);
-    const float3 xyz = make_float3(samples[0], samples[1], samples[2]);
-
-    *occs = grid_occupied_at(xyz, aabb_min, aabb_max, occ_res, occ_binary, occ_type);
-    return;
-}
-
-__global__ void scene_contraction_kernel(
-    // samples info
-    const uint32_t n_samples,
-    const float *samples, // shape (n_samples, 3)
-    // scene
-    const float *aabb,
-    // contraction
-    const ContractionType type,
-    // outputs
-    float *out_samples)
-{
-    CUDA_GET_THREAD_ID(i, n_samples);
-
-    // locate
-    samples += i * 3;
-    out_samples += i * 3;
-
-    const float3 aabb_min = make_float3(aabb[0], aabb[1], aabb[2]);
-    const float3 aabb_max = make_float3(aabb[3], aabb[4], aabb[5]);
-
-    float3 xyz = make_float3(samples[0], samples[1], samples[2]);
-    float3 _xyz = contract(xyz, type, false);
-    out_samples[0] = _xyz.x;
-    out_samples[1] = _xyz.y;
-    out_samples[2] = _xyz.z;
-    return;
-}
-
-std::vector<torch::Tensor> volumetric_marching(
+std::vector<torch::Tensor> ray_marching(
     // rays
     const torch::Tensor rays_o,
     const torch::Tensor rays_d,
@@ -286,7 +210,7 @@ std::vector<torch::Tensor> volumetric_marching(
         {n_rays}, rays_o.options().dtype(torch::kInt32));
 
     // count number of samples per ray
-    marching_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+    ray_marching_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         // rays
         n_rays,
         rays_o.data_ptr<float>(),
@@ -316,7 +240,7 @@ std::vector<torch::Tensor> volumetric_marching(
     torch::Tensor t_starts = torch::zeros({total_steps, 1}, rays_o.options());
     torch::Tensor t_ends = torch::zeros({total_steps, 1}, rays_o.options());
 
-    marching_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+    ray_marching_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         // rays
         n_rays,
         rays_o.data_ptr<float>(),
@@ -341,6 +265,33 @@ std::vector<torch::Tensor> volumetric_marching(
     return {packed_info, t_starts, t_ends};
 }
 
+// -----------------------------------------------------------------------------
+// Ray index for each sample
+// -----------------------------------------------------------------------------
+
+__global__ void ray_indices_kernel(
+    // input
+    const int n_rays,
+    const int *packed_info,
+    // output
+    int *ray_indices)
+{
+    CUDA_GET_THREAD_ID(i, n_rays);
+
+    // locate
+    const int base = packed_info[i * 2 + 0];  // point idx start.
+    const int steps = packed_info[i * 2 + 1]; // point idx shift.
+    if (steps == 0)
+        return;
+
+    ray_indices += base;
+
+    for (int j = 0; j < steps; ++j)
+    {
+        ray_indices[j] = i;
+    }
+}
+
 torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info)
 {
     DEVICE_GUARD(packed_info);
@@ -359,6 +310,37 @@ torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info)
         packed_info.data_ptr<int>(),
         ray_indices.data_ptr<int>());
     return ray_indices;
+}
+
+// ----------------------------------------------------------------------------
+// Query the occupancy grid
+// ----------------------------------------------------------------------------
+
+__global__ void query_occ_kernel(
+    // rays info
+    const uint32_t n_samples,
+    const float *samples, // shape (n_samples, 3)
+    // scene
+    const float *aabb,
+    // occupancy grid
+    const int3 occ_res,
+    const bool *occ_binary, // shape (reso_x, reso_y, reso_z)
+    const ContractionType occ_type,
+    // outputs
+    bool *occs)
+{
+    CUDA_GET_THREAD_ID(i, n_samples);
+
+    // locate
+    samples += i * 3;
+    occs += i;
+
+    const float3 aabb_min = make_float3(aabb[0], aabb[1], aabb[2]);
+    const float3 aabb_max = make_float3(aabb[3], aabb[4], aabb[5]);
+    const float3 xyz = make_float3(samples[0], samples[1], samples[2]);
+
+    *occs = grid_occupied_at(xyz, aabb_min, aabb_max, occ_res, occ_binary, occ_type);
+    return;
 }
 
 torch::Tensor query_occ(
@@ -382,7 +364,7 @@ torch::Tensor query_occ(
     torch::Tensor occs = torch::zeros(
         {n_samples}, samples.options().dtype(torch::kBool));
 
-    occ_query_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+    query_occ_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         n_samples,
         samples.data_ptr<float>(),
         // scene
@@ -396,7 +378,39 @@ torch::Tensor query_occ(
     return occs;
 }
 
-torch::Tensor scene_contraction(
+// -----------------------------------------------------------------------------
+//  Scene Contraction
+// -----------------------------------------------------------------------------
+
+__global__ void contract_kernel(
+    // samples info
+    const uint32_t n_samples,
+    const float *samples, // (n_samples, 3)
+    // scene
+    const float *aabb,
+    // contraction
+    const ContractionType type,
+    // outputs
+    float *out_samples)
+{
+    CUDA_GET_THREAD_ID(i, n_samples);
+
+    // locate
+    samples += i * 3;
+    out_samples += i * 3;
+
+    const float3 aabb_min = make_float3(aabb[0], aabb[1], aabb[2]);
+    const float3 aabb_max = make_float3(aabb[3], aabb[4], aabb[5]);
+
+    float3 xyz = make_float3(samples[0], samples[1], samples[2]);
+    float3 _xyz = __contract(xyz, type, false);
+    out_samples[0] = _xyz.x;
+    out_samples[1] = _xyz.y;
+    out_samples[2] = _xyz.z;
+    return;
+}
+
+torch::Tensor contract(
     const torch::Tensor samples,
     // scene
     const torch::Tensor aabb,
@@ -412,7 +426,7 @@ torch::Tensor scene_contraction(
 
     torch::Tensor out_samples = torch::zeros({n_samples, 3}, samples.options());
 
-    scene_contraction_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+    contract_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         n_samples,
         samples.data_ptr<float>(),
         // scene

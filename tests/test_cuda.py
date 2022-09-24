@@ -18,7 +18,7 @@ def test_marching():
 
     for i in tqdm.trange(50000):
         # 5485 it/s
-        _packed_info, t_starts, t_ends = nerfacc_cuda2.volumetric_marching(
+        _packed_info, t_starts, t_ends = nerfacc_cuda2.ray_marching(
             rays_o.contiguous(),
             rays_d.contiguous(),
             t_min.contiguous(),

@@ -23,7 +23,7 @@ inline __device__ __host__ float3 aabb_unnormalize(
     return (xyz + 1.0f) * 0.5f * (aabb_max - aabb_min) + aabb_min;
 }
 
-inline __device__ __host__ float3 contract(
+inline __device__ __host__ float3 __contract(
     const float3 xyz, // un-contracted points
     const ContractionType type,
     const bool normalize)
@@ -58,7 +58,7 @@ inline __device__ __host__ float3 contract(
     }
 }
 
-inline __device__ __host__ float3 contract_inv(
+inline __device__ __host__ float3 __contract_inv(
     const float3 xyz, // contracted points
     const ContractionType type)
 {
