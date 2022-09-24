@@ -110,7 +110,7 @@ def volumetric_marching(
     else:
         raise NotImplementedError(f"Unknown contraction method {contraction}")
 
-    if near_plane > 0.0:
+    if near_plane is not None:
         t_min = torch.clamp(t_min, min=near_plane)
 
     if far_plane is not None:
