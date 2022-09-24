@@ -3,7 +3,8 @@ from typing import Callable, List, Literal, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 
-from .contraction import ContractionType
+from .contraction import ContractionType, contract_inv
+from .ray_marching import ray_aabb_intersect
 
 # TODO: add this to the dependency
 # from torch_scatter import scatter_max
@@ -82,10 +83,12 @@ class OccupancyGrid(Grid):
         if isinstance(aabb, (list, tuple)):
             aabb = torch.tensor(aabb, dtype=torch.float32)
         assert isinstance(aabb, torch.Tensor), f"Invalid type: {type(aabb)}"
-        assert aabb.shape == (self.NUM_DIM * 2), f"Invalid shape: {aabb.shape}"
+        assert aabb.shape == torch.Size(
+            [self.NUM_DIM * 2]
+        ), f"Invalid shape: {aabb.shape}"
 
-        self.register_buffer("resolution", torch.tensor(resolution))
-        self.register_buffer("aabb", torch.tensor(aabb))
+        self.register_buffer("resolution", resolution)
+        self.register_buffer("aabb", aabb)
         self.contraction = contraction
 
         # total number of voxels
@@ -112,7 +115,7 @@ class OccupancyGrid(Grid):
     def _sample_uniform_and_occupied_cells(self, n: int) -> torch.Tensor:
         """Samples both n uniform and occupied cells."""
         uniform_indices = torch.randint(self.num_cells, (n,), device=self.device)
-        occupied_indices = torch.nonzero(self.occ_grid_binary)[:, 0]
+        occupied_indices = torch.nonzero(self.occs_binary)[:, 0]
         if n < len(occupied_indices):
             selector = torch.randint(len(occupied_indices), (n,), device=self.device)
             occupied_indices = occupied_indices[selector]
@@ -141,17 +144,15 @@ class OccupancyGrid(Grid):
         x = (
             grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
         ) / self.resolution
-        # e.g. of cube_to_world_fn():
-        # bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
-        # x = x * (bb_max - bb_min) + bb_min
-        x = self.cube_to_world_fn(x)
+        # voxel coordinates [0, 1]^3 -> world
+        x = contract_inv(x, self.aabb, self.contraction)
         occ = occ_eval_fn(x).squeeze(-1)
 
         # ema update
-        self.occs[indices] = torch.maximum(self.occ_grid[indices] * ema_decay, occ)
+        self.occs[indices] = torch.maximum(self.occs[indices] * ema_decay, occ)
         # suppose to use scatter max but emperically it is almost the same.
-        # self.occ_grid, _ = scatter_max(
-        #     occ, indices, dim=0, out=self.occ_grid * ema_decay
+        # self.occs, _ = scatter_max(
+        #     occ, indices, dim=0, out=self.occs * ema_decay
         # )
         self.occs_binary = self.occs > torch.clamp(self.occs.mean(), max=occ_thre)
 
@@ -201,6 +202,120 @@ class OccupancyGrid(Grid):
                 step=step,
                 occ_eval_fn=occ_eval_fn,
                 occ_thre=occ_thre,
+                ema_decay=ema_decay,
+                warmup_steps=warmup_steps,
+            )
+
+
+class VisibilityGrid(Grid):
+    """Visibility grid."""
+
+    NUM_DIM: int = 3
+
+    def __init__(
+        self,
+        aabb: Union[List[int], torch.Tensor],
+        resolution: Union[int, List[int], torch.Tensor] = 128,
+        contraction: ContractionType = ContractionType.NONE,
+    ) -> None:
+        super().__init__()
+        if isinstance(resolution, int):
+            resolution = [resolution] * self.NUM_DIM
+        if isinstance(resolution, (list, tuple)):
+            resolution = torch.tensor(resolution, dtype=torch.int32)
+        assert isinstance(resolution, torch.Tensor), f"Invalid type: {type(resolution)}"
+        assert resolution.shape == (self.NUM_DIM,), f"Invalid shape: {resolution.shape}"
+
+        if isinstance(aabb, (list, tuple)):
+            aabb = torch.tensor(aabb, dtype=torch.float32)
+        assert isinstance(aabb, torch.Tensor), f"Invalid type: {type(aabb)}"
+        assert aabb.shape == torch.Size(
+            [self.NUM_DIM * 2]
+        ), f"Invalid shape: {aabb.shape}"
+
+        self.register_buffer("resolution", resolution)
+        self.register_buffer("aabb", aabb)
+        self.contraction = contraction
+
+        # total number of voxels
+        self.num_cells = int(self.resolution.prod().item())
+
+        # Stores cell occupancy values ranged in [0, 1].
+        occs = torch.zeros(self.num_cells)
+        self.register_buffer("occs", occs)
+        occs_binary = torch.zeros_like(occs, dtype=torch.bool)
+        self.register_buffer("occs_binary", occs_binary)
+
+        # Grid coords & indices
+        grid_coords = _meshgrid3d(self.resolution).reshape(self.num_cells, self.NUM_DIM)
+        self.register_buffer("grid_coords", grid_coords)
+        grid_indices = torch.arange(self.num_cells)
+        self.register_buffer("grid_indices", grid_indices)
+
+    @torch.no_grad()
+    def _update(
+        self,
+        step: int,
+        rays_o: torch.Tensor,
+        rays_d: torch.Tensor,
+        threshold: float = 1e-2,
+        ema_decay: float = 0.95,
+        warmup_steps: int = 256,
+    ) -> None:
+        """Update the occ field in the EMA way."""
+        # sample points
+        t_min, t_max = ray_aabb_intersect(rays_d, rays_d, self.aabb)
+        # TODO
+        pass
+
+    @torch.no_grad()
+    def binarize(self):
+        return self.occs_binary.reshape(self.resolution)
+
+    @torch.no_grad()
+    def contraction_type(self):
+        return ContractionType.NONE
+
+    @torch.no_grad()
+    def every_n_step(
+        self,
+        step: int,
+        rays_o: torch.Tensor,
+        rays_d: torch.Tensor,
+        threshold: float = 1e-2,
+        ema_decay: float = 0.95,
+        warmup_steps: int = 256,
+        n: int = 16,
+    ):
+        """Update the field every n steps during training.
+
+        This function is designed for training only. If for some reason you want to
+        manually update the field, please use the ``_update()`` function instead.
+
+        Args:
+            step: Current training step.
+            occ_thre: Threshold to binarize the occupancy field.
+            ema_decay: The decay rate for EMA updates.
+            warmup_steps: Sample all cells during the warmup stage. After the warmup
+                stage we change the sampling strategy to 1/4 uniformly sampled cells
+                together with 1/4 occupied cells.
+            n: Update the field every n steps.
+
+        Returns:
+            None
+        """
+        if not self.training:
+            raise RuntimeError(
+                "You should only call this function only during training. "
+                "Please call _update() directly if you want to update the "
+                "field during inference."
+            )
+        if step % n == 0 and self.training:
+            self._update(
+                step=step,
+                rays_o=rays_o,
+                rays_d=rays_d,
+                threshold=threshold,
                 ema_decay=ema_decay,
                 warmup_steps=warmup_steps,
             )

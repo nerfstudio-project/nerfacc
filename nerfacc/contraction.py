@@ -1,5 +1,3 @@
-from enum import Enum
-
 import torch
 
 import nerfacc.cuda2 as nerfacc_cuda
