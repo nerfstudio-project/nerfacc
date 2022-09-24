@@ -22,6 +22,10 @@ class Grid(nn.Module):
             that is not occupied.
         - visiblity (see :class:`VisibilityGrid`): Skip the space that is \
             not visible (either not occupied or occluded).
+
+    For unbounded scene, a mapping function (:math:`f: x \\rightarrow x'`) is
+    used to contract the infinite 3D space into a finite grid. See 
+    :class:`nerfacc.contraction.ContractionType` for more details.
     """
 
     def __init__(self, *args, **kwargs):
