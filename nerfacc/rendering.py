@@ -58,10 +58,17 @@ def accumulate_along_rays(
     return outputs
 
 
-def transmittance_compression(
-    packed_info, t_starts, t_ends, sigmas, early_stop_eps: float = 1e-4
+def transmittance(
+    packed_info,
+    t_starts,
+    t_ends,
+    sigmas,
+    early_stop_eps: float = 1e-4,
+    compression: bool = True,
 ) -> Tuple[torch.Tensor, ...]:
     """Compress the samples based on the transmittance (early stoping).
+
+    TODO: Doc
 
     Args:
         packed_info: Stores information on which samples belong to the same ray. \
@@ -78,22 +85,41 @@ def transmittance_compression(
         t_starts, t_ends, sigmas}. The last tensor is the compacted weights.
 
     """
-    # compute weights and compact samples
-    (
-        _packed_info,
-        _t_starts,
-        _t_ends,
-        _sigmas,
-        _weights,
-    ) = _transmittance_compression_forward(
-        packed_info, t_starts, t_ends, sigmas, early_stop_eps
-    )
-    # register backward: weights -> sigmas.
-    _weights = _TransmittanceCompressionBackward.apply(
-        _packed_info, _t_starts, _t_ends, _sigmas, _weights, early_stop_eps
-    )
-    # return compacted results.
-    return _packed_info, _t_starts, _t_ends, _sigmas, _weights
+    if compression:
+        # compact samples
+        with torch.no_grad():
+            packed_info, t_starts, t_ends, sigmas = _transmittance_compression_forward(
+                packed_info, t_starts, t_ends, sigmas, early_stop_eps
+            )
+        # return compacted results.
+        return packed_info, t_starts, t_ends, sigmas
+    else:
+        # compute weights
+        weights = _transmittance_forward(
+            packed_info, t_starts, t_ends, sigmas, early_stop_eps
+        )
+        # register backward: weights -> sigmas.
+        weights = _TransmittanceBackward.apply(
+            packed_info, t_starts, t_ends, sigmas, weights, early_stop_eps
+        )
+        # return compacted results.
+        return weights
+
+
+def _transmittance_forward(
+    packed_info, t_starts, t_ends, sigmas, early_stop_eps: float = 1e-4
+):
+    """Forward pass of the transmittance compression."""
+    with torch.no_grad():
+        weights = _C.rendering_forward(
+            packed_info.contiguous(),
+            t_starts.contiguous(),
+            t_ends.contiguous(),
+            sigmas.contiguous(),
+            early_stop_eps,
+            False,  # no compression
+        )[0]
+    return weights
 
 
 def _transmittance_compression_forward(
@@ -101,22 +127,22 @@ def _transmittance_compression_forward(
 ):
     """Forward pass of the transmittance compression."""
     with torch.no_grad():
-        weights, _packed_info, compact_selector = _C.rendering_forward(
+        _packed_info, compact_selector = _C.rendering_forward(
             packed_info.contiguous(),
             t_starts.contiguous(),
             t_ends.contiguous(),
             sigmas.contiguous(),
             early_stop_eps,
+            True,  # compression
         )
-    _weights = weights[compact_selector]
     _t_starts = t_starts[compact_selector]
     _t_ends = t_ends[compact_selector]
     _sigmas = sigmas[compact_selector]
-    return _packed_info, _t_starts, _t_ends, _sigmas, _weights
+    return _packed_info, _t_starts, _t_ends, _sigmas
 
 
-class _TransmittanceCompressionBackward(torch.autograd.Function):
-    """Backward pass of the transmittance compression."""
+class _TransmittanceBackward(torch.autograd.Function):
+    """Backward pass of the transmittance."""
 
     @staticmethod
     def forward(

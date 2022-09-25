@@ -7,7 +7,7 @@ from nerfacc.cuda import (
     volumetric_rendering_weights_forward,
 )
 from nerfacc.ray_marching import ray_marching
-from nerfacc.rendering import transmittance_compression
+from nerfacc.rendering import transmittance
 
 device = "cuda:0"
 batch_size = 1280
@@ -27,7 +27,7 @@ torch.manual_seed(42)
 
 for _ in tqdm.tqdm(range(5000)):
     sigmas = torch.rand_like(t_starts, requires_grad=True)
-    _packed_info, _t_starts, _t_ends, _sigmas, _weights = transmittance_compression(
+    _packed_info, _t_starts, _t_ends, _sigmas, _weights = transmittance(
         packed_info,
         t_starts,
         t_ends,

@@ -124,7 +124,8 @@ std::vector<torch::Tensor> rendering_forward(
     torch::Tensor starts,
     torch::Tensor ends,
     torch::Tensor sigmas,
-    float early_stop_eps)
+    float early_stop_eps,
+    bool compression)
 {
     DEVICE_GUARD(packed_info);
 
@@ -144,13 +145,39 @@ std::vector<torch::Tensor> rendering_forward(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    // compress the samples to get rid of invisible ones.
-    torch::Tensor num_steps = torch::zeros({n_rays}, packed_info.options());
-    torch::Tensor weights = torch::zeros({n_samples}, sigmas.options());
-    torch::Tensor compact_selector = torch::zeros(
-        {n_samples}, sigmas.options().dtype(torch::kBool));
+    if (compression) {
+        // compress the samples to get rid of invisible ones.
+        torch::Tensor num_steps = torch::zeros({n_rays}, packed_info.options());
+        torch::Tensor compact_selector = torch::zeros(
+            {n_samples}, sigmas.options().dtype(torch::kBool));
 
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+        AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+            sigmas.scalar_type(),
+            "rendering_forward",
+            ([&]
+            { rendering_forward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+                n_rays,
+                // inputs
+                packed_info.data_ptr<int>(),
+                starts.data_ptr<scalar_t>(),
+                ends.data_ptr<scalar_t>(),
+                sigmas.data_ptr<scalar_t>(),
+                early_stop_eps,
+                // outputs
+                num_steps.data_ptr<int>(),
+                nullptr,
+                compact_selector.data_ptr<bool>()); }));
+
+        torch::Tensor cum_steps = num_steps.cumsum(0, torch::kInt32);
+        torch::Tensor compact_packed_info = torch::stack({cum_steps - num_steps, num_steps}, 1);
+        return {compact_packed_info, compact_selector};
+
+    }
+    else {
+        // just do the forward rendering.
+        torch::Tensor weights = torch::zeros({n_samples}, sigmas.options());
+
+        AT_DISPATCH_FLOATING_TYPES_AND_HALF(
         sigmas.scalar_type(),
         "rendering_forward",
         ([&]
@@ -163,14 +190,12 @@ std::vector<torch::Tensor> rendering_forward(
                sigmas.data_ptr<scalar_t>(),
                early_stop_eps,
                // outputs
-               num_steps.data_ptr<int>(),
+               nullptr,
                weights.data_ptr<scalar_t>(),
-               compact_selector.data_ptr<bool>()); }));
+               nullptr); }));
 
-    torch::Tensor cum_steps = num_steps.cumsum(0, torch::kInt32);
-    torch::Tensor compact_packed_info = torch::stack({cum_steps - num_steps, num_steps}, 1);
-
-    return {weights, compact_packed_info, compact_selector};
+        return {weights};
+    }
 }
 
 torch::Tensor rendering_backward(

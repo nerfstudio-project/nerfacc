@@ -211,7 +211,8 @@ if __name__ == "__main__":
         """
         density_after_activation = radiance_field.query_density(x)
         # those two are similar when density is small.
-        occupancy = 1.0 - torch.exp(-density_after_activation * render_step_size)
+        # occupancy = 1.0 - torch.exp(-density_after_activation * render_step_size)
+        occupancy = density_after_activation * render_step_size
         return occupancy
 
     occupancy_grid = OccupancyGrid(

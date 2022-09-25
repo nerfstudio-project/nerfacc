@@ -4,7 +4,7 @@ import torch
 
 from .grid import Grid
 from .ray_marching import ray_marching, unpack_to_ray_indices
-from .rendering import accumulate_along_rays, transmittance_compression
+from .rendering import accumulate_along_rays, transmittance
 
 
 def volumetric_rendering_pipeline(
@@ -36,7 +36,7 @@ def volumetric_rendering_pipeline(
 
         - ray_aabb_intersect: ray AABB intersection.
         - ray_marching: ray marching with grid-based skipping.
-        - transmittance_compression: compute transmittance and compress samples.
+        - transmittance: compute transmittance and compress samples.
         - accumulate_along_rays: accumulate samples along rays to get final per-ray RGB etc.
 
     Args:
@@ -103,9 +103,9 @@ def volumetric_rendering_pipeline(
         # Query sigma without gradients
         sigmas = sigma_fn(t_starts, t_ends, ray_indices)
 
-        # Ray marching and rendering check.
-        packed_info, t_starts, t_ends, sigmas, _ = transmittance_compression(
-            packed_info, t_starts, t_ends, sigmas, early_stop_eps
+        # Compress samples through computing transmittance.
+        packed_info, t_starts, t_ends, sigmas = transmittance(
+            packed_info, t_starts, t_ends, sigmas, early_stop_eps, compression=True
         )
         extra_info["n_rendering_samples"] = t_starts.shape[0]
         ray_indices = unpack_to_ray_indices(packed_info)
@@ -118,8 +118,8 @@ def volumetric_rendering_pipeline(
     )
 
     # Rendering: compute weights and ray indices.
-    _, _, _, _, weights = transmittance_compression(
-        packed_info, t_starts, t_ends, sigmas, early_stop_eps
+    weights = transmittance(
+        packed_info, t_starts, t_ends, sigmas, early_stop_eps, compression=False
     )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.

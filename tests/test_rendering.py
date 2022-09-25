@@ -1,7 +1,7 @@
 import torch
 
 from nerfacc.ray_marching import ray_marching
-from nerfacc.rendering import transmittance_compression
+from nerfacc.rendering import transmittance
 
 device = "cuda:0"
 batch_size = 128
@@ -20,7 +20,7 @@ def test_transmittance_compress():
         render_step_size=1e-2,
     )
     sigmas = torch.rand_like(t_starts, requires_grad=True)
-    _packed_info, _t_starts, _t_ends, _sigmas, _weights = transmittance_compression(
+    _packed_info, _t_starts, _t_ends, _sigmas, _weights = transmittance(
         packed_info,
         t_starts,
         t_ends,

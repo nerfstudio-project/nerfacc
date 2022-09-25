@@ -7,7 +7,8 @@ std::vector<torch::Tensor> rendering_forward(
     torch::Tensor starts,
     torch::Tensor ends,
     torch::Tensor sigmas,
-    float early_stop_eps);
+    float early_stop_eps,
+    bool compression);
 
 torch::Tensor rendering_backward(
     torch::Tensor weights,
