@@ -1466,4 +1466,14 @@ inline __device__ __host__ float4 smoothstep(float4 a, float4 b, float4 x)
     return (y*y*(make_float4(3.0f) - (make_float4(2.0f)*y)));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// sign
+////////////////////////////////////////////////////////////////////////////////
+inline __device__ __host__ float3 sign(float3 a)
+{
+    return make_float3(
+        copysignf(1.0f, a.x), copysignf(1.0f, a.y), copysignf(1.0f, a.z));
+}
+
+
 #endif

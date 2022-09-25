@@ -173,7 +173,8 @@ class OccupancyGrid(Grid):
 
     @torch.no_grad()
     def binarize(self):
-        return self.occs_binary.reshape(self.resolution)
+        # TODO: try to avoid tolist
+        return self.occs_binary.reshape(self.resolution.tolist())
 
     @torch.no_grad()
     def contraction_type(self):

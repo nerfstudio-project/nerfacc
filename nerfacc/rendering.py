@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor
 
-import nerfacc.cuda2 as nerfacc_cuda
+import nerfacc.cuda as nerfacc_cuda
 
 
 def accumulate_along_rays(
@@ -57,7 +57,7 @@ def accumulate_along_rays(
 
 
 def transmittance_compression(
-    packed_info, t_starts, t_ends, sigmas, early_step_eps: float = 1e-4
+    packed_info, t_starts, t_ends, sigmas, early_stop_eps: float = 1e-4
 ) -> Tuple[torch.Tensor, ...]:
     """Compress the samples based on the transmittance (early stoping).
 
@@ -69,7 +69,7 @@ def transmittance_compression(
         t_ends: Where the frustum-shape sample ends along a ray. Tensor with \
             shape (n_samples, 1).
         sigmas: The sigma values of the samples. Tensor with shape (n_samples, 1).
-        early_step_eps: The epsilon value for early stopping. Default is 1e-4.
+        early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
     
     Returns:
         A tuple of 5 tensors. The first 4 tensors are the compacted {packed_info, \
@@ -84,18 +84,18 @@ def transmittance_compression(
         _sigmas,
         _weights,
     ) = _transmittance_compression_forward(
-        packed_info, t_starts, t_ends, sigmas, early_step_eps
+        packed_info, t_starts, t_ends, sigmas, early_stop_eps
     )
     # register backward: weights -> sigmas.
     _weights = _TransmittanceCompressionBackward.apply(
-        _packed_info, _t_starts, _t_ends, _sigmas, _weights, early_step_eps
+        _packed_info, _t_starts, _t_ends, _sigmas, _weights, early_stop_eps
     )
     # return compacted results.
     return _packed_info, _t_starts, _t_ends, _sigmas, _weights
 
 
 def _transmittance_compression_forward(
-    packed_info, t_starts, t_ends, sigmas, early_step_eps: float = 1e-4
+    packed_info, t_starts, t_ends, sigmas, early_stop_eps: float = 1e-4
 ):
     """Forward pass of the transmittance compression."""
     with torch.no_grad():
@@ -104,7 +104,7 @@ def _transmittance_compression_forward(
             t_starts.contiguous(),
             t_ends.contiguous(),
             sigmas.contiguous(),
-            early_step_eps,
+            early_stop_eps,
         )
     _weights = weights[compact_selector]
     _t_starts = t_starts[compact_selector]
@@ -124,7 +124,7 @@ class _TransmittanceCompressionBackward(torch.autograd.Function):
         _t_ends,
         _sigmas,
         _weights,
-        early_step_eps: float = 1e-4,
+        early_stop_eps: float = 1e-4,
     ):
         if ctx.needs_input_grad[3]:  # sigmas
             ctx.save_for_backward(
@@ -134,12 +134,12 @@ class _TransmittanceCompressionBackward(torch.autograd.Function):
                 _sigmas,
                 _weights,
             )
-            ctx.early_step_eps = early_step_eps
+            ctx.early_stop_eps = early_stop_eps
         return _weights
 
     @staticmethod
     def backward(ctx, grad_weights):
-        early_step_eps = ctx.early_step_eps
+        early_stop_eps = ctx.early_stop_eps
         (
             packed_info,
             t_starts,
@@ -154,6 +154,6 @@ class _TransmittanceCompressionBackward(torch.autograd.Function):
             t_starts.contiguous(),
             t_ends.contiguous(),
             sigmas.contiguous(),
-            early_step_eps,
+            early_stop_eps,
         )
         return None, None, None, grad_sigmas, None, None

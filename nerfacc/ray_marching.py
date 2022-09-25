@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor
 
-import nerfacc.cuda2 as nerfacc_cuda
+import nerfacc.cuda as nerfacc_cuda
 
 from .grid import Grid
 

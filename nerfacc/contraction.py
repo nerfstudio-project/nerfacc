@@ -1,6 +1,6 @@
 import torch
 
-import nerfacc.cuda2 as nerfacc_cuda
+import nerfacc.cuda as nerfacc_cuda
 
 ContractionType = nerfacc_cuda.ContractionType
 

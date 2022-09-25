@@ -3,7 +3,7 @@ import math
 import pytest
 import torch
 
-from nerfacc.cuda2 import (
+from nerfacc.cuda import (
     ContractionType,
     ray_aabb_intersect,
     ray_marching,

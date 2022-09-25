@@ -1,31 +1,19 @@
-from .contraction import ContractionType
-from .grid import Grid
-from .ray_marching import ray_marching, unpack_to_ray_indices
-
-# from .occupancy_field import OccupancyField
-# from .utils import (
-#     contract,
-#     ray_aabb_intersect,
-#     unpack_to_ray_indices,
-#     volumetric_marching,
-#     volumetric_rendering_accumulate,
-#     volumetric_rendering_steps,
-#     volumetric_rendering_weights,
-# )
-# from .volumetric_rendering import volumetric_rendering_pipeline
+from .contraction import ContractionType, contract, contract_inv
+from .grid import Grid, OccupancyGrid
+from .pipeline import volumetric_rendering_pipeline
+from .ray_marching import ray_aabb_intersect, ray_marching, unpack_to_ray_indices
+from .rendering import accumulate_along_rays, transmittance_compression
 
 __all__ = [
-    # # "OccupancyField",
-    # "ray_aabb_intersect",
-    # "volumetric_marching",
-    # "volumetric_rendering_accumulate",
-    # "volumetric_rendering_steps",
-    # "volumetric_rendering_weights",
-    # "volumetric_rendering_pipeline",
-    # "unpack_to_ray_indices",
-    # "contract",
-    # new
     "Grid",
+    "OccupancyGrid",
+    "ContractionType",
+    "contract",
+    "contract_inv",
+    "ray_aabb_intersect",
     "ray_marching",
     "unpack_to_ray_indices",
+    "accumulate_along_rays",
+    "transmittance_compression",
+    "volumetric_rendering_pipeline",
 ]

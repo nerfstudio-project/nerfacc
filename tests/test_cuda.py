@@ -2,7 +2,6 @@ import torch
 import tqdm
 
 import nerfacc.cuda as nerfacc_cuda
-import nerfacc.cuda2 as nerfacc_cuda2
 
 device = "cuda:0"
 
@@ -18,14 +17,14 @@ def test_marching():
 
     for i in tqdm.trange(50000):
         # 5485 it/s
-        _packed_info, t_starts, t_ends = nerfacc_cuda2.ray_marching(
+        _packed_info, t_starts, t_ends = nerfacc_cuda.ray_marching(
             rays_o.contiguous(),
             rays_d.contiguous(),
             t_min.contiguous(),
             t_max.contiguous(),
             scene_aabb.contiguous(),
             scene_occ_binary.contiguous(),
-            nerfacc_cuda2.ContractionType.NONE,
+            nerfacc_cuda.ContractionType.NONE,
             0.01,
             0.0,
         )

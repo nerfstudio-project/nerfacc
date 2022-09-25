@@ -2,7 +2,7 @@
 
 
 template <typename scalar_t>
-inline __host__ __device__ void _ray_aabb_intersect(
+inline CUDA_HOSTDEV void _ray_aabb_intersect(
     const scalar_t* rays_o,
     const scalar_t* rays_d,
     const scalar_t* aabb,
@@ -79,7 +79,7 @@ __global__ void ray_aabb_intersect_kernel(
  * @param aabb Scene AABB [xmin, ymin, zmin, xmax, ymax, zmax]. Tensor with shape [6].
  * @return std::vector<torch::Tensor> 
  *  Ray AABB intersection {t_min, t_max} with shape [N] respectively. Note the t_min is 
- *  clipped to minimum zero. 
+ *  clipped to minimum zero. 1e10 is returned if no intersection.
  */
 std::vector<torch::Tensor> ray_aabb_intersect(
     const torch::Tensor rays_o, const torch::Tensor rays_d, const torch::Tensor aabb
