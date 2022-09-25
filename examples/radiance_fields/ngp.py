@@ -4,6 +4,8 @@ import torch
 from torch.autograd import Function
 from torch.cuda.amp import custom_bwd, custom_fwd
 
+from nerfacc import ContractionType, contract
+
 try:
     import tinycudann as tcnn
 except ImportError as e:
@@ -41,19 +43,21 @@ class NGPradianceField(BaseRadianceField):
 
     def __init__(
         self,
-        aabb: Union[torch.Tensor, List[float]],
+        roi_aabb: Union[torch.Tensor, List[float]],
         num_dim: int = 3,
         use_viewdirs: bool = True,
         density_activation: Callable = lambda x: trunc_exp(x - 1),
         # density_activation: Callable = lambda x: torch.nn.functional.softplus(x - 1),
+        contraction_type: ContractionType = ContractionType.ROI_TO_UNIT,
     ) -> None:
         super().__init__()
-        if not isinstance(aabb, torch.Tensor):
-            aabb = torch.tensor(aabb, dtype=torch.float32)
-        self.register_buffer("aabb", aabb)
+        if not isinstance(roi_aabb, torch.Tensor):
+            roi_aabb = torch.tensor(roi_aabb, dtype=torch.float32)
+        self.register_buffer("roi_aabb", roi_aabb)
         self.num_dim = num_dim
         self.use_viewdirs = use_viewdirs
         self.density_activation = density_activation
+        self.contraction_type = contraction_type
 
         self.geo_feat_dim = 15
         per_level_scale = 1.4472692012786865
@@ -110,8 +114,7 @@ class NGPradianceField(BaseRadianceField):
         )
 
     def query_density(self, x, return_feat: bool = False):
-        bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
-        x = (x - bb_min) / (bb_max - bb_min)
+        x = contract(x, self.roi_aabb, self.contraction_type)
         selector = ((x > 0.0) & (x < 1.0)).all(dim=-1)
         x = (
             self.mlp_base(x.view(-1, self.num_dim))
@@ -147,6 +150,9 @@ class NGPradianceField(BaseRadianceField):
         mask: torch.Tensor = None,
         only_density: bool = False,
     ):
+        positions = contract(positions, self.roi_aabb, self.contraction_type)
+        # TODO: contract directions?
+
         if self.use_viewdirs and (directions is not None):
             assert (
                 positions.shape == directions.shape
