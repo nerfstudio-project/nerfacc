@@ -51,7 +51,7 @@ inline __device__ __host__ float3 inf_to_unit_sphere(
         roi -> sphere of [0.25, 0.75]^3
     **/
     float3 xyz_unit = roi_to_unit(xyz, roi_min, roi_max); // roi -> [0, 1]^3
-    xyz_unit = xyz_unit * 2.0f - 1.0f;                       // roi -> [-1, 1]^3
+    xyz_unit = xyz_unit * 2.0f - 1.0f;                    // roi -> [-1, 1]^3
 
     float norm_sq = dot(xyz_unit, xyz_unit);
     float norm = sqrt(norm_sq);
@@ -78,7 +78,7 @@ inline __device__ __host__ float3 unit_sphere_to_inf(
     {
         xyz_unit = xyz_unit * (2.0f * norm - 1.0f * norm_sq);
     }
-    xyz_unit = xyz_unit * 0.5f + 0.5f;                     // [-1, 1]^3 -> [0, 1]^3
+    xyz_unit = xyz_unit * 0.5f + 0.5f;                  // [-1, 1]^3 -> [0, 1]^3
     xyz_unit = unit_to_roi(xyz_unit, roi_min, roi_max); // [0, 1]^3 -> roi
     return xyz_unit;
 }
@@ -97,7 +97,6 @@ inline __device__ __host__ float3 apply_contraction(
         return inf_to_unit_sphere(xyz, roi_min, roi_max);
     }
 }
-
 
 inline __device__ __host__ float3 apply_contraction_inv(
     const float3 xyz, const float3 roi_min, const float3 roi_max,

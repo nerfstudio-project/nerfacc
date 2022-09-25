@@ -72,7 +72,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .value("INF_TO_UNIT_SPHERE", ContractionType::INF_TO_UNIT_SPHERE);
     m.def("contract", &contract);
     m.def("contract_inv", &contract_inv);
-    
+
     // grid
     m.def("query_occ", &query_occ);
 
