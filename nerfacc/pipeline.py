@@ -30,7 +30,52 @@ def volumetric_rendering_pipeline(
     render_bkgd: Optional[torch.Tensor] = None,
     return_extra_info: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, int, int]:
-    """Differentiable volumetric rendering pipeline."""
+    """Differentiable volumetric rendering pipeline.
+
+    This function is the integration of those individual functions:
+
+        - ray_aabb_intersect: ray AABB intersection.
+        - ray_marching: ray marching with grid-based skipping.
+        - transmittance_compression: compute transmittance and compress samples.
+        - accumulate_along_rays: accumulate samples along rays to get final per-ray RGB etc.
+
+    Args:
+        sigma_fn: A function that takes in samples {t_starts (N, 1), t_ends (N, 1),
+            ray indices (N,)} and returns the post-activation density values (N, 1).
+        rgb_sigma_fn: A function that takes in samples {t_starts (N, 1), t_ends (N, 1),
+            ray indices (N,)} and returns the post-activation rgb (N, 3) and density
+            values (N, 1).
+        rays_o: Ray origins. Tensor with shape (n_rays, 3).
+        rays_d: Normalized ray directions. Tensor with shape (n_rays, 3).
+        t_min: Optional. Per-ray minimum distance. Tensor with shape (n_rays).
+        t_max: Optional. Per-ray maximum distance. Tensor with shape (n_rays).
+        scene_aabb: Optional. Scene bounding box for computing t_min and t_max.
+            A tensor with shape (6,) {xmin, ymin, zmin, xmax, ymax, zmax}.
+            scene_aabb which be ignored if both t_min and t_max are provided.
+        grid: Optional. Grid for to idicates where to skip during marching.
+            See :class:`nerfacc.Grid` for details.
+        near_plane: Optional. Near plane distance. If provided, it will be used
+            to clip t_min.
+        far_plane: Optional. Far plane distance. If provided, it will be used
+            to clip t_max.
+        render_step_size: Step size for marching. Default: 1e-3.
+        stratified: Whether to use stratified sampling. Default: False.
+        cone_angle: Cone angle for linearly-increased step size. 0. means
+            constant step size. Default: 0.0.
+        early_stop_eps: Early stop threshold for marching. Default: 1e-4.
+        render_bkgd: Optional. Background color. If provided, it will be used
+            to fill the background. Default: None.
+        return_extra_info: Whether to return extra info. Default: False.
+
+    Returns:
+        Ray colors (n_rays, 3), opacities (n_rays, 1) and depths (n_rays, 1).
+        If return_extra_info is True, it will also return a dictionary of extra info,
+        including:
+
+            - "n_marching_samples": Total number of samples kept after marching.
+            - "n_rendering_samples": Total number of samples used for actual rendering.
+
+    """
     assert rays_o.shape == rays_d.shape and rays_o.dim() == 2, "Invalid rays."
     n_rays = rays_o.shape[0]
     rays_o = rays_o.contiguous()
