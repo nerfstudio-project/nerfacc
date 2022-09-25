@@ -27,9 +27,10 @@ inline __device__ __host__ bool grid_occupied_at(
     const float temperature,
     const int3 grid_res, const bool *grid_binary)
 {
-    if (xyz.x < roi_min.x || xyz.x > roi_max.x ||
-        xyz.y < roi_min.y || xyz.y > roi_max.y ||
-        xyz.z < roi_min.z || xyz.z > roi_max.z)
+    if (type == ContractionType::ROI_TO_UNIT && 
+        (xyz.x < roi_min.x || xyz.x > roi_max.x ||
+         xyz.y < roi_min.y || xyz.y > roi_max.y ||
+         xyz.z < roi_min.z || xyz.z > roi_max.z))
     {
         return false;
     }
