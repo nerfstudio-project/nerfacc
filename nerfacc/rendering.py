@@ -32,7 +32,11 @@ def _compacted_rendering_forward(
 ):
     with torch.no_grad():
         weights, _packed_info, compact_selector = nerfacc_cuda.rendering_forward(
-            packed_info, t_starts, t_ends, sigmas, early_step_eps
+            packed_info.contiguous(),
+            t_starts.contiguous(),
+            t_ends.contiguous(),
+            sigmas.contiguous(),
+            early_step_eps,
         )
     _weights = weights[compact_selector]
     _t_starts = t_starts[compact_selector]
@@ -73,12 +77,12 @@ class _CompactedRenderingBackward(torch.autograd.Function):
             weights,
         ) = ctx.saved_tensors
         grad_sigmas = nerfacc_cuda.rendering_backward(
-            weights,
-            grad_weights,
-            packed_info,
-            t_starts,
-            t_ends,
-            sigmas,
+            weights.contiguous(),
+            grad_weights.contiguous(),
+            packed_info.contiguous(),
+            t_starts.contiguous(),
+            t_ends.contiguous(),
+            sigmas.contiguous(),
             early_step_eps,
         )
         return None, None, None, grad_sigmas, None, None
