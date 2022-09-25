@@ -1,11 +1,9 @@
-from typing import Callable, List, Literal, Optional, Tuple, Union
+from typing import Callable, List, Union
 
 import torch
 import torch.nn as nn
 
 from .contraction import ContractionType, contract_inv
-
-# from .ray_marching import ray_aabb_intersect
 
 # TODO: add this to the dependency
 # from torch_scatter import scatter_max
@@ -15,20 +13,16 @@ class Grid(nn.Module):
     """Base class for all type of grid.
 
     The grid is used as a cache of the 3D space to indicate whether each voxel
-    area is important or not for the differentiable rendering process. The 
-    ray marching function (see :func:`nerfacc.ray_marching`) would use the 
+    area is important or not for the differentiable rendering process. The
+    ray marching function (see :func:`nerfacc.ray_marching`) would use the
     grid to skip the unimportant voxels.
 
-    Generally, the grid can be used to store:
-
-        - density or opacity (see :class:`OccupancyGrid`): Skip the space \
-            that is not occupied.
-        - visiblity (see :class:`VisibilityGrid`): Skip the space that is \
-            not visible (either not occupied or occluded).
+    Generally, the grid is used to store density or opacity (see :class:`OccupancyGrid`),
+    which is Skip the space that is not occupied.
 
     For unbounded scene, a mapping function (:math:`f: x \\rightarrow x'`) is
-    used to contract the infinite 3D space into a finite voxel grid. See 
-    :class:`nerfacc.contraction.ContractionType` for more details.
+    used to contract the infinite 3D space into a finite voxel grid. See
+    :class:`nerfacc.ContractionType` for more details.
     """
 
     def __init__(self, *args, **kwargs):
@@ -69,7 +63,7 @@ class Grid(nn.Module):
         Note:
             this function will be called by `ray_marching`.
         """
-        return ContractionType.NONE
+        return ContractionType.ROI_TO_UNIT
 
 
 class OccupancyGrid(Grid):
@@ -81,7 +75,7 @@ class OccupancyGrid(Grid):
         self,
         aabb: Union[List[int], torch.Tensor],
         resolution: Union[int, List[int], torch.Tensor] = 128,
-        contraction: ContractionType = ContractionType.NONE,
+        contraction: ContractionType = ContractionType.ROI_TO_UNIT,
     ) -> None:
         super().__init__()
         if isinstance(resolution, int):
@@ -178,7 +172,7 @@ class OccupancyGrid(Grid):
 
     @torch.no_grad()
     def contraction_type(self):
-        return ContractionType.NONE
+        return ContractionType.ROI_TO_UNIT
 
     @torch.no_grad()
     def every_n_step(
@@ -218,120 +212,6 @@ class OccupancyGrid(Grid):
                 step=step,
                 occ_eval_fn=occ_eval_fn,
                 occ_thre=occ_thre,
-                ema_decay=ema_decay,
-                warmup_steps=warmup_steps,
-            )
-
-
-class VisibilityGrid(Grid):
-    """Visibility grid."""
-
-    NUM_DIM: int = 3
-
-    def __init__(
-        self,
-        aabb: Union[List[int], torch.Tensor],
-        resolution: Union[int, List[int], torch.Tensor] = 128,
-        contraction: ContractionType = ContractionType.NONE,
-    ) -> None:
-        super().__init__()
-        if isinstance(resolution, int):
-            resolution = [resolution] * self.NUM_DIM
-        if isinstance(resolution, (list, tuple)):
-            resolution = torch.tensor(resolution, dtype=torch.int32)
-        assert isinstance(resolution, torch.Tensor), f"Invalid type: {type(resolution)}"
-        assert resolution.shape == (self.NUM_DIM,), f"Invalid shape: {resolution.shape}"
-
-        if isinstance(aabb, (list, tuple)):
-            aabb = torch.tensor(aabb, dtype=torch.float32)
-        assert isinstance(aabb, torch.Tensor), f"Invalid type: {type(aabb)}"
-        assert aabb.shape == torch.Size(
-            [self.NUM_DIM * 2]
-        ), f"Invalid shape: {aabb.shape}"
-
-        self.register_buffer("resolution", resolution)
-        self.register_buffer("aabb", aabb)
-        self.contraction = contraction
-
-        # total number of voxels
-        self.num_cells = int(self.resolution.prod().item())
-
-        # Stores cell occupancy values ranged in [0, 1].
-        occs = torch.zeros(self.num_cells)
-        self.register_buffer("occs", occs)
-        occs_binary = torch.zeros_like(occs, dtype=torch.bool)
-        self.register_buffer("occs_binary", occs_binary)
-
-        # Grid coords & indices
-        grid_coords = _meshgrid3d(self.resolution).reshape(self.num_cells, self.NUM_DIM)
-        self.register_buffer("grid_coords", grid_coords)
-        grid_indices = torch.arange(self.num_cells)
-        self.register_buffer("grid_indices", grid_indices)
-
-    @torch.no_grad()
-    def _update(
-        self,
-        step: int,
-        rays_o: torch.Tensor,
-        rays_d: torch.Tensor,
-        threshold: float = 1e-2,
-        ema_decay: float = 0.95,
-        warmup_steps: int = 256,
-    ) -> None:
-        """Update the occ field in the EMA way."""
-        # sample points
-        t_min, t_max = ray_aabb_intersect(rays_d, rays_d, self.aabb)
-        # TODO
-        pass
-
-    @torch.no_grad()
-    def binarize(self):
-        return self.occs_binary.reshape(self.resolution)
-
-    @torch.no_grad()
-    def contraction_type(self):
-        return ContractionType.NONE
-
-    @torch.no_grad()
-    def every_n_step(
-        self,
-        step: int,
-        rays_o: torch.Tensor,
-        rays_d: torch.Tensor,
-        threshold: float = 1e-2,
-        ema_decay: float = 0.95,
-        warmup_steps: int = 256,
-        n: int = 16,
-    ):
-        """Update the field every n steps during training.
-
-        This function is designed for training only. If for some reason you want to
-        manually update the field, please use the ``_update()`` function instead.
-
-        Args:
-            step: Current training step.
-            occ_thre: Threshold to binarize the occupancy field.
-            ema_decay: The decay rate for EMA updates.
-            warmup_steps: Sample all cells during the warmup stage. After the warmup
-                stage we change the sampling strategy to 1/4 uniformly sampled cells
-                together with 1/4 occupied cells.
-            n: Update the field every n steps.
-
-        Returns:
-            None
-        """
-        if not self.training:
-            raise RuntimeError(
-                "You should only call this function only during training. "
-                "Please call _update() directly if you want to update the "
-                "field during inference."
-            )
-        if step % n == 0 and self.training:
-            self._update(
-                step=step,
-                rays_o=rays_o,
-                rays_d=rays_d,
-                threshold=threshold,
                 ema_decay=ema_decay,
                 warmup_steps=warmup_steps,
             )

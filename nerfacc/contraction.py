@@ -7,43 +7,35 @@ ContractionType = nerfacc_cuda.ContractionType
 
 def contract(
     samples: torch.Tensor,
-    aabb: torch.Tensor,
-    type: ContractionType = nerfacc_cuda.ContractionType.NONE,
+    roi: torch.Tensor,
+    type: ContractionType = ContractionType.ROI_TO_UNIT,
 ) -> torch.Tensor:
-    """Contract the scene.
+    """Contract the space.
 
     Args:
-        samples (torch.Tensor): Samples.
-        aabb (torch.Tensor): AABB.
-        contraction_type (ContractionType): Contraction type.
+        samples (torch.Tensor): Un-contracted samples.
+        roi (torch.Tensor): Region of interest.
+        type (ContractionType): Contraction type.
 
     Returns:
         torch.Tensor: Contracted samples ([0, 1]^3).
     """
-    return nerfacc_cuda.contract(
-        samples.contiguous(),
-        aabb.contiguous(),
-        type,
-    )
+    return nerfacc_cuda.contract(samples.contiguous(), roi.contiguous(), type)
 
 
 def contract_inv(
     samples: torch.Tensor,
-    aabb: torch.Tensor,
-    type: ContractionType = nerfacc_cuda.ContractionType.NONE,
+    roi: torch.Tensor,
+    type: ContractionType = ContractionType.ROI_TO_UNIT,
 ) -> torch.Tensor:
-    """Invsere contract the scene.
+    """Inverse contract the space.
 
     Args:
-        samples (torch.Tensor): Samples ([0, 1]^3).
+        samples (torch.Tensor): Contracted Samples ([0, 1]^3).
         aabb (torch.Tensor): AABB.
         type (ContractionType): Contraction type.
 
     Returns:
-        torch.Tensor: Contracted samples.
+        torch.Tensor: Un-contracted samples.
     """
-    return nerfacc_cuda.contract_inv(
-        samples.contiguous(),
-        aabb.contiguous(),
-        type,
-    )
+    return nerfacc_cuda.contract_inv(samples.contiguous(), roi.contiguous(), type)

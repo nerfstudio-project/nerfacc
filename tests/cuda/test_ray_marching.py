@@ -29,7 +29,7 @@ def test_ray_aabb_intersect():
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires cuda device")
 @pytest.mark.parametrize(
     "occ_type",
-    [ContractionType.NONE, ContractionType.MipNeRF360_L2],
+    [ContractionType.ROI_TO_UNIT, ContractionType.INF_TO_UNIT_SPHERE],
 )
 def test_ray_marching(occ_type: ContractionType):
     device = "cuda:0"

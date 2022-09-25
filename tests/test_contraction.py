@@ -28,9 +28,9 @@ def test_contract():
     aabb = torch.tensor(
         [-0.5, -0.9, -0.7, 0.2, 0.8, 0.5], dtype=torch.float32, device=device
     )
-    samples_out = contract(samples, aabb=aabb, type=ContractionType.MipNeRF360_L2)
+    samples_out = contract(samples, aabb=aabb, type=ContractionType.INF_TO_UNIT_SPHERE)
     assert samples_out.max() <= 1 and samples_out.min() >= 0
     samples_inv = contract_inv(
-        samples_out, aabb=aabb, type=ContractionType.MipNeRF360_L2
+        samples_out, aabb=aabb, type=ContractionType.INF_TO_UNIT_SPHERE
     )
     assert torch.allclose(samples_inv, samples, atol=1e-6)

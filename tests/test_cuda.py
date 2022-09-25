@@ -24,7 +24,7 @@ def test_marching():
             t_max.contiguous(),
             scene_aabb.contiguous(),
             scene_occ_binary.contiguous(),
-            nerfacc_cuda.ContractionType.NONE,
+            nerfacc_cuda.ContractionType.ROI_TO_UNIT,
             0.01,
             0.0,
         )

@@ -208,9 +208,9 @@ if __name__ == "__main__":
     # setup the scene bounding box.
     scene_aabb = torch.tensor(args.aabb, dtype=torch.float32)
     if args.contraction == "mipnerf360":
-        contraction = ContractionType.MipNerf360_L2
+        contraction = ContractionType.INF_TO_UNIT_SPHERE
     else:
-        contraction = ContractionType.NONE
+        contraction = ContractionType.ROI_TO_UNIT
 
     train_dataset_kwargs = {}
     test_dataset_kwargs = {}

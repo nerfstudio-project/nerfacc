@@ -21,15 +21,15 @@ def _make_lazy_cuda_attribute(name: str) -> Any:
         return None
 
 
-# ray_marching.cu
 ContractionType = _make_lazy_cuda_attribute("ContractionType")
-ray_aabb_intersect = _make_lazy_cuda_func("ray_aabb_intersect")
-ray_marching = _make_lazy_cuda_func("ray_marching")
-unpack_to_ray_indices = _make_lazy_cuda_func("unpack_to_ray_indices")
-query_occ = _make_lazy_cuda_func("query_occ")
 contract = _make_lazy_cuda_func("contract")
 contract_inv = _make_lazy_cuda_func("contract_inv")
 
-# rendering.cu
+query_occ = _make_lazy_cuda_func("query_occ")
+
+ray_aabb_intersect = _make_lazy_cuda_func("ray_aabb_intersect")
+ray_marching = _make_lazy_cuda_func("ray_marching")
+unpack_to_ray_indices = _make_lazy_cuda_func("unpack_to_ray_indices")
+
 rendering_forward = _make_lazy_cuda_func("rendering_forward")
 rendering_backward = _make_lazy_cuda_func("rendering_backward")

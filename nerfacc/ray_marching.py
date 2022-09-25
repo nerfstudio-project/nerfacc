@@ -115,7 +115,7 @@ def ray_marching(
             device=rays_o.device,
         )
         grid_binary = torch.ones([1, 1, 1], dtype=torch.bool, device=rays_o.device)
-        grid_contraction_type = nerfacc_cuda.ContractionType.NONE
+        grid_contraction_type = nerfacc_cuda.ContractionType.ROI_TO_UNIT
 
     packed_info, t_starts, t_ends = nerfacc_cuda.ray_marching(
         # rays
