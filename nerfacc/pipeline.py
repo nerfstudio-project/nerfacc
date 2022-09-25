@@ -18,7 +18,7 @@ def volumetric_rendering_pipeline(
     t_max: Optional[torch.Tensor] = None,
     # bounding box of the scene
     scene_aabb: Optional[torch.Tensor] = None,
-    # grid for skipping
+    # grid for skipping samples
     grid: Optional[Grid] = None,
     # rendering options
     near_plane: Optional[float] = None,

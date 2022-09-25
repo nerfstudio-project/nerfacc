@@ -10,7 +10,12 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
-from nerfacc import OccupancyField, contract, volumetric_rendering_pipeline
+from nerfacc import (
+    ContractionType,
+    OccupancyGrid,
+    contract,
+    volumetric_rendering_pipeline,
+)
 
 device = "cuda:0"
 
@@ -71,9 +76,9 @@ def render_image(
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
-        positions = contract(
-            positions, scale_aabb(radiance_field.aabb, 0.5), contraction=contraction
-        )
+        # positions = contract(
+        #     positions, scale_aabb(radiance_field.aabb, 0.5), contraction=contraction
+        # )
         if timestamps is None:
             return radiance_field.query_density(positions)
         else:
@@ -90,9 +95,9 @@ def render_image(
         positions = (
             frustum_origins + frustum_dirs * (frustum_starts + frustum_ends) / 2.0
         )
-        positions = contract(
-            positions, scale_aabb(radiance_field.aabb, 0.5), contraction=contraction
-        )
+        # positions = contract(
+        #     positions, scale_aabb(radiance_field.aabb, 0.5), contraction=contraction
+        # )
         if timestamps is None:
             return radiance_field(positions, frustum_dirs)
         else:
@@ -114,26 +119,26 @@ def render_image(
             scene_aabb=scale_aabb(
                 occ_field.aabb, 0.5 if contraction == "mipnerf360" else 1.0
             ),
-            scene_occ_binary=occ_field.occ_grid_binary,
-            scene_resolution=occ_field.resolution,
+            grid=occ_field,
             render_bkgd=render_bkgd,
             render_step_size=render_step_size,
             near_plane=0.2 if contraction == "mipnerf360" else None,
             far_plane=1e4 if contraction == "mipnerf360" else None,
             stratified=radiance_field.training,
-            contraction=contraction,
+            # contraction=contraction,
             cone_angle=cone_angle,
+            return_extra_info=True,
         )
         results.append(chunk_results)
-    colors, opacities, n_marching_samples, n_rendering_samples = [
+    colors, opacities, _, extra_info = [
         torch.cat(r, dim=0) if isinstance(r[0], torch.Tensor) else r
         for r in zip(*results)
     ]
     return (
         colors.view((*rays_shape[:-1], -1)),
         opacities.view((*rays_shape[:-1], -1)),
-        sum(n_marching_samples),
-        sum(n_rendering_samples),
+        sum([info["n_marching_samples"] for info in extra_info]),
+        sum([info["n_rendering_samples"] for info in extra_info]),
     )
 
 
@@ -202,6 +207,10 @@ if __name__ == "__main__":
 
     # setup the scene bounding box.
     scene_aabb = torch.tensor(args.aabb, dtype=torch.float32)
+    if args.contraction == "mipnerf360":
+        contraction = ContractionType.MipNerf360_L2
+    else:
+        contraction = ContractionType.NONE
 
     train_dataset_kwargs = {}
     test_dataset_kwargs = {}
@@ -340,9 +349,8 @@ if __name__ == "__main__":
         # occupancy = density_after_activation * step_size
         return occupancy
 
-    occ_aabb = scene_aabb if args.contraction is None else scale_aabb(scene_aabb, 2.0)
-    occ_field = OccupancyField(
-        occ_eval_fn=occ_eval_fn, aabb=occ_aabb, resolution=128
+    occ_field = OccupancyGrid(
+        aabb=scene_aabb, resolution=128, contraction=contraction
     ).to(device)
 
     # training
@@ -363,7 +371,9 @@ if __name__ == "__main__":
             timestamps = data.get("timestamps", None)
 
             # update occupancy grid
-            occ_field.every_n_step(step, warmup_steps=occ_field_warmup_steps)
+            occ_field.every_n_step(
+                step, occ_eval_fn, warmup_steps=occ_field_warmup_steps
+            )
 
             rgb, acc, counter, compact_counter = render_image(
                 radiance_field,
