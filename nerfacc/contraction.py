@@ -1,41 +1,47 @@
 import torch
 
-import nerfacc.cuda as nerfacc_cuda
+import nerfacc.cuda as _C
 
-ContractionType = nerfacc_cuda.ContractionType
+ContractionType = _C.ContractionType
 
 
 def contract(
-    samples: torch.Tensor,
+    x: torch.Tensor,
     roi: torch.Tensor,
     type: ContractionType = ContractionType.ROI_TO_UNIT,
+    temperature: float = 1.0,
 ) -> torch.Tensor:
-    """Contract the space.
+    """Contract the space into [0, 1]^3.
 
     Args:
-        samples (torch.Tensor): Un-contracted samples.
+        x (torch.Tensor): Un-contracted points.
         roi (torch.Tensor): Region of interest.
         type (ContractionType): Contraction type.
+        temperature (float): Temperature for the contraction. Only used
+            when `type` is `ContractionType.INF_TO_UNIT_TANH`.
 
     Returns:
-        torch.Tensor: Contracted samples ([0, 1]^3).
+        torch.Tensor: Contracted points ([0, 1]^3).
     """
-    return nerfacc_cuda.contract(samples.contiguous(), roi.contiguous(), type)
+    return _C.contract(x.contiguous(), roi.contiguous(), type, temperature)
 
 
 def contract_inv(
-    samples: torch.Tensor,
+    x: torch.Tensor,
     roi: torch.Tensor,
     type: ContractionType = ContractionType.ROI_TO_UNIT,
+    temperature: float = 1.0,
 ) -> torch.Tensor:
-    """Inverse contract the space.
+    """Recover the space from [0, 1]^3 by inverse contraction.
 
     Args:
-        samples (torch.Tensor): Contracted Samples ([0, 1]^3).
-        aabb (torch.Tensor): AABB.
+        x (torch.Tensor): Contracted points ([0, 1]^3).
+        roi (torch.Tensor): Region of interest.
         type (ContractionType): Contraction type.
+        temperature (float): Temperature for the contraction. Only used
+            when `type` is `ContractionType.INF_TO_UNIT_TANH`.
 
     Returns:
-        torch.Tensor: Un-contracted samples.
+        torch.Tensor: Un-contracted points.
     """
-    return nerfacc_cuda.contract_inv(samples.contiguous(), roi.contiguous(), type)
+    return _C.contract_inv(x.contiguous(), roi.contiguous(), type, temperature)

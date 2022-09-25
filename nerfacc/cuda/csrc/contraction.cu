@@ -30,7 +30,7 @@ __global__ void contract_kernel(
     return;
 }
 
-__global__ void inv_contract_kernel(
+__global__ void contract_inv_kernel(
     // samples info
     const uint32_t n_samples,
     const float *samples, // (n_samples, 3)
@@ -102,7 +102,7 @@ torch::Tensor contract_inv(
 
     torch::Tensor out_samples = torch::zeros({n_samples, 3}, samples.options());
 
-    inv_contract_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+    contract_inv_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         n_samples,
         samples.data_ptr<float>(),
         // contraction

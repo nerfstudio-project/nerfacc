@@ -57,7 +57,7 @@ inline __device__ __host__ float3 inf_to_unit_sphere(
     float norm = sqrt(norm_sq);
     if (norm > 1.0f)
     {
-        xyz_unit = xyz_unit * (2.0f / norm - 1.0f / norm_sq);
+        xyz_unit = xyz_unit * (2.0f * norm - 1.0f) / norm_sq;
     }
     xyz_unit = xyz_unit * 0.25f + 0.5f; // [-1, 1]^3 -> [0.25, 0.75]^3
     return xyz_unit;
@@ -76,7 +76,7 @@ inline __device__ __host__ float3 unit_sphere_to_inf(
     float norm = sqrt(norm_sq);
     if (norm > 1.0f)
     {
-        xyz_unit = xyz_unit * (2.0f * norm - 1.0f * norm_sq);
+        xyz_unit = xyz_unit / (2.0f * norm - 1.0f * norm_sq);
     }
     xyz_unit = xyz_unit * 0.5f + 0.5f;                  // [-1, 1]^3 -> [0, 1]^3
     xyz_unit = unit_to_roi(xyz_unit, roi_min, roi_max); // [0, 1]^3 -> roi
