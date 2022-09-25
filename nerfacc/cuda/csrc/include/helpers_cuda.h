@@ -1,6 +1,6 @@
 #pragma once
 
-#include "helpers.h"
+#include <torch/extension.h>
 #include <c10/cuda/CUDAGuard.h>
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")

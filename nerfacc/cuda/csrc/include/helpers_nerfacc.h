@@ -1,3 +1,5 @@
+#pragma once
+
 #include "helpers_cuda.h"
 #include "helpers_math.h"
 

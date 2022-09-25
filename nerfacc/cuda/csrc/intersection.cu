@@ -1,8 +1,15 @@
 #include "include/helpers_cuda.h"
 
+template <typename scalar_t>
+inline __host__ __device__  void _swap(scalar_t &a, scalar_t &b)
+{
+    scalar_t c = a;
+    a = b;
+    b = c;
+}
 
 template <typename scalar_t>
-inline CUDA_HOSTDEV void _ray_aabb_intersect(
+inline __host__ __device__ void _ray_aabb_intersect(
     const scalar_t* rays_o,
     const scalar_t* rays_d,
     const scalar_t* aabb,
@@ -12,11 +19,11 @@ inline CUDA_HOSTDEV void _ray_aabb_intersect(
     // aabb is [xmin, ymin, zmin, xmax, ymax, zmax]
     scalar_t tmin = (aabb[0] - rays_o[0]) / rays_d[0];
     scalar_t tmax = (aabb[3] - rays_o[0]) / rays_d[0];
-    if (tmin > tmax) __swap(tmin, tmax);
+    if (tmin > tmax) _swap(tmin, tmax);
 
     scalar_t tymin = (aabb[1] - rays_o[1]) / rays_d[1];
     scalar_t tymax = (aabb[4] - rays_o[1]) / rays_d[1];
-    if (tymin > tymax) __swap(tymin, tymax);
+    if (tymin > tymax) _swap(tymin, tymax);
 
     if (tmin > tymax || tymin > tmax){
         *near = 1e10;
@@ -29,7 +36,7 @@ inline CUDA_HOSTDEV void _ray_aabb_intersect(
 
     scalar_t tzmin = (aabb[2] - rays_o[2]) / rays_d[2];
     scalar_t tzmax = (aabb[5] - rays_o[2]) / rays_d[2];
-    if (tzmin > tzmax) __swap(tzmin, tzmax);
+    if (tzmin > tzmax) _swap(tzmin, tzmax);
 
     if (tmin > tzmax || tzmin > tmax){
         *near = 1e10;
