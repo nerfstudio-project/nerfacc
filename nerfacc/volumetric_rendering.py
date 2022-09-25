@@ -116,9 +116,7 @@ def volumetric_rendering_pipeline(
 
     # Query sigma and color with gradients
     rgbs, sigmas = rgb_sigma_fn(frustum_starts, frustum_ends, ray_indices)
-    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
-        rgbs.shape
-    )
+    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(rgbs.shape)
     assert sigmas.shape[-1] == 1, "sigmas must have 1 channel, got {}".format(
         sigmas.shape
     )

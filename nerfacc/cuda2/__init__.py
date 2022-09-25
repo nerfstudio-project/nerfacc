@@ -31,10 +31,5 @@ contract = _make_lazy_cuda_func("contract")
 contract_inv = _make_lazy_cuda_func("contract_inv")
 
 # rendering.cu
-volumetric_rendering_steps = _make_lazy_cuda_func("volumetric_rendering_steps")
-volumetric_rendering_weights_forward = _make_lazy_cuda_func(
-    "volumetric_rendering_weights_forward"
-)
-volumetric_rendering_weights_backward = _make_lazy_cuda_func(
-    "volumetric_rendering_weights_backward"
-)
+rendering_forward = _make_lazy_cuda_func("rendering_forward")
+rendering_backward = _make_lazy_cuda_func("rendering_backward")

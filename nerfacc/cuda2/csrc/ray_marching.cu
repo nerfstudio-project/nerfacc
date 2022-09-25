@@ -21,6 +21,12 @@ inline __device__ __host__ bool grid_occupied_at(
     const float3 xyz, const float3 aabb_min, const float3 aabb_max,
     const int3 occ_res, const bool *occ_binary, ContractionType occ_type)
 {
+    if (xyz.x < aabb_min.x || xyz.x > aabb_max.x ||
+        xyz.y < aabb_min.y || xyz.y > aabb_max.y ||
+        xyz.z < aabb_min.z || xyz.z > aabb_max.z)
+    {
+        return false;
+    }
     float3 _xyz = __contract(aabb_normalize(xyz, aabb_min, aabb_max), occ_type, true);
     int idx = grid_idx_at(_xyz, occ_res);
     return occ_binary[idx];
@@ -443,7 +449,6 @@ torch::Tensor contract(
         out_samples.data_ptr<float>());
     return out_samples;
 }
-
 
 __global__ void contract_inv_kernel(
     // samples info

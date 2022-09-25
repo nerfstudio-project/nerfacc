@@ -4,7 +4,8 @@ import torch
 import torch.nn as nn
 
 from .contraction import ContractionType, contract_inv
-from .ray_marching import ray_aabb_intersect
+
+# from .ray_marching import ray_aabb_intersect
 
 # TODO: add this to the dependency
 # from torch_scatter import scatter_max
@@ -37,6 +38,16 @@ class Grid(nn.Module):
     @property
     def device(self) -> torch.device:
         return self._dummy.device
+
+    def roi_aabb(self) -> torch.Tensor:
+        """Return the axis-aligned bounding box of the region of interest.
+
+        The aabb is a (6,) tensor in the format of [minx, miny, minz, maxx, maxy, maxz].
+
+        Note:
+            this function will be called by `ray_marching`.
+        """
+        return torch.tensor([0, 0, 0, 1, 1, 1], dtype=torch.float32, device=self.device)
 
     def binarize(self) -> torch.Tensor:
         """Return a 3D binarized tensor with torch.bool data type.
@@ -155,6 +166,10 @@ class OccupancyGrid(Grid):
         #     occ, indices, dim=0, out=self.occs * ema_decay
         # )
         self.occs_binary = self.occs > torch.clamp(self.occs.mean(), max=occ_thre)
+
+    @torch.no_grad()
+    def roi_aabb(self) -> torch.Tensor:
+        return self.aabb
 
     @torch.no_grad()
     def binarize(self):

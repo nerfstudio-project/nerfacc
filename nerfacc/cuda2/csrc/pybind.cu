@@ -5,25 +5,21 @@ std::vector<torch::Tensor> ray_aabb_intersect(
     const torch::Tensor rays_d,
     const torch::Tensor aabb);
 
-std::vector<torch::Tensor> volumetric_rendering_steps(
+std::vector<torch::Tensor> rendering_forward(
     torch::Tensor packed_info,
     torch::Tensor starts,
     torch::Tensor ends,
-    torch::Tensor sigmas);
+    torch::Tensor sigmas,
+    float early_stop_eps);
 
-torch::Tensor volumetric_rendering_weights_forward(
-    torch::Tensor packed_info,
-    torch::Tensor starts,
-    torch::Tensor ends,
-    torch::Tensor sigmas);
-
-torch::Tensor volumetric_rendering_weights_backward(
+torch::Tensor rendering_backward(
     torch::Tensor weights,
     torch::Tensor grad_weights,
     torch::Tensor packed_info,
     torch::Tensor starts,
     torch::Tensor ends,
-    torch::Tensor sigmas);
+    torch::Tensor sigmas,
+    float early_stop_eps);
 
 std::vector<torch::Tensor> ray_marching(
     // rays
@@ -40,7 +36,8 @@ std::vector<torch::Tensor> ray_marching(
     const float step_size,
     const float cone_angle);
 
-torch::Tensor unpack_to_ray_indices(const torch::Tensor packed_info);
+torch::Tensor unpack_to_ray_indices(
+    const torch::Tensor packed_info);
 
 torch::Tensor query_occ(
     const torch::Tensor samples,
@@ -73,9 +70,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
     m.def("ray_marching", &ray_marching);
-    m.def("volumetric_rendering_steps", &volumetric_rendering_steps);
-    m.def("volumetric_rendering_weights_forward", &volumetric_rendering_weights_forward);
-    m.def("volumetric_rendering_weights_backward", &volumetric_rendering_weights_backward);
+    m.def("rendering_forward", &rendering_forward);
+    m.def("rendering_backward", &rendering_backward);
     m.def("unpack_to_ray_indices", &unpack_to_ray_indices);
     m.def("query_occ", &query_occ);
     m.def("contract", &contract);
