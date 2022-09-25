@@ -117,9 +117,9 @@ def render_image(
             rays_o=chunk_rays.origins,
             rays_d=chunk_rays.viewdirs,
             scene_aabb=scale_aabb(
-                occ_field.aabb, 0.5 if contraction == "mipnerf360" else 1.0
+                occ_grid.aabb, 0.5 if contraction == "mipnerf360" else 1.0
             ),
-            grid=occ_field,
+            grid=occ_grid,
             render_bkgd=render_bkgd,
             render_step_size=render_step_size,
             near_plane=0.2 if contraction == "mipnerf360" else None,
@@ -235,7 +235,7 @@ if __name__ == "__main__":
         radiance_field = NGPradianceField(aabb=radiance_aabb).to(device)
         optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
         max_steps = 20000
-        occ_field_warmup_steps = 256
+        occ_grid_warmup_steps = 256
         grad_scaler = torch.cuda.amp.GradScaler(2**10)
 
     elif args.method == "vanilla":
@@ -245,7 +245,7 @@ if __name__ == "__main__":
         radiance_field = VanillaNeRFRadianceField().to(device)
         optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
         max_steps = 40000
-        occ_field_warmup_steps = 2000
+        occ_grid_warmup_steps = 2000
         grad_scaler = torch.cuda.amp.GradScaler(1)
         data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
         target_sample_batch_size = 1 << 16
@@ -257,7 +257,7 @@ if __name__ == "__main__":
         radiance_field = DNeRFRadianceField().to(device)
         optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
         max_steps = 40000
-        occ_field_warmup_steps = 2000
+        occ_grid_warmup_steps = 2000
         grad_scaler = torch.cuda.amp.GradScaler(1)
         data_root_fp = "/home/ruilongli/data/dnerf/"
         target_sample_batch_size = 1 << 16
@@ -332,9 +332,7 @@ if __name__ == "__main__":
         if args.contraction == "mipnerf360":
             # TODO: goes into radiance field: defined by user.
             # mipnerf360 contract scene into a sphere
-            x_norm = (x - occ_field.aabb[:3]) / (
-                occ_field.aabb[3:] - occ_field.aabb[:3]
-            )
+            x_norm = (x - occ_grid.aabb[:3]) / (occ_grid.aabb[3:] - occ_grid.aabb[:3])
             x_norm = x_norm * 4 - 2  # to [-2, 2]
             r = torch.linalg.norm(x_norm, dim=-1, keepdim=True)
             contraction_scaling = 1 / ((2 - r) ** 2)
@@ -349,7 +347,7 @@ if __name__ == "__main__":
         # occupancy = density_after_activation * step_size
         return occupancy
 
-    occ_field = OccupancyGrid(
+    occ_grid = OccupancyGrid(
         aabb=scene_aabb, resolution=128, contraction=contraction
     ).to(device)
 
@@ -371,9 +369,7 @@ if __name__ == "__main__":
             timestamps = data.get("timestamps", None)
 
             # update occupancy grid
-            occ_field.every_n_step(
-                step, occ_eval_fn, warmup_steps=occ_field_warmup_steps
-            )
+            occ_grid.every_n_step(step, occ_eval_fn, warmup_steps=occ_grid_warmup_steps)
 
             rgb, acc, counter, compact_counter = render_image(
                 radiance_field,

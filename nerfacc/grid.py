@@ -10,19 +10,20 @@ from .contraction import ContractionType, contract_inv
 
 
 class Grid(nn.Module):
-    """Base class for all type of grid.
+    """An abstract Grid class.
 
     The grid is used as a cache of the 3D space to indicate whether each voxel
     area is important or not for the differentiable rendering process. The
     ray marching function (see :func:`nerfacc.ray_marching`) would use the
-    grid to skip the unimportant voxels.
+    grid to skip the unimportant voxel areas.
 
-    Generally, the grid is used to store density or opacity (see :class:`OccupancyGrid`),
-    which is Skip the space that is not occupied.
+    To work with :func:`nerfacc.ray_marching`, three attributes must exist:
 
-    For unbounded scene, a mapping function (:math:`f: x \\rightarrow x'`) is
-    used to contract the infinite 3D space into a finite voxel grid. See
-    :class:`nerfacc.ContractionType` for more details.
+        - :attr:`roi_aabb`: The axis-aligned bounding box of the region of interest.
+        - :attr:`binary`: A 3D binarized tensor of shape {resx, resy, resz},
+            with torch.bool data type.
+        - :attr:`contraction_type`: The contraction type of the grid, indicating how
+            the 3D space is contracted to the grid.
     """
 
     def __init__(self, *args, **kwargs):
@@ -33,49 +34,61 @@ class Grid(nn.Module):
     def device(self) -> torch.device:
         return self._dummy.device
 
+    @property
     def roi_aabb(self) -> torch.Tensor:
         """Return the axis-aligned bounding box of the region of interest.
 
-        The aabb is a (6,) tensor in the format of [minx, miny, minz, maxx, maxy, maxz].
+        The roi_aabb is a (6,) tensor in the format of [minx, miny, minz, maxx, maxy, maxz].
 
         Note:
-            this function will be called by `ray_marching`.
+            this function is required by :func:`nerfacc.ray_marching`.
         """
-        return torch.tensor([0, 0, 0, 1, 1, 1], dtype=torch.float32, device=self.device)
+        if hasattr(self, "_roi_aabb"):
+            return getattr(self, "_roi_aabb")
+        else:
+            raise NotImplementedError("please set an attribute named _roi_aabb")
 
-    def binarize(self) -> torch.Tensor:
+    @property
+    def binary(self) -> torch.Tensor:
         """Return a 3D binarized tensor with torch.bool data type.
 
         The tensor is of shape (resx, resy, resz). in which each boolen value
-        represents whether the corresponding voxel should be kept or not during
-        ray marching.
+        represents whether the corresponding voxel are should be kept or not.
 
         Note:
-            this function will be called by `ray_marching`.
+            this function is required by :func:`nerfacc.ray_marching`.
         """
-        return torch.ones((1, 1, 1), dtype=torch.bool, device=self.device)
+        if hasattr(self, "_binary"):
+            return getattr(self, "_binary")
+        else:
+            raise NotImplementedError("please set an attribute named _binary")
 
+    @property
     def contraction_type(self) -> ContractionType:
-        """Return the contraction type of the grid. Useful for unbounded scene.
+        """Return the contraction type of the grid.
 
-        See :class:`nerfacc.contraction.ContractionType` for more details.
+        The contraction type is an indicator of how the 3D space is contracted
+        to this voxel grid. See :class:`nerfacc.ContractionType` for more details.
 
         Note:
-            this function will be called by `ray_marching`.
+            this function is required by :func:`nerfacc.ray_marching`.
         """
-        return ContractionType.ROI_TO_UNIT
+        if hasattr(self, "_contraction_type"):
+            return getattr(self, "_contraction_type")
+        else:
+            raise NotImplementedError("please set an attribute named _contraction_type")
 
 
 class OccupancyGrid(Grid):
-    """Occupancy grid."""
+    """Occupancy grid: whether each voxel area is occupied or not."""
 
     NUM_DIM: int = 3
 
     def __init__(
         self,
-        aabb: Union[List[int], torch.Tensor],
+        roi_aabb: Union[List[int], torch.Tensor],
         resolution: Union[int, List[int], torch.Tensor] = 128,
-        contraction: ContractionType = ContractionType.ROI_TO_UNIT,
+        contraction_type: ContractionType = ContractionType.ROI_TO_UNIT,
     ) -> None:
         super().__init__()
         if isinstance(resolution, int):
@@ -85,28 +98,29 @@ class OccupancyGrid(Grid):
         assert isinstance(resolution, torch.Tensor), f"Invalid type: {type(resolution)}"
         assert resolution.shape == (self.NUM_DIM,), f"Invalid shape: {resolution.shape}"
 
-        if isinstance(aabb, (list, tuple)):
-            aabb = torch.tensor(aabb, dtype=torch.float32)
-        assert isinstance(aabb, torch.Tensor), f"Invalid type: {type(aabb)}"
-        assert aabb.shape == torch.Size(
+        if isinstance(roi_aabb, (list, tuple)):
+            roi_aabb = torch.tensor(roi_aabb, dtype=torch.float32)
+        assert isinstance(roi_aabb, torch.Tensor), f"Invalid type: {type(roi_aabb)}"
+        assert roi_aabb.shape == torch.Size(
             [self.NUM_DIM * 2]
-        ), f"Invalid shape: {aabb.shape}"
-
-        self.register_buffer("resolution", resolution)
-        self.register_buffer("aabb", aabb)
-        self.contraction = contraction
+        ), f"Invalid shape: {roi_aabb.shape}"
 
         # total number of voxels
-        self.num_cells = int(self.resolution.prod().item())
+        self.num_cells = int(resolution.prod().item())
 
-        # Stores cell occupancy values ranged in [0, 1].
-        occs = torch.zeros(self.num_cells)
-        self.register_buffer("occs", occs)
-        occs_binary = torch.zeros_like(occs, dtype=torch.bool)
-        self.register_buffer("occs_binary", occs_binary)
+        # required attributes
+        self.register_buffer("_roi_aabb", roi_aabb)
+        self.register_buffer(
+            "_binary", torch.zeros(resolution.tolist(), dtype=torch.bool)
+        )
+        self._contraction_type = contraction_type
+
+        # helper attributes
+        self.register_buffer("resolution", resolution)
+        self.register_buffer("occs", torch.zeros(self.num_cells))
 
         # Grid coords & indices
-        grid_coords = _meshgrid3d(self.resolution).reshape(self.num_cells, self.NUM_DIM)
+        grid_coords = _meshgrid3d(resolution).reshape(self.num_cells, self.NUM_DIM)
         self.register_buffer("grid_coords", grid_coords)
         grid_indices = torch.arange(self.num_cells)
         self.register_buffer("grid_indices", grid_indices)
@@ -150,7 +164,7 @@ class OccupancyGrid(Grid):
             grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
         ) / self.resolution
         # voxel coordinates [0, 1]^3 -> world
-        x = contract_inv(x, self.aabb, self.contraction)
+        x = contract_inv(x, self._roi_aabb, self._contraction_type)
         occ = occ_eval_fn(x).squeeze(-1)
 
         # ema update
@@ -159,20 +173,9 @@ class OccupancyGrid(Grid):
         # self.occs, _ = scatter_max(
         #     occ, indices, dim=0, out=self.occs * ema_decay
         # )
-        self.occs_binary = self.occs > torch.clamp(self.occs.mean(), max=occ_thre)
-
-    @torch.no_grad()
-    def roi_aabb(self) -> torch.Tensor:
-        return self.aabb
-
-    @torch.no_grad()
-    def binarize(self):
-        # TODO: try to avoid tolist
-        return self.occs_binary.reshape(self.resolution.tolist())
-
-    @torch.no_grad()
-    def contraction_type(self):
-        return ContractionType.ROI_TO_UNIT
+        self._binary = (
+            self.occs > torch.clamp(self.occs.mean(), max=occ_thre)
+        ).reshape(self._binary.shape)
 
     @torch.no_grad()
     def every_n_step(
@@ -183,23 +186,22 @@ class OccupancyGrid(Grid):
         ema_decay: float = 0.95,
         warmup_steps: int = 256,
         n: int = 16,
-    ):
+    ) -> None:
         """Update the field every n steps during training.
 
         This function is designed for training only. If for some reason you want to
-        manually update the field, please use the ``_update()`` function instead.
+        manually update the field, please use the function :func:`_update()` instead.
 
         Args:
             step: Current training step.
+            occ_eval_fn: A function that takes in samples (N, 3) and returns the occupancy
+                values (N, 1) at those locations.
             occ_thre: Threshold to binarize the occupancy field.
             ema_decay: The decay rate for EMA updates.
             warmup_steps: Sample all cells during the warmup stage. After the warmup
                 stage we change the sampling strategy to 1/4 uniformly sampled cells
                 together with 1/4 occupied cells.
             n: Update the field every n steps.
-
-        Returns:
-            None
         """
         if not self.training:
             raise RuntimeError(

@@ -20,7 +20,7 @@ def test_normalization():
     samples_out = contract(samples, aabb=aabb)
     assert torch.allclose(samples_out, samples * 0.5 + 0.5)
     samples_inv = contract_inv(samples_out, aabb=aabb)
-    assert torch.allclose(samples_inv, samples)
+    assert torch.allclose(samples_inv, samples, atol=1e-6)
 
 
 def test_contract():
