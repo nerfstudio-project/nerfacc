@@ -6,11 +6,7 @@ import torch.nn as nn
 
 
 class BaseRadianceField(nn.Module):
-    """An abstract RadianceField class (supports both 2D and 3D).
-
-    The key functions to be implemented are:
-    - forward(positions, directions, masks): returns rgb and density.
-    """
+    """An abstract RadianceField class."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__()

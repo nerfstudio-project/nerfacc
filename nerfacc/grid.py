@@ -134,7 +134,7 @@ class OccupancyGrid(Grid):
     def _sample_uniform_and_occupied_cells(self, n: int) -> torch.Tensor:
         """Samples both n uniform and occupied cells."""
         uniform_indices = torch.randint(self.num_cells, (n,), device=self.device)
-        occupied_indices = torch.nonzero(self.occs_binary)[:, 0]
+        occupied_indices = torch.nonzero(self._binary)[:, 0]
         if n < len(occupied_indices):
             selector = torch.randint(len(occupied_indices), (n,), device=self.device)
             occupied_indices = occupied_indices[selector]

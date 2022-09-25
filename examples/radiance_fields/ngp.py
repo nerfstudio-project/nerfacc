@@ -150,9 +150,7 @@ class NGPradianceField(BaseRadianceField):
         mask: torch.Tensor = None,
         only_density: bool = False,
     ):
-        positions = contract(positions, self.roi_aabb, self.contraction_type)
         # TODO: contract directions?
-
         if self.use_viewdirs and (directions is not None):
             assert (
                 positions.shape == directions.shape

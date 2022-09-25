@@ -36,7 +36,9 @@ def accumulate_along_rays(
     if not weights.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
     if values is not None:
-        assert values.dim() == 2 and values.shape[0] == weights.shape[0]
+        assert (
+            values.dim() == 2 and values.shape[0] == weights.shape[0]
+        ), "Invalid shapes: {} vs {}".format(values.shape, weights.shape)
         src = weights[:, None] * values
     else:
         src = weights[:, None]
