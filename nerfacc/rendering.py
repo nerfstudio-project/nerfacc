@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor
 
-import nerfacc.cuda as nerfacc_cuda
+import nerfacc.cuda as _C
 
 
 def accumulate_along_rays(
@@ -99,7 +99,7 @@ def _transmittance_compression_forward(
 ):
     """Forward pass of the transmittance compression."""
     with torch.no_grad():
-        weights, _packed_info, compact_selector = nerfacc_cuda.rendering_forward(
+        weights, _packed_info, compact_selector = _C.rendering_forward(
             packed_info.contiguous(),
             t_starts.contiguous(),
             t_ends.contiguous(),
@@ -147,7 +147,7 @@ class _TransmittanceCompressionBackward(torch.autograd.Function):
             sigmas,
             weights,
         ) = ctx.saved_tensors
-        grad_sigmas = nerfacc_cuda.rendering_backward(
+        grad_sigmas = _C.rendering_backward(
             weights.contiguous(),
             grad_weights.contiguous(),
             packed_info.contiguous(),

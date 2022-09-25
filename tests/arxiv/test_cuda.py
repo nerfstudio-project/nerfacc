@@ -1,7 +1,7 @@
 import torch
 import tqdm
 
-import nerfacc.cuda as nerfacc_cuda
+import nerfacc.cuda as _C
 
 device = "cuda:0"
 
@@ -13,18 +13,18 @@ def test_marching():
     rays_o = torch.rand((10000, 3), device=device)
     rays_d = torch.randn((10000, 3), device=device)
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
-    t_min, t_max = nerfacc_cuda.ray_aabb_intersect(rays_o, rays_d, scene_aabb)
+    t_min, t_max = _C.ray_aabb_intersect(rays_o, rays_d, scene_aabb)
 
     for i in tqdm.trange(50000):
         # 5485 it/s
-        _packed_info, t_starts, t_ends = nerfacc_cuda.ray_marching(
+        _packed_info, t_starts, t_ends = _C.ray_marching(
             rays_o.contiguous(),
             rays_d.contiguous(),
             t_min.contiguous(),
             t_max.contiguous(),
             scene_aabb.contiguous(),
             scene_occ_binary.contiguous(),
-            nerfacc_cuda.ContractionType.ROI_TO_UNIT,
+            _C.ContractionType.ROI_TO_UNIT,
             0.01,
             0.0,
         )
@@ -32,7 +32,7 @@ def test_marching():
     # t_starts tensor(74424.7656, device='cuda:0') t_ends tensor(76683.5312, device='cuda:0')
     for i in tqdm.trange(50000):
         # 4025 iter/s
-        packed_info, frustum_starts, frustum_ends = nerfacc_cuda.volumetric_marching(
+        packed_info, frustum_starts, frustum_ends = _C.volumetric_marching(
             # rays
             rays_o.contiguous(),
             rays_d.contiguous(),

@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor
 
-import nerfacc.cuda as nerfacc_cuda
+import nerfacc.cuda as _C
 
 from .grid import Grid
 
@@ -14,11 +14,12 @@ def ray_aabb_intersect(
 ) -> Tuple[Tensor, Tensor]:
     """Ray AABB Test.
 
-    Note: this function is not differentiable to inputs.
+    Note:
+        this function is not differentiable to any inputs.
 
     Args:
-        rays_o: Ray origins. Tensor with shape (n_rays, 3).
-        rays_d: Normalized ray directions. Tensor with shape (n_rays, 3).
+        rays_o: Ray origins of shape (n_rays, 3).
+        rays_d: Normalized ray directions of shape (n_rays, 3).
         aabb: Scene bounding box {xmin, ymin, zmin, xmax, ymax, zmax}. \
             Tensor with shape (6)
 
@@ -31,7 +32,7 @@ def ray_aabb_intersect(
         rays_o = rays_o.contiguous()
         rays_d = rays_d.contiguous()
         aabb = aabb.contiguous()
-        t_min, t_max = nerfacc_cuda.ray_aabb_intersect(rays_o, rays_d, aabb)
+        t_min, t_max = _C.ray_aabb_intersect(rays_o, rays_d, aabb)
     else:
         raise NotImplementedError("Only support cuda inputs.")
     return t_min, t_max
@@ -41,19 +42,19 @@ def ray_aabb_intersect(
 def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
     """Unpack `packed_info` to ray indices. Useful for converting per ray data to per sample data.
 
-    Note: this function is not differentiable to inputs.
+    Note: 
+        this function is not differentiable to any inputs.
 
     Args:
         packed_info: Stores information on which samples belong to the same ray. \
-            See ``volumetric_marching`` for details. Tensor with shape (n_rays, 2).
+            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
 
     Returns:
         Ray index of each sample. IntTensor with shape (n_sample).
 
     """
     if packed_info.is_cuda:
-        packed_info = packed_info.contiguous()
-        ray_indices = nerfacc_cuda.unpack_to_ray_indices(packed_info)
+        ray_indices = _C.unpack_to_ray_indices(packed_info.contiguous())
     else:
         raise NotImplementedError("Only support cuda inputs.")
     return ray_indices
@@ -77,7 +78,37 @@ def ray_marching(
     stratified: bool = False,
     cone_angle: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Ray marching with skipping."""
+    """Ray marching with grid-based skipping.
+
+    Args:
+        rays_o: Ray origins of shape (n_rays, 3).
+        rays_d: Normalized ray directions of shape (n_rays, 3).
+        t_min: Optional. Per-ray minimum distance. Tensor with shape (n_rays).
+        t_max: Optional. Per-ray maximum distance. Tensor with shape (n_rays).
+        scene_aabb: Optional. Scene bounding box for computing t_min and t_max.
+            A tensor with shape (6,) {xmin, ymin, zmin, xmax, ymax, zmax}.
+            scene_aabb which be ignored if both t_min and t_max are provided.
+        grid: Optional. Grid for to idicates where to skip during marching.
+            See :class:`nerfacc.Grid` for details.
+        near_plane: Optional. Near plane distance. If provided, it will be used
+            to clip t_min.
+        far_plane: Optional. Far plane distance. If provided, it will be used
+            to clip t_max.
+        render_step_size: Step size for marching. Default: 1e-3.
+        stratified: Whether to use stratified sampling. Default: False.
+        cone_angle: Cone angle for linearly-increased step size. 0. means
+            constant step size. Default: 0.0.
+
+    Returns:
+        A tuple of tensors.
+
+            - **packed_info**: Stores information on which samples belong to the same ray.
+                Tensor with shape (n_rays, 2). The first column stores the index of the
+                first sample of each ray. The second column stores the number of samples
+                of each ray.
+            - **t_starts**: Per-sample start distance. Tensor with shape (n_samples, 1).
+            - **t_ends**: Per-sample end distance. Tensor with shape (n_samples, 1).
+    """
     if not rays_o.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
 
@@ -105,9 +136,12 @@ def ray_marching(
 
     # use grid for skipping if given
     if grid is not None:
-        grid_roi_aabb = grid.roi_aabb().contiguous()
-        grid_binary = grid.binarize().contiguous()
-        grid_contraction_type = grid.contraction_type()
+        grid_roi_aabb = grid.roi_aabb.contiguous()
+        grid_binary = grid.binary.contiguous()
+        contraction_type = grid.contraction_type
+        # TODO: don't expose this for now until we have a better solution
+        # for how to structure the code
+        contraction_temperature = 1.0
     else:
         grid_roi_aabb = torch.tensor(
             [-1e10, -1e10, -1e10, 1e10, 1e10, 1e10],
@@ -115,18 +149,20 @@ def ray_marching(
             device=rays_o.device,
         )
         grid_binary = torch.ones([1, 1, 1], dtype=torch.bool, device=rays_o.device)
-        grid_contraction_type = nerfacc_cuda.ContractionType.ROI_TO_UNIT
+        contraction_type = _C.ContractionType.ROI_TO_UNIT
+        contraction_temperature = 1.0
 
-    packed_info, t_starts, t_ends = nerfacc_cuda.ray_marching(
+    packed_info, t_starts, t_ends = _C.ray_marching(
         # rays
         rays_o.contiguous(),
         rays_d.contiguous(),
         t_min.contiguous(),
         t_max.contiguous(),
-        # grid
+        # coontraction and grid
         grid_roi_aabb,
         grid_binary,
-        grid_contraction_type,
+        contraction_type,
+        contraction_temperature,
         # sampling
         render_step_size,
         cone_angle,

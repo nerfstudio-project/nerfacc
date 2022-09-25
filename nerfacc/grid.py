@@ -164,7 +164,7 @@ class OccupancyGrid(Grid):
             grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
         ) / self.resolution
         # voxel coordinates [0, 1]^3 -> world
-        x = contract_inv(x, self._roi_aabb, self._contraction_type)
+        x = contract_inv(x, roi=self._roi_aabb, type=self._contraction_type)
         occ = occ_eval_fn(x).squeeze(-1)
 
         # ema update
