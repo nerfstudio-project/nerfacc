@@ -10,12 +10,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
-from nerfacc import (
-    ContractionType,
-    OccupancyGrid,
-    contract,
-    volumetric_rendering_pipeline,
-)
+from nerfacc import ContractionType, OccupancyGrid, contract, volumetric_rendering
 
 device = "cuda:0"
 
@@ -111,7 +106,7 @@ def render_image(
     chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        chunk_results = volumetric_rendering_pipeline(
+        chunk_results = volumetric_rendering(
             sigma_fn=sigma_fn,
             rgb_sigma_fn=rgb_sigma_fn,
             rays_o=chunk_rays.origins,

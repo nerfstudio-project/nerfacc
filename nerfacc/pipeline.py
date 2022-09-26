@@ -7,7 +7,7 @@ from .ray_marching import ray_marching, unpack_to_ray_indices
 from .rendering import accumulate_along_rays, transmittance
 
 
-def volumetric_rendering_pipeline(
+def volumetric_rendering(
     # radiance field
     sigma_fn: Callable,
     rgb_sigma_fn: Callable,
@@ -96,6 +96,8 @@ def volumetric_rendering_pipeline(
             render_step_size=render_step_size,
             stratified=stratified,
             cone_angle=cone_angle,
+            # optionally pass in sigma_fn which will be used to early stop
+            # boolen to indicates wherther to early stop
         )
         extra_info["n_marching_samples"] = t_starts.shape[0]
         ray_indices = unpack_to_ray_indices(packed_info)
@@ -104,6 +106,8 @@ def volumetric_rendering_pipeline(
         sigmas = sigma_fn(t_starts, t_ends, ray_indices)
 
         # Compress samples through computing transmittance.
+        # TODO: support computing transmittance from alpha inputs
+        # "filter_occuleded samples"
         packed_info, t_starts, t_ends, sigmas = transmittance(
             packed_info, t_starts, t_ends, sigmas, early_stop_eps, compression=True
         )
@@ -118,6 +122,8 @@ def volumetric_rendering_pipeline(
     )
 
     # Rendering: compute weights and ray indices.
+    # TODO: support computing transmittance from alpha inputs
+    # "compute_transmittance_weights"
     weights = transmittance(
         packed_info, t_starts, t_ends, sigmas, early_stop_eps, compression=False
     )

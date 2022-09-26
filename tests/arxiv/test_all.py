@@ -1,7 +1,7 @@
 import torch
 import tqdm
 
-from nerfacc import OccupancyGrid, volumetric_rendering_pipeline
+from nerfacc import OccupancyGrid, volumetric_rendering
 
 device = "cuda:0"
 
@@ -26,7 +26,7 @@ def test_rendering():
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
     render_bkgd = torch.ones(3, device=device)
 
-    colors, opacities, depths = volumetric_rendering_pipeline(
+    colors, opacities, depths = volumetric_rendering(
         sigma_fn,
         rgb_sigma_fn,
         rays_o,

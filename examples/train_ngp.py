@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
-from nerfacc import ContractionType, OccupancyGrid, volumetric_rendering_pipeline
+from nerfacc import ContractionType, OccupancyGrid, volumetric_rendering
 
 device = "cuda:0"
 
@@ -63,7 +63,7 @@ def render_image(
     chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        chunk_results = volumetric_rendering_pipeline(
+        chunk_results = volumetric_rendering(
             sigma_fn=sigma_fn,
             rgb_sigma_fn=rgb_sigma_fn,
             rays_o=chunk_rays.origins,
@@ -226,7 +226,7 @@ if __name__ == "__main__":
         Returns:
             occupancy values with shape (N, 1).
         """
-        density_after_activation = radiance_field.query_density(x, need_contract=False)
+        density_after_activation = radiance_field.query_density(x)
         # those two are similar when density is small.
         # occupancy = 1.0 - torch.exp(-density_after_activation * render_step_size)
         occupancy = density_after_activation * render_step_size

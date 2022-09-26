@@ -1,6 +1,6 @@
 from .contraction import ContractionType, contract, contract_inv
 from .grid import Grid, OccupancyGrid
-from .pipeline import volumetric_rendering_pipeline
+from .pipeline import volumetric_rendering
 from .ray_marching import ray_aabb_intersect, ray_marching, unpack_to_ray_indices
 from .rendering import accumulate_along_rays, transmittance
 
@@ -15,5 +15,5 @@ __all__ = [
     "unpack_to_ray_indices",
     "accumulate_along_rays",
     "transmittance",
-    "volumetric_rendering_pipeline",
+    "volumetric_rendering",
 ]
