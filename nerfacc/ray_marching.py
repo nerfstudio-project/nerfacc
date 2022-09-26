@@ -141,7 +141,7 @@ def ray_marching(
         contraction_type = grid.contraction_type
         # TODO: don't expose this for now until we have a better solution
         # for how to structure the code
-        contraction_temperature = 1.0
+        contraction_temperature = grid.contraction_temperature
     else:
         grid_roi_aabb = torch.tensor(
             [-1e10, -1e10, -1e10, 1e10, 1e10, 1e10],

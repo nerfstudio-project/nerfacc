@@ -78,6 +78,24 @@ class Grid(nn.Module):
         else:
             raise NotImplementedError("please set an attribute named _contraction_type")
 
+    @property
+    def contraction_temperature(self) -> ContractionType:
+        """Return the contraction type of the grid.
+
+        The contraction temperature is useful if the contraction type is
+        :attr:`nerfacc.ContractionType.INF_TO_UNIT_TANH`. See
+        :class:`nerfacc.ContractionType` for more details.
+
+        Note:
+            this function is required by :func:`nerfacc.ray_marching`.
+        """
+        if hasattr(self, "_contraction_temperature"):
+            return getattr(self, "_contraction_temperature")
+        else:
+            raise NotImplementedError(
+                "please set an attribute named _contraction_temperature"
+            )
+
 
 class OccupancyGrid(Grid):
     """Occupancy grid: whether each voxel area is occupied or not."""
@@ -89,6 +107,7 @@ class OccupancyGrid(Grid):
         roi_aabb: Union[List[int], torch.Tensor],
         resolution: Union[int, List[int], torch.Tensor] = 128,
         contraction_type: ContractionType = ContractionType.ROI_TO_UNIT,
+        contraction_temperture: float = 1.0,
     ) -> None:
         super().__init__()
         if isinstance(resolution, int):
@@ -114,6 +133,7 @@ class OccupancyGrid(Grid):
             "_binary", torch.zeros(resolution.tolist(), dtype=torch.bool)
         )
         self._contraction_type = contraction_type
+        self._contraction_temperature = contraction_temperture
 
         # helper attributes
         self.register_buffer("resolution", resolution)
@@ -164,7 +184,12 @@ class OccupancyGrid(Grid):
             grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
         ) / self.resolution
         # voxel coordinates [0, 1]^3 -> world
-        x = contract_inv(x, roi=self._roi_aabb, type=self._contraction_type)
+        x = contract_inv(
+            x,
+            roi=self._roi_aabb,
+            type=self._contraction_type,
+            temperature=self._contraction_temperature,
+        )
         occ = occ_eval_fn(x).squeeze(-1)
 
         # ema update

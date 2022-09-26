@@ -148,13 +148,16 @@ if __name__ == "__main__":
     # setup the scene bounding box.
     if args.unbounded:
         print("Using unbounded rendering")
-        contraction_type = ContractionType.INF_TO_UNIT_SPHERE
+        # contraction_type = ContractionType.INF_TO_UNIT_SPHERE
+        contraction_type = ContractionType.INF_TO_UNIT_TANH
+        contraction_temperture = 8.0
         scene_aabb = None
         near_plane = 0.2
         far_plane = 1e4
         render_step_size = 1e-2
     else:
         contraction_type = ContractionType.ROI_TO_UNIT
+        contraction_temperture = 1.0
         scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
         near_plane = None
         far_plane = None
@@ -166,7 +169,9 @@ if __name__ == "__main__":
     max_steps = 20000
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPradianceField(
-        roi_aabb=args.aabb, contraction_type=contraction_type
+        roi_aabb=args.aabb,
+        contraction_type=contraction_type,
+        contraction_temperture=contraction_temperture,
     ).to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
@@ -236,6 +241,7 @@ if __name__ == "__main__":
         roi_aabb=args.aabb,
         resolution=grid_resolution,
         contraction_type=contraction_type,
+        contraction_temperture=contraction_temperture,
     ).to(device)
 
     # training

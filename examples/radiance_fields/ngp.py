@@ -48,6 +48,7 @@ class NGPradianceField(BaseRadianceField):
         use_viewdirs: bool = True,
         density_activation: Callable = lambda x: trunc_exp(x - 1),
         contraction_type: ContractionType = ContractionType.ROI_TO_UNIT,
+        contraction_temperture: float = 1.0,
     ) -> None:
         super().__init__()
         if not isinstance(roi_aabb, torch.Tensor):
@@ -57,6 +58,7 @@ class NGPradianceField(BaseRadianceField):
         self.use_viewdirs = use_viewdirs
         self.density_activation = density_activation
         self.contraction_type = contraction_type
+        self.contraction_temperture = contraction_temperture
 
         self.geo_feat_dim = 15
         per_level_scale = 1.4472692012786865
@@ -114,7 +116,7 @@ class NGPradianceField(BaseRadianceField):
 
     def query_density(self, x, return_feat: bool = False, need_contract: bool = True):
         if need_contract:
-            x = contract(x, self.roi_aabb, self.contraction_type)
+            x = contract(x, self.roi_aabb, self.contraction_type, self.contraction_temperture)
         selector = ((x > 0.0) & (x < 1.0)).all(dim=-1)
         x = (
             self.mlp_base(x.view(-1, self.num_dim))

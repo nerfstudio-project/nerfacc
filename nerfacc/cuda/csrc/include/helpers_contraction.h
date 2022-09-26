@@ -30,17 +30,22 @@ inline __device__ __host__ float3 inf_to_unit_tanh(
     return make_float3(
         tanhf(xyz.x / temperature),
         tanhf(xyz.y / temperature),
-        tanhf(xyz.z / temperature));
+        tanhf(xyz.z / temperature)) * 0.5f + 0.5f;
 }
 
 inline __device__ __host__ float3 unit_to_inf_tanh(
     const float3 xyz, const float temperature)
 {
     // [0, 1]^3 -> [-inf, inf]^3
-    return make_float3(
-        atanhf(xyz.x) * temperature,
-        atanhf(xyz.y) * temperature,
-        atanhf(xyz.z) * temperature);
+    return clamp(
+        make_float3(
+            atanhf(xyz.x * 2.0f - 1.0f) * temperature,
+            atanhf(xyz.y * 2.0f - 1.0f) * temperature,
+            atanhf(xyz.z * 2.0f - 1.0f) * temperature
+        ), 
+        -1e10f, 
+        1e10f
+    );
 }
 
 inline __device__ __host__ float3 inf_to_unit_sphere(
