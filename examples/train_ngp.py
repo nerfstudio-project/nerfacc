@@ -254,7 +254,7 @@ if __name__ == "__main__":
             occupancy_grid.every_n_step(step, occ_eval_fn)
 
             # render
-            rgb, acc, depth, counter, compact_counter = render_image(
+            rgb, acc, depth, n_marching_samples, n_rendering_samples = render_image(
                 radiance_field,
                 occupancy_grid,
                 rays,
@@ -270,7 +270,7 @@ if __name__ == "__main__":
             # dynamic batch size for rays to keep sample batch size constant.
             num_rays = len(pixels)
             num_rays = int(
-                num_rays * (target_sample_batch_size / float(compact_counter))
+                num_rays * (target_sample_batch_size / float(n_rendering_samples))
             )
             train_dataset.update_num_rays(num_rays)
             alive_ray_mask = acc.squeeze(-1) > 0
@@ -291,7 +291,8 @@ if __name__ == "__main__":
                     f"elapsed_time={elapsed_time:.2f}s | {step=} | "
                     f"loss={loss:.5f} | "
                     f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
-                    f"counter={counter:d} | compact_counter={compact_counter:d} | num_rays={len(pixels):d} |"
+                    f"n_marching_samples={n_marching_samples:d} | "
+                    f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
                 )
 
             if step >= 0 and step % 1000 == 0 and step > 0:
@@ -305,7 +306,6 @@ if __name__ == "__main__":
                         render_bkgd = data["color_bkgd"]
                         rays = data["rays"]
                         pixels = data["pixels"]
-                        timestamps = data.get("timestamps", None)
 
                         # rendering
                         rgb, acc, depth, _, _ = render_image(
