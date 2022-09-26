@@ -150,7 +150,7 @@ if __name__ == "__main__":
         print("Using unbounded rendering")
         # contraction_type = ContractionType.INF_TO_UNIT_SPHERE
         contraction_type = ContractionType.INF_TO_UNIT_TANH
-        contraction_temperture = 8.0
+        contraction_temperture = 16  # 8.0
         scene_aabb = None
         near_plane = 0.2
         far_plane = 1e4
