@@ -34,7 +34,7 @@ def render_image(
     render_bkgd,
     cone_angle,
     # test options
-    test_chunk_size: int = 81920,
+    test_chunk_size: int = 8192,
 ):
     """Render the pixels of an image."""
     rays_shape = rays.origins.shape
@@ -119,7 +119,7 @@ if __name__ == "__main__":
             "materials",
             "mic",
             "ship",
-            # mipnerf360
+            # mipnerf360 unbounded
             "garden",
         ],
         help="which scene to use",
@@ -133,19 +133,40 @@ if __name__ == "__main__":
     parser.add_argument(
         "--test_chunk_size",
         type=int,
-        default=81920,
+        default=8192,
+    )
+    parser.add_argument(
+        "--unbounded",
+        action="store_true",
+        help="whether to use unbounded rendering",
     )
     parser.add_argument("--cone_angle", type=float, default=0.0)
     args = parser.parse_args()
 
+    render_n_samples = 1024
+
     # setup the scene bounding box.
-    scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
+    if args.unbounded:
+        print("Using unbounded rendering")
+        contraction_type = ContractionType.INF_TO_UNIT_SPHERE
+        scene_aabb = None
+        near_plane = 0.2
+        far_plane = 1e4
+        render_step_size = 1e-2
+    else:
+        contraction_type = ContractionType.ROI_TO_UNIT
+        scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
+        near_plane = None
+        far_plane = None
+        render_step_size = (
+            (scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples
+        ).item()
 
     # setup the radiance field we want to train.
     max_steps = 20000
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPradianceField(
-        roi_aabb=args.aabb, contraction_type=ContractionType.ROI_TO_UNIT
+        roi_aabb=args.aabb, contraction_type=contraction_type
     ).to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
@@ -153,12 +174,6 @@ if __name__ == "__main__":
         milestones=[max_steps // 2, max_steps * 3 // 4, max_steps * 9 // 10],
         gamma=0.33,
     )
-
-    # setup some rendering settings
-    render_n_samples = 1024
-    render_step_size = (
-        (scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples
-    ).item()
 
     # setup the dataset
     train_dataset_kwargs = {}
@@ -170,11 +185,13 @@ if __name__ == "__main__":
         target_sample_batch_size = 1 << 20
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
+        grid_resolution = 128
     else:
         from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
 
         data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
         target_sample_batch_size = 1 << 18
+        grid_resolution = 128
 
     train_dataset = SubjectLoader(
         subject_id=args.scene,
@@ -209,7 +226,7 @@ if __name__ == "__main__":
         Returns:
             occupancy values with shape (N, 1).
         """
-        density_after_activation = radiance_field.query_density(x)
+        density_after_activation = radiance_field.query_density(x, need_contract=False)
         # those two are similar when density is small.
         # occupancy = 1.0 - torch.exp(-density_after_activation * render_step_size)
         occupancy = density_after_activation * render_step_size
@@ -217,8 +234,8 @@ if __name__ == "__main__":
 
     occupancy_grid = OccupancyGrid(
         roi_aabb=args.aabb,
-        resolution=128,
-        contraction_type=ContractionType.ROI_TO_UNIT,
+        resolution=grid_resolution,
+        contraction_type=contraction_type,
     ).to(device)
 
     # training
@@ -243,8 +260,8 @@ if __name__ == "__main__":
                 rays,
                 scene_aabb,
                 # rendering options
-                near_plane=None,
-                far_plane=None,
+                near_plane=near_plane,
+                far_plane=far_plane,
                 render_step_size=render_step_size,
                 render_bkgd=render_bkgd,
                 cone_angle=args.cone_angle,
@@ -277,7 +294,7 @@ if __name__ == "__main__":
                     f"counter={counter:d} | compact_counter={compact_counter:d} | num_rays={len(pixels):d} |"
                 )
 
-            if step >= 0 and step % max_steps == 0 and step > 0:
+            if step >= 0 and step % 1000 == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
@@ -308,15 +325,15 @@ if __name__ == "__main__":
                         mse = F.mse_loss(rgb, pixels)
                         psnr = -10.0 * torch.log(mse) / np.log(10.0)
                         psnrs.append(psnr.item())
-                        # imageio.imwrite(
-                        #     "acc_binary_test.png",
-                        #     ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
-                        # )
-                        # imageio.imwrite(
-                        #     "rgb_test.png",
-                        #     (rgb.cpu().numpy() * 255).astype(np.uint8),
-                        # )
-                        # break
+                        imageio.imwrite(
+                            "acc_binary_test.png",
+                            ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
+                        )
+                        imageio.imwrite(
+                            "rgb_test.png",
+                            (rgb.cpu().numpy() * 255).astype(np.uint8),
+                        )
+                        break
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
                 train_dataset.training = True

@@ -134,7 +134,7 @@ class OccupancyGrid(Grid):
     def _sample_uniform_and_occupied_cells(self, n: int) -> torch.Tensor:
         """Samples both n uniform and occupied cells."""
         uniform_indices = torch.randint(self.num_cells, (n,), device=self.device)
-        occupied_indices = torch.nonzero(self._binary)[:, 0]
+        occupied_indices = torch.nonzero(self._binary.flatten())[:, 0]
         if n < len(occupied_indices):
             selector = torch.randint(len(occupied_indices), (n,), device=self.device)
             occupied_indices = occupied_indices[selector]
@@ -164,7 +164,9 @@ class OccupancyGrid(Grid):
             grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
         ) / self.resolution
         # voxel coordinates [0, 1]^3 -> world
-        x = contract_inv(x, roi=self._roi_aabb, type=self._contraction_type)
+        # TODO: print(x.min(), x.max())
+        # x = contract_inv(x, roi=self._roi_aabb, type=self._contraction_type)
+        # print(x.min(), x.max())
         occ = occ_eval_fn(x).squeeze(-1)
 
         # ema update

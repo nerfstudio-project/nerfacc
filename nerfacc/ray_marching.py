@@ -136,8 +136,8 @@ def ray_marching(
 
     # use grid for skipping if given
     if grid is not None:
-        grid_roi_aabb = grid.roi_aabb.contiguous()
-        grid_binary = grid.binary.contiguous()
+        grid_roi_aabb = grid.roi_aabb
+        grid_binary = grid.binary
         contraction_type = grid.contraction_type
         # TODO: don't expose this for now until we have a better solution
         # for how to structure the code
@@ -159,8 +159,8 @@ def ray_marching(
         t_min.contiguous(),
         t_max.contiguous(),
         # coontraction and grid
-        grid_roi_aabb,
-        grid_binary,
+        grid_roi_aabb.contiguous(),
+        grid_binary.contiguous(),
         contraction_type,
         contraction_temperature,
         # sampling
