@@ -28,6 +28,16 @@ def ray_aabb_intersect(
         Ray AABB intersection {t_min, t_max} with shape (n_rays) respectively. \
         Note the t_min is clipped to minimum zero. 1e10 means no intersection.
 
+    Examples:
+
+    .. code-block:: python
+
+        aabb = torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0, 1.0], device="cuda:0")
+        rays_o = torch.rand((128, 3), device="cuda:0")
+        rays_d = torch.randn((128, 3), device="cuda:0")
+        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+        t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabb)
+
     """
     if rays_o.is_cuda and rays_d.is_cuda and aabb.is_cuda:
         rays_o = rays_o.contiguous()
@@ -51,7 +61,25 @@ def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
             See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
 
     Returns:
-        Ray index of each sample. IntTensor with shape (n_sample).
+        Ray index of each sample. LongTensor with shape (n_sample).
+
+    Examples:
+
+    .. code-block:: python
+
+        rays_o = torch.rand((128, 3), device="cuda:0")
+        rays_d = torch.randn((128, 3), device="cuda:0")
+        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+        # Ray marching with near far plane.
+        packed_info, t_starts, t_ends = ray_marching(
+            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
+        )
+        # torch.Size([128, 2]) torch.Size([115200, 1]) torch.Size([115200, 1])
+        print(packed_info.shape, t_starts.shape, t_ends.shape)
+        # Unpack per-ray info to per-sample info.
+        ray_indices = unpack_to_ray_indices(packed_info)
+        # torch.Size([115200]) torch.int64
+        print(ray_indices.shape, ray_indices.dtype)
 
     """
     if packed_info.is_cuda:

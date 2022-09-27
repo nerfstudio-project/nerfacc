@@ -113,8 +113,8 @@ def render_weight_from_alpha(
 
 @torch.no_grad()
 def render_visibility(
-    packed_info,
-    alphas,
+    packed_info: torch.Tensor,
+    alphas: torch.Tensor,
     early_stop_eps: float = 1e-4,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Filter out invisible samples given alpha (opacity).
@@ -126,11 +126,12 @@ def render_visibility(
         early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
     
     Returns:
-        A tuple of tensors including:
+        A tuple of tensors.
 
-            - **visibility**: The visibility mask. Boolen tensor of shape (n_samples,).
-            - **packed_info_visible**: The new packed_info for visible samples. 
-                Tensor shape (n_rays, 2). It should be used if you use the visiblity
+            - **visibility**: The visibility mask for samples. Boolen tensor of shape \
+                (n_samples,).
+            - **packed_info_visible**: The new packed_info for visible samples. \
+                Tensor shape (n_rays, 2). It should be used if you use the visiblity \
                 mask to filter out invisible samples.
 
     """
