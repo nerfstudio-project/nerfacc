@@ -24,10 +24,9 @@ inline __device__ __host__ bool grid_occupied_at(
     const float3 xyz,
     const float3 roi_min, const float3 roi_max,
     ContractionType type,
-    const float temperature,
     const int3 grid_res, const bool *grid_binary)
 {
-    if (type == ContractionType::ROI_TO_UNIT && 
+    if (type == ContractionType::AABB &&
         (xyz.x < roi_min.x || xyz.x > roi_max.x ||
          xyz.y < roi_min.y || xyz.y > roi_max.y ||
          xyz.z < roi_min.z || xyz.z > roi_max.z))
@@ -35,7 +34,7 @@ inline __device__ __host__ bool grid_occupied_at(
         return false;
     }
     float3 xyz_unit = apply_contraction(
-        xyz, roi_min, roi_max, type, temperature);
+        xyz, roi_min, roi_max, type);
     int idx = grid_idx_at(xyz_unit, grid_res);
     return grid_binary[idx];
 }
@@ -84,7 +83,6 @@ __global__ void ray_marching_kernel(
     const int3 grid_res,
     const bool *grid_binary, // shape (reso_x, reso_y, reso_z)
     const ContractionType type,
-    const float temperature,
     // sampling
     const float step_size,
     const float cone_angle,
@@ -139,10 +137,7 @@ __global__ void ray_marching_kernel(
     {
         // current center
         const float3 xyz = origin + t_mid * dir;
-        if (grid_occupied_at(
-                xyz, roi_min, roi_max,
-                type, temperature,
-                grid_res, grid_binary))
+        if (grid_occupied_at(xyz, roi_min, roi_max, type, grid_res, grid_binary))
         {
             if (!is_first_round)
             {
@@ -160,7 +155,7 @@ __global__ void ray_marching_kernel(
             // march to next sample
             switch (type)
             {
-            case ContractionType::ROI_TO_UNIT:
+            case ContractionType::AABB:
                 // no contraction
                 t_mid = advance_to_next_voxel(
                     t_mid, dt_min, xyz, dir, inv_dir, roi_min, roi_max, grid_res);
@@ -196,7 +191,6 @@ std::vector<torch::Tensor> ray_marching(
     const torch::Tensor roi,
     const torch::Tensor grid_binary,
     const ContractionType type,
-    const float temperature,
     // sampling
     const float step_size,
     const float cone_angle)
@@ -240,7 +234,6 @@ std::vector<torch::Tensor> ray_marching(
         grid_res,
         grid_binary.data_ptr<bool>(),
         type,
-        temperature,
         // sampling
         step_size,
         cone_angle,
@@ -270,7 +263,6 @@ std::vector<torch::Tensor> ray_marching(
         grid_res,
         grid_binary.data_ptr<bool>(),
         type,
-        temperature,
         // sampling
         step_size,
         cone_angle,
@@ -343,7 +335,6 @@ __global__ void query_occ_kernel(
     const int3 grid_res,
     const bool *grid_binary, // shape (reso_x, reso_y, reso_z)
     const ContractionType type,
-    const float temperature,
     // outputs
     bool *occs)
 {
@@ -357,10 +348,7 @@ __global__ void query_occ_kernel(
     const float3 roi_max = make_float3(roi[3], roi[4], roi[5]);
     const float3 xyz = make_float3(samples[0], samples[1], samples[2]);
 
-    *occs = grid_occupied_at(
-        xyz, roi_min, roi_max,
-        type, temperature,
-        grid_res, grid_binary);
+    *occs = grid_occupied_at(xyz, roi_min, roi_max, type, grid_res, grid_binary);
     return;
 }
 
@@ -369,8 +357,7 @@ torch::Tensor query_occ(
     // occupancy grid & contraction
     const torch::Tensor roi,
     const torch::Tensor grid_binary,
-    const ContractionType type,
-    const float temperature)
+    const ContractionType type)
 {
     DEVICE_GUARD(samples);
     CHECK_INPUT(samples);
@@ -393,7 +380,6 @@ torch::Tensor query_occ(
         grid_res,
         grid_binary.data_ptr<bool>(),
         type,
-        temperature,
         // outputs
         occs.data_ptr<bool>());
     return occs;

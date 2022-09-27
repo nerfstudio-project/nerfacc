@@ -20,7 +20,7 @@ def test_normalization():
     samples_out = contract(samples, roi=roi)
     assert torch.allclose(samples_out, samples * 0.5 + 0.5)
     samples_inv = contract_inv(samples_out, roi=roi)
-    assert torch.allclose(samples_inv, samples)
+    assert torch.allclose(samples_inv, samples, atol=1e-6)
 
 
 def test_contract():
@@ -28,7 +28,7 @@ def test_contract():
     roi = torch.tensor(
         [0.2, 0.3, 0.4, 0.7, 0.8, 0.6], dtype=torch.float32, device=device
     )
-    for type in [ContractionType.INF_TO_UNIT_SPHERE, ContractionType.INF_TO_UNIT_TANH]:
+    for type in [ContractionType.UN_BOUNDED_SPHERE, ContractionType.UN_BOUNDED_TANH]:
         x_unit = contract(x, roi=roi, type=type)
         assert x_unit.max() <= 1 and x_unit.min() >= 0
         x_inv = contract_inv(x_unit, roi=roi, type=type)

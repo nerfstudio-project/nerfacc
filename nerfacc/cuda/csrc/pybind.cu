@@ -34,7 +34,6 @@ std::vector<torch::Tensor> ray_marching(
     const torch::Tensor roi,
     const torch::Tensor grid_binary,
     const ContractionType type,
-    const float temperature,
     // sampling
     const float step_size,
     const float cone_angle);
@@ -47,22 +46,19 @@ torch::Tensor query_occ(
     // occupancy grid & contraction
     const torch::Tensor roi,
     const torch::Tensor grid_binary,
-    const ContractionType type,
-    const float temperature);
+    const ContractionType type);
 
 torch::Tensor contract(
     const torch::Tensor samples,
     // contraction
     const torch::Tensor roi,
-    const ContractionType type,
-    const float temperature);
+    const ContractionType type);
 
 torch::Tensor contract_inv(
     const torch::Tensor samples,
     // contraction
     const torch::Tensor roi,
-    const ContractionType type,
-    const float temperature);
+    const ContractionType type);
 
 torch::Tensor rendering_alphas_backward(
     torch::Tensor weights,
@@ -81,9 +77,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
     py::enum_<ContractionType>(m, "ContractionType")
-        .value("ROI_TO_UNIT", ContractionType::ROI_TO_UNIT)
-        .value("INF_TO_UNIT_TANH", ContractionType::INF_TO_UNIT_TANH)
-        .value("INF_TO_UNIT_SPHERE", ContractionType::INF_TO_UNIT_SPHERE);
+        .value("AABB", ContractionType::AABB)
+        .value("UN_BOUNDED_TANH", ContractionType::UN_BOUNDED_TANH)
+        .value("UN_BOUNDED_SPHERE", ContractionType::UN_BOUNDED_SPHERE);
     m.def("contract", &contract);
     m.def("contract_inv", &contract_inv);
 

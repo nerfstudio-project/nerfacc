@@ -9,7 +9,6 @@ __global__ void contract_kernel(
     // contraction
     const float *roi,
     const ContractionType type,
-    const float temperature,
     // outputs
     float *out_samples)
 {
@@ -22,7 +21,7 @@ __global__ void contract_kernel(
     const float3 roi_min = make_float3(roi[0], roi[1], roi[2]);
     const float3 roi_max = make_float3(roi[3], roi[4], roi[5]);
     const float3 xyz = make_float3(samples[0], samples[1], samples[2]);
-    float3 xyz_unit = apply_contraction(xyz, roi_min, roi_max, type, temperature);
+    float3 xyz_unit = apply_contraction(xyz, roi_min, roi_max, type);
 
     out_samples[0] = xyz_unit.x;
     out_samples[1] = xyz_unit.y;
@@ -37,7 +36,6 @@ __global__ void contract_inv_kernel(
     // contraction
     const float *roi,
     const ContractionType type,
-    const float temperature,
     // outputs
     float *out_samples)
 {
@@ -50,7 +48,7 @@ __global__ void contract_inv_kernel(
     const float3 roi_min = make_float3(roi[0], roi[1], roi[2]);
     const float3 roi_max = make_float3(roi[3], roi[4], roi[5]);
     const float3 xyz_unit = make_float3(samples[0], samples[1], samples[2]);
-    float3 xyz = apply_contraction_inv(xyz_unit, roi_min, roi_max, type, temperature);
+    float3 xyz = apply_contraction_inv(xyz_unit, roi_min, roi_max, type);
 
     out_samples[0] = xyz.x;
     out_samples[1] = xyz.y;
@@ -62,8 +60,7 @@ torch::Tensor contract(
     const torch::Tensor samples,
     // contraction
     const torch::Tensor roi,
-    const ContractionType type,
-    const float temperature)
+    const ContractionType type)
 {
     DEVICE_GUARD(samples);
     CHECK_INPUT(samples);
@@ -80,7 +77,6 @@ torch::Tensor contract(
         // contraction
         roi.data_ptr<float>(),
         type,
-        temperature,
         // outputs
         out_samples.data_ptr<float>());
     return out_samples;
@@ -90,8 +86,7 @@ torch::Tensor contract_inv(
     const torch::Tensor samples,
     // contraction
     const torch::Tensor roi,
-    const ContractionType type,
-    const float temperature)
+    const ContractionType type)
 {
     DEVICE_GUARD(samples);
     CHECK_INPUT(samples);
@@ -108,7 +103,6 @@ torch::Tensor contract_inv(
         // contraction
         roi.data_ptr<float>(),
         type,
-        temperature,
         // outputs
         out_samples.data_ptr<float>());
     return out_samples;

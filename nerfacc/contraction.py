@@ -2,14 +2,25 @@ import torch
 
 import nerfacc.cuda as _C
 
-ContractionType = _C.ContractionType
+
+class ContractionType:
+    """Space Contraction options.
+
+    Attributes:
+        AABB: Linearly map the region of interest (roi) to [0, 1]^3.
+        UN_BOUNDED_SPHERE: Contract an unbounded space into a unit sphere.
+        UN_BOUNDED_TANH: Contract an unbounded space into a unit cube using tanh.
+    """
+
+    AABB = 0
+    UN_BOUNDED_TANH = 1
+    UN_BOUNDED_SPHERE = 2
 
 
 def contract(
     x: torch.Tensor,
     roi: torch.Tensor,
-    type: ContractionType = ContractionType.ROI_TO_UNIT,
-    temperature: float = 1.0,
+    type: ContractionType = ContractionType.AABB,
 ) -> torch.Tensor:
     """Contract the space into [0, 1]^3.
 
@@ -17,20 +28,18 @@ def contract(
         x (torch.Tensor): Un-contracted points.
         roi (torch.Tensor): Region of interest.
         type (ContractionType): Contraction type.
-        temperature (float): Temperature for the contraction. Only used
-            when `type` is `ContractionType.INF_TO_UNIT_TANH`.
 
     Returns:
         torch.Tensor: Contracted points ([0, 1]^3).
     """
-    return _C.contract(x.contiguous(), roi.contiguous(), type, temperature)
+    ctype = _C.ContractionType(type)
+    return _C.contract(x.contiguous(), roi.contiguous(), ctype)
 
 
 def contract_inv(
     x: torch.Tensor,
     roi: torch.Tensor,
-    type: ContractionType = ContractionType.ROI_TO_UNIT,
-    temperature: float = 1.0,
+    type: ContractionType = ContractionType.AABB,
 ) -> torch.Tensor:
     """Recover the space from [0, 1]^3 by inverse contraction.
 
@@ -38,10 +47,9 @@ def contract_inv(
         x (torch.Tensor): Contracted points ([0, 1]^3).
         roi (torch.Tensor): Region of interest.
         type (ContractionType): Contraction type.
-        temperature (float): Temperature for the contraction. Only used
-            when `type` is `ContractionType.INF_TO_UNIT_TANH`.
 
     Returns:
         torch.Tensor: Un-contracted points.
     """
-    return _C.contract_inv(x.contiguous(), roi.contiguous(), type, temperature)
+    ctype = _C.ContractionType(type)
+    return _C.contract_inv(x.contiguous(), roi.contiguous(), ctype)

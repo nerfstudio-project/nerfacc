@@ -144,10 +144,7 @@ def ray_marching(
     if grid is not None:
         grid_roi_aabb = grid.roi_aabb
         grid_binary = grid.binary
-        contraction_type = grid.contraction_type
-        # TODO: don't expose this for now until we have a better solution
-        # for how to structure the code
-        contraction_temperature = grid.contraction_temperature
+        contraction_type = _C.ContractionType(grid.contraction_type)
     else:
         grid_roi_aabb = torch.tensor(
             [-1e10, -1e10, -1e10, 1e10, 1e10, 1e10],
@@ -155,8 +152,7 @@ def ray_marching(
             device=rays_o.device,
         )
         grid_binary = torch.ones([1, 1, 1], dtype=torch.bool, device=rays_o.device)
-        contraction_type = _C.ContractionType.ROI_TO_UNIT
-        contraction_temperature = 1.0
+        contraction_type = _C.ContractionType.AABB
 
     # marching with grid-based skipping
     packed_info, t_starts, t_ends = _C.ray_marching(
@@ -169,7 +165,6 @@ def ray_marching(
         grid_roi_aabb.contiguous(),
         grid_binary.contiguous(),
         contraction_type,
-        contraction_temperature,
         # sampling
         render_step_size,
         cone_angle,
