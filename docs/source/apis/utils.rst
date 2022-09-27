@@ -4,6 +4,7 @@ Utils
 .. currentmodule:: nerfacc
 
 .. autosummary::
+   :nosignatures:
    :toctree: generated/
 
    ray_aabb_intersect
