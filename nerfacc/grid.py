@@ -71,7 +71,16 @@ class Grid(nn.Module):
 
 
 class OccupancyGrid(Grid):
-    """Occupancy grid: whether each voxel area is occupied or not."""
+    """Occupancy grid: whether each voxel area is occupied or not.
+
+    Args:
+        roi_aabb: The axis-aligned bounding box of the region of interest. Useful for mapping
+            the 3D space to the grid.
+        resolution: The resolution of the grid. If an integer is given, the grid is assumed to
+            be a cube. Otherwise, a list or a tensor of shape (3,) is expected. Default: 128.
+        contraction_type: The contraction type of the grid. See :class:`nerfacc.ContractionType`
+            for more details. Default: :attr:`nerfacc.ContractionType.AABB`.
+    """
 
     NUM_DIM: int = 3
 
@@ -182,21 +191,18 @@ class OccupancyGrid(Grid):
         warmup_steps: int = 256,
         n: int = 16,
     ) -> None:
-        """Update the field every n steps during training.
-
-        This function is designed for training only. If for some reason you want to
-        manually update the field, please use the function :func:`_update()` instead.
+        """Update the grid every n steps during training.
 
         Args:
             step: Current training step.
-            occ_eval_fn: A function that takes in samples (N, 3) and returns the occupancy
-                values (N, 1) at those locations.
-            occ_thre: Threshold to binarize the occupancy field.
-            ema_decay: The decay rate for EMA updates.
+            occ_eval_fn: A function that takes in sample locations :math:`(N, 3)` and
+                returns the occupancy values :math:`(N, 1)` at those locations.
+            occ_thre: Threshold used to binarize the occupancy grid. Default: 1e-2.
+            ema_decay: The decay rate for EMA updates. Default: 0.95.
             warmup_steps: Sample all cells during the warmup stage. After the warmup
                 stage we change the sampling strategy to 1/4 uniformly sampled cells
-                together with 1/4 occupied cells.
-            n: Update the field every n steps.
+                together with 1/4 occupied cells. Default: 256.
+            n: Update the grid every n steps. Default: 16.
         """
         if not self.training:
             raise RuntimeError(
