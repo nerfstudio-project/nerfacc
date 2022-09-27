@@ -28,6 +28,8 @@ def render_image(
     cone_angle: float = 0.0,
     # test options
     test_chunk_size: int = 8192,
+    # only useful for dnerf
+    timestamps: Optional[torch.Tensor] = None,
 ):
     """Render the pixels of an image."""
     rays_shape = rays.origins.shape
@@ -43,6 +45,14 @@ def render_image(
         t_origins = chunk_rays.origins[ray_indices]
         t_dirs = chunk_rays.viewdirs[ray_indices]
         positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+        if timestamps is not None:
+            # dnerf
+            t = (
+                timestamps[ray_indices]
+                if radiance_field.training
+                else timestamps.expand_as(positions[:, :1])
+            )
+            return radiance_field.query_density(positions, t)
         return radiance_field.query_density(positions)
 
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
@@ -50,6 +60,14 @@ def render_image(
         t_origins = chunk_rays.origins[ray_indices]
         t_dirs = chunk_rays.viewdirs[ray_indices]
         positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+        if timestamps is not None:
+            # dnerf
+            t = (
+                timestamps[ray_indices]
+                if radiance_field.training
+                else timestamps.expand_as(positions[:, :1])
+            )
+            return radiance_field(positions, t, t_dirs)
         return radiance_field(positions, t_dirs)
 
     results = []

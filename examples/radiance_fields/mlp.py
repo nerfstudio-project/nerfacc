@@ -247,6 +247,15 @@ class DNeRFRadianceField(nn.Module):
         )
         self.nerf = VanillaNeRFRadianceField()
 
+    def query_opacity(self, x, timestamps, step_size):
+        idxs = torch.randint(0, len(timestamps), (x.shape[0],), device=x.device)
+        t = timestamps[idxs]
+        density = self.query_density(x, t)
+        # if the density is small enough those two are the same.
+        # opacity = 1.0 - torch.exp(-density * step_size)
+        opacity = density * step_size
+        return opacity
+
     def query_density(self, x, t):
         x = x + self.warp(
             torch.cat([self.posi_encoder(x), self.time_encoder(t)], dim=-1)
