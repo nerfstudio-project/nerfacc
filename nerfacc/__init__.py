@@ -2,7 +2,7 @@ from .contraction import ContractionType, contract, contract_inv
 from .grid import Grid, OccupancyGrid
 from .pipeline import rendering, volumetric_rendering
 from .ray_marching import ray_aabb_intersect, ray_marching, unpack_to_ray_indices
-from .rendering import (
+from .vol_rendering import (
     accumulate_along_rays,
     render_visibility,
     render_weight_from_alpha,

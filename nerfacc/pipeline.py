@@ -4,7 +4,7 @@ import torch
 
 from .grid import Grid
 from .ray_marching import ray_marching, unpack_to_ray_indices
-from .rendering import accumulate_along_rays, render_weight_from_density
+from .vol_rendering import accumulate_along_rays, render_weight_from_density
 
 
 def rendering(
@@ -27,8 +27,8 @@ def rendering(
         This function is not differentiable to `t_starts`, `t_ends`.
 
     Args:
-        rgb_sigma_fn: A function that takes in samples {t_starts (N, 1), t_ends (N, 1),
-            ray indices (N,)} and returns the post-activation rgb (N, 3) and density
+        rgb_sigma_fn: A function that takes in samples {t_starts (N, 1), t_ends (N, 1), \
+            ray indices (N,)} and returns the post-activation rgb (N, 3) and density \
             values (N, 1).
         packed_info: Packed ray marching info. See :func:`ray_marching` for details.
         t_starts: Per-sample start distance. Tensor with shape (n_samples, 1).

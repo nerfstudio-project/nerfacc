@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
-from nerfacc import ContractionType, OccupancyGrid, volumetric_rendering
+from nerfacc import ContractionType, OccupancyGrid, ray_marching, rendering
 
 device = "cuda:0"
 
@@ -63,23 +63,28 @@ def render_image(
     chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        chunk_results = volumetric_rendering(
-            sigma_fn=sigma_fn,
-            rgb_sigma_fn=rgb_sigma_fn,
-            rays_o=chunk_rays.origins,
-            rays_d=chunk_rays.viewdirs,
+        packed_info, t_starts, t_ends = ray_marching(
+            chunk_rays.origins,
+            chunk_rays.viewdirs,
             scene_aabb=scene_aabb,
             grid=occupancy_grid,
+            sigma_fn=sigma_fn,
             near_plane=near_plane,
             far_plane=far_plane,
             render_step_size=render_step_size,
             stratified=radiance_field.training,
             cone_angle=cone_angle,
-            render_bkgd=render_bkgd,
-            return_extra_info=True,
         )
+        rgb, opacity, depth = rendering(
+            rgb_sigma_fn,
+            packed_info,
+            t_starts,
+            t_ends,
+            render_bkgd=render_bkgd,
+        )
+        chunk_results = [rgb, opacity, depth, len(t_starts)]
         results.append(chunk_results)
-    colors, opacities, depths, extra_info = [
+    colors, opacities, depths, n_rendering_samples = [
         torch.cat(r, dim=0) if isinstance(r[0], torch.Tensor) else r
         for r in zip(*results)
     ]
@@ -87,7 +92,7 @@ def render_image(
         colors.view((*rays_shape[:-1], -1)),
         opacities.view((*rays_shape[:-1], -1)),
         depths.view((*rays_shape[:-1], -1)),
-        sum([info["n_rendering_samples"] for info in extra_info]),
+        sum(n_rendering_samples),
     )
 
 
@@ -166,8 +171,8 @@ if __name__ == "__main__":
     max_steps = 20000
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPradianceField(
-        roi_aabb=args.aabb,
-        contraction_type=contraction_type,
+        aabb=args.aabb,
+        unbounded=args.unbounded,
     ).to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
@@ -217,22 +222,6 @@ if __name__ == "__main__":
     test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
     test_dataset.K = test_dataset.K.to(device)
 
-    # setup occupancy field with eval function
-    @torch.no_grad()
-    def occ_eval_fn(x: torch.Tensor) -> torch.Tensor:
-        """Evaluate occupancy given positions.
-
-        Args:
-            x: positions with shape (N, 3).
-        Returns:
-            occupancy values with shape (N, 1).
-        """
-        density_after_activation = radiance_field.query_density(x)
-        # those two are similar when density is small.
-        # occupancy = 1.0 - torch.exp(-density_after_activation * render_step_size)
-        occupancy = density_after_activation * render_step_size
-        return occupancy
-
     occupancy_grid = OccupancyGrid(
         roi_aabb=args.aabb,
         resolution=grid_resolution,
@@ -252,7 +241,10 @@ if __name__ == "__main__":
             pixels = data["pixels"]
 
             # update occupancy grid
-            occupancy_grid.every_n_step(step, occ_eval_fn)
+            occupancy_grid.every_n_step(
+                step=step,
+                occ_eval_fn=lambda x: radiance_field.query_opacity(x, render_step_size),
+            )
 
             # render
             rgb, acc, depth, n_rendering_samples = render_image(
@@ -295,7 +287,7 @@ if __name__ == "__main__":
                     f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
                 )
 
-            if step >= 0 and step % 1000 == 0 and step > 0:
+            if step >= 0 and step % max_steps == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
@@ -325,15 +317,15 @@ if __name__ == "__main__":
                         mse = F.mse_loss(rgb, pixels)
                         psnr = -10.0 * torch.log(mse) / np.log(10.0)
                         psnrs.append(psnr.item())
-                        imageio.imwrite(
-                            "acc_binary_test.png",
-                            ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
-                        )
-                        imageio.imwrite(
-                            "rgb_test.png",
-                            (rgb.cpu().numpy() * 255).astype(np.uint8),
-                        )
-                        break
+                        # imageio.imwrite(
+                        #     "acc_binary_test.png",
+                        #     ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
+                        # )
+                        # imageio.imwrite(
+                        #     "rgb_test.png",
+                        #     (rgb.cpu().numpy() * 255).astype(np.uint8),
+                        # )
+                        # break
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: {psnr_avg=}")
                 train_dataset.training = True

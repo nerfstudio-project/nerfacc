@@ -6,7 +6,7 @@ from torch import Tensor
 import nerfacc.cuda as _C
 
 from .grid import Grid
-from .rendering import render_visibility
+from .vol_rendering import render_visibility
 
 
 @torch.no_grad()
