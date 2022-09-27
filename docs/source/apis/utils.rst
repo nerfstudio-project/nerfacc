@@ -1,6 +1,4 @@
-Ray Marching
+Rendering Utils
 ===================================
 
 .. currentmodule:: nerfacc
-
-.. autofunction:: ray_marching
