@@ -81,7 +81,9 @@ if __name__ == "__main__":
         near_plane = None
         far_plane = None
         render_step_size = (
-            (scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples
+            (scene_aabb[3:] - scene_aabb[:3]).max()
+            * math.sqrt(3)
+            / render_n_samples
         ).item()
 
     # setup the radiance field we want to train.
@@ -157,7 +159,9 @@ if __name__ == "__main__":
             # update occupancy grid
             occupancy_grid.every_n_step(
                 step=step,
-                occ_eval_fn=lambda x: radiance_field.query_opacity(x, render_step_size),
+                occ_eval_fn=lambda x: radiance_field.query_opacity(
+                    x, render_step_size
+                ),
             )
 
             # render
@@ -177,7 +181,8 @@ if __name__ == "__main__":
             # dynamic batch size for rays to keep sample batch size constant.
             num_rays = len(pixels)
             num_rays = int(
-                num_rays * (target_sample_batch_size / float(n_rendering_samples))
+                num_rays
+                * (target_sample_batch_size / float(n_rendering_samples))
             )
             train_dataset.update_num_rays(num_rays)
             alive_ray_mask = acc.squeeze(-1) > 0

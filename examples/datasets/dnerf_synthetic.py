@@ -21,7 +21,9 @@ def _load_renderings(root_fp: str, subject_id: str, split: str):
         )
 
     data_dir = os.path.join(root_fp, subject_id)
-    with open(os.path.join(data_dir, "transforms_{}.json".format(split)), "r") as fp:
+    with open(
+        os.path.join(data_dir, "transforms_{}.json".format(split)), "r"
+    ) as fp:
         meta = json.load(fp)
     images = []
     camtoworlds = []
@@ -32,7 +34,9 @@ def _load_renderings(root_fp: str, subject_id: str, split: str):
         fname = os.path.join(data_dir, frame["file_path"] + ".png")
         rgba = imageio.imread(fname)
         timestamp = (
-            frame["time"] if "time" in frame else float(i) / (len(meta["frames"]) - 1)
+            frame["time"]
+            if "time" in frame
+            else float(i) / (len(meta["frames"]) - 1)
         )
         timestamps.append(timestamp)
         camtoworlds.append(frame["transform_matrix"])
@@ -87,15 +91,22 @@ class SubjectLoader(torch.utils.data.Dataset):
         self.num_rays = num_rays
         self.near = self.NEAR if near is None else near
         self.far = self.FAR if far is None else far
-        self.training = (num_rays is not None) and (split in ["train", "trainval"])
+        self.training = (num_rays is not None) and (
+            split in ["train", "trainval"]
+        )
         self.color_bkgd_aug = color_bkgd_aug
         self.batch_over_images = batch_over_images
-        self.images, self.camtoworlds, self.focal, self.timestamps = _load_renderings(
-            root_fp, subject_id, split
-        )
+        (
+            self.images,
+            self.camtoworlds,
+            self.focal,
+            self.timestamps,
+        ) = _load_renderings(root_fp, subject_id, split)
         self.images = torch.from_numpy(self.images).to(torch.uint8)
         self.camtoworlds = torch.from_numpy(self.camtoworlds).to(torch.float32)
-        self.timestamps = torch.from_numpy(self.timestamps).to(torch.float32)[:, None]
+        self.timestamps = torch.from_numpy(self.timestamps).to(torch.float32)[
+            :, None
+        ]
         self.K = torch.tensor(
             [
                 [self.focal, 0, self.WIDTH / 2.0],
@@ -192,7 +203,9 @@ class SubjectLoader(torch.utils.data.Dataset):
         # [n_cams, height, width, 3]
         directions = (camera_dirs[:, None, :] * c2w[:, :3, :3]).sum(dim=-1)
         origins = torch.broadcast_to(c2w[:, :3, -1], directions.shape)
-        viewdirs = directions / torch.linalg.norm(directions, dim=-1, keepdims=True)
+        viewdirs = directions / torch.linalg.norm(
+            directions, dim=-1, keepdims=True
+        )
 
         if self.training:
             origins = torch.reshape(origins, (num_rays, 3))

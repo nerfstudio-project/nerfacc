@@ -238,7 +238,9 @@ def ray_marching(
             dtype=torch.float32,
             device=rays_o.device,
         )
-        grid_binary = torch.ones([1, 1, 1], dtype=torch.bool, device=rays_o.device)
+        grid_binary = torch.ones(
+            [1, 1, 1], dtype=torch.bool, device=rays_o.device
+        )
         contraction_type = _C.ContractionType.AABB
 
     # marching with grid-based skipping

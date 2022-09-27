@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from nerfacc.ray_marching import ray_marching
@@ -7,6 +8,7 @@ device = "cuda:0"
 batch_size = 128
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_transmittance_compress():
     rays_o = torch.rand((batch_size, 3), device=device)
     rays_d = torch.randn((batch_size, 3), device=device)

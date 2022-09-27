@@ -74,7 +74,9 @@ def rendering(
 
     # Query sigma and color with gradients
     rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
-    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(rgbs.shape)
+    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
+        rgbs.shape
+    )
     assert (
         sigmas.shape == t_starts.shape
     ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
@@ -85,8 +87,12 @@ def rendering(
     )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
-    colors = accumulate_along_rays(weights, ray_indices, values=rgbs, n_rays=n_rays)
-    opacities = accumulate_along_rays(weights, ray_indices, values=None, n_rays=n_rays)
+    colors = accumulate_along_rays(
+        weights, ray_indices, values=rgbs, n_rays=n_rays
+    )
+    opacities = accumulate_along_rays(
+        weights, ray_indices, values=None, n_rays=n_rays
+    )
     depths = accumulate_along_rays(
         weights,
         ray_indices,

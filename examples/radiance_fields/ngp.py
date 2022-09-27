@@ -95,7 +95,11 @@ class NGPradianceField(torch.nn.Module):
 
         self.mlp_head = tcnn.Network(
             n_input_dims=(
-                (self.direction_encoding.n_output_dims if self.use_viewdirs else 0)
+                (
+                    self.direction_encoding.n_output_dims
+                    if self.use_viewdirs
+                    else 0
+                )
                 + self.geo_feat_dim
             ),
             n_output_dims=3,
@@ -116,7 +120,9 @@ class NGPradianceField(torch.nn.Module):
             # 1.0 / derivative of tanh contraction
             x = (x - aabb_min) / (aabb_max - aabb_min)
             x = x - 0.5
-            scaling = 1.0 / (torch.clamp(1.0 - torch.tanh(x) ** 2, min=1e6) * 0.5)
+            scaling = 1.0 / (
+                torch.clamp(1.0 - torch.tanh(x) ** 2, min=1e6) * 0.5
+            )
             scaling = scaling * (aabb_max - aabb_min)
         else:
             scaling = aabb_max - aabb_min
@@ -146,7 +152,8 @@ class NGPradianceField(torch.nn.Module):
             x, [1, self.geo_feat_dim], dim=-1
         )
         density = (
-            self.density_activation(density_before_activation) * selector[..., None]
+            self.density_activation(density_before_activation)
+            * selector[..., None]
         )
         if return_feat:
             return density, base_mlp_out
@@ -161,7 +168,11 @@ class NGPradianceField(torch.nn.Module):
             h = torch.cat([d, embedding.view(-1, self.geo_feat_dim)], dim=-1)
         else:
             h = embedding.view(-1, self.geo_feat_dim)
-        rgb = self.mlp_head(h).view(list(embedding.shape[:-1]) + [3]).to(embedding)
+        rgb = (
+            self.mlp_head(h)
+            .view(list(embedding.shape[:-1]) + [3])
+            .to(embedding)
+        )
         return rgb
 
     def forward(

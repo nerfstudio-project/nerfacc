@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from nerfacc.grid import OccupancyGrid
@@ -7,6 +8,7 @@ device = "cuda:0"
 batch_size = 128
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_marching_with_near_far():
     rays_o = torch.rand((batch_size, 3), device=device)
     rays_d = torch.randn((batch_size, 3), device=device)
@@ -22,6 +24,7 @@ def test_marching_with_near_far():
     return
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_marching_with_grid():
     rays_o = torch.rand((batch_size, 3), device=device)
     rays_d = torch.randn((batch_size, 3), device=device)
@@ -38,7 +41,9 @@ def test_marching_with_grid():
         render_step_size=1e-2,
     )
     ray_indices = unpack_to_ray_indices(packed_info).long()
-    samples = rays_o[ray_indices] + rays_d[ray_indices] * (t_starts + t_ends) / 2.0
+    samples = (
+        rays_o[ray_indices] + rays_d[ray_indices] * (t_starts + t_ends) / 2.0
+    )
     assert (samples <= grid.roi_aabb[3:].unsqueeze(0)).all()
     assert (samples >= grid.roi_aabb[:3].unsqueeze(0)).all()
     return

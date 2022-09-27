@@ -22,7 +22,9 @@ def _load_renderings(root_fp: str, subject_id: str, split: str):
         )
 
     data_dir = os.path.join(root_fp, subject_id)
-    with open(os.path.join(data_dir, "transforms_{}.json".format(split)), "r") as fp:
+    with open(
+        os.path.join(data_dir, "transforms_{}.json".format(split)), "r"
+    ) as fp:
         meta = json.load(fp)
     images = []
     camtoworlds = []
@@ -82,7 +84,9 @@ class SubjectLoader(torch.utils.data.Dataset):
         self.num_rays = num_rays
         self.near = self.NEAR if near is None else near
         self.far = self.FAR if far is None else far
-        self.training = (num_rays is not None) and (split in ["train", "trainval"])
+        self.training = (num_rays is not None) and (
+            split in ["train", "trainval"]
+        )
         self.color_bkgd_aug = color_bkgd_aug
         self.batch_over_images = batch_over_images
         if split == "trainval":
@@ -93,7 +97,9 @@ class SubjectLoader(torch.utils.data.Dataset):
                 root_fp, subject_id, "val"
             )
             self.images = np.concatenate([_images_train, _images_val])
-            self.camtoworlds = np.concatenate([_camtoworlds_train, _camtoworlds_val])
+            self.camtoworlds = np.concatenate(
+                [_camtoworlds_train, _camtoworlds_val]
+            )
             self.focal = _focal_train
         else:
             self.images, self.camtoworlds, self.focal = _load_renderings(
@@ -197,7 +203,9 @@ class SubjectLoader(torch.utils.data.Dataset):
         # [n_cams, height, width, 3]
         directions = (camera_dirs[:, None, :] * c2w[:, :3, :3]).sum(dim=-1)
         origins = torch.broadcast_to(c2w[:, :3, -1], directions.shape)
-        viewdirs = directions / torch.linalg.norm(directions, dim=-1, keepdims=True)
+        viewdirs = directions / torch.linalg.norm(
+            directions, dim=-1, keepdims=True
+        )
 
         if self.training:
             origins = torch.reshape(origins, (num_rays, 3))

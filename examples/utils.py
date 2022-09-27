@@ -36,7 +36,9 @@ def render_image(
     if len(rays_shape) == 3:
         height, width, _ = rays_shape
         num_rays = height * width
-        rays = namedtuple_map(lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays)
+        rays = namedtuple_map(
+            lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays
+        )
     else:
         num_rays, _ = rays_shape
 
@@ -71,7 +73,11 @@ def render_image(
         return radiance_field(positions, t_dirs)
 
     results = []
-    chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
+    chunk = (
+        torch.iinfo(torch.int32).max
+        if radiance_field.training
+        else test_chunk_size
+    )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
         packed_info, t_starts, t_ends = ray_marching(

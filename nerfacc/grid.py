@@ -67,7 +67,9 @@ class Grid(nn.Module):
         if hasattr(self, "_contraction_type"):
             return getattr(self, "_contraction_type")
         else:
-            raise NotImplementedError("please set an attribute named _contraction_type")
+            raise NotImplementedError(
+                "please set an attribute named _contraction_type"
+            )
 
 
 class OccupancyGrid(Grid):
@@ -95,12 +97,18 @@ class OccupancyGrid(Grid):
             resolution = [resolution] * self.NUM_DIM
         if isinstance(resolution, (list, tuple)):
             resolution = torch.tensor(resolution, dtype=torch.int32)
-        assert isinstance(resolution, torch.Tensor), f"Invalid type: {type(resolution)}"
-        assert resolution.shape == (self.NUM_DIM,), f"Invalid shape: {resolution.shape}"
+        assert isinstance(
+            resolution, torch.Tensor
+        ), f"Invalid type: {type(resolution)}"
+        assert resolution.shape == (
+            self.NUM_DIM,
+        ), f"Invalid shape: {resolution.shape}"
 
         if isinstance(roi_aabb, (list, tuple)):
             roi_aabb = torch.tensor(roi_aabb, dtype=torch.float32)
-        assert isinstance(roi_aabb, torch.Tensor), f"Invalid type: {type(roi_aabb)}"
+        assert isinstance(
+            roi_aabb, torch.Tensor
+        ), f"Invalid type: {type(roi_aabb)}"
         assert roi_aabb.shape == torch.Size(
             [self.NUM_DIM * 2]
         ), f"Invalid shape: {roi_aabb.shape}"
@@ -120,7 +128,9 @@ class OccupancyGrid(Grid):
         self.register_buffer("occs", torch.zeros(self.num_cells))
 
         # Grid coords & indices
-        grid_coords = _meshgrid3d(resolution).reshape(self.num_cells, self.NUM_DIM)
+        grid_coords = _meshgrid3d(resolution).reshape(
+            self.num_cells, self.NUM_DIM
+        )
         self.register_buffer("grid_coords", grid_coords)
         grid_indices = torch.arange(self.num_cells)
         self.register_buffer("grid_indices", grid_indices)
@@ -133,10 +143,14 @@ class OccupancyGrid(Grid):
     @torch.no_grad()
     def _sample_uniform_and_occupied_cells(self, n: int) -> torch.Tensor:
         """Samples both n uniform and occupied cells."""
-        uniform_indices = torch.randint(self.num_cells, (n,), device=self.device)
+        uniform_indices = torch.randint(
+            self.num_cells, (n,), device=self.device
+        )
         occupied_indices = torch.nonzero(self._binary.flatten())[:, 0]
         if n < len(occupied_indices):
-            selector = torch.randint(len(occupied_indices), (n,), device=self.device)
+            selector = torch.randint(
+                len(occupied_indices), (n,), device=self.device
+            )
             occupied_indices = occupied_indices[selector]
         indices = torch.cat([uniform_indices, occupied_indices], dim=0)
         return indices

@@ -12,7 +12,9 @@ from .utils import Rays
 
 _PATH = os.path.abspath(__file__)
 
-sys.path.insert(0, os.path.join(os.path.dirname(_PATH), "..", "pycolmap", "pycolmap"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(_PATH), "..", "pycolmap", "pycolmap")
+)
 from scene_manager import SceneManager
 
 
@@ -115,7 +117,9 @@ def _load_colmap(root_fp: str, subject_id: str, split: str, factor: int = 1):
     colmap_files = sorted(os.listdir(colmap_image_dir))
     image_files = sorted(os.listdir(image_dir))
     colmap_to_image = dict(zip(colmap_files, image_files))
-    image_paths = [os.path.join(image_dir, colmap_to_image[f]) for f in image_names]
+    image_paths = [
+        os.path.join(image_dir, colmap_to_image[f]) for f in image_names
+    ]
     print("loading images")
     images = [imageio.imread(x) for x in tqdm.tqdm(image_paths)]
     images = np.stack(images, axis=0)
@@ -164,7 +168,9 @@ class SubjectLoader(torch.utils.data.Dataset):
         self.num_rays = num_rays
         self.near = near
         self.far = far
-        self.training = (num_rays is not None) and (split in ["train", "trainval"])
+        self.training = (num_rays is not None) and (
+            split in ["train", "trainval"]
+        )
         self.color_bkgd_aug = color_bkgd_aug
         self.batch_over_images = batch_over_images
         self.images, self.camtoworlds, self.K = _load_colmap(
@@ -259,7 +265,9 @@ class SubjectLoader(torch.utils.data.Dataset):
         # [n_cams, height, width, 3]
         directions = (camera_dirs[:, None, :] * c2w[:, :3, :3]).sum(dim=-1)
         origins = torch.broadcast_to(c2w[:, :3, -1], directions.shape)
-        viewdirs = directions / torch.linalg.norm(directions, dim=-1, keepdims=True)
+        viewdirs = directions / torch.linalg.norm(
+            directions, dim=-1, keepdims=True
+        )
 
         if self.training:
             origins = torch.reshape(origins, (num_rays, 3))

@@ -44,7 +44,11 @@ class MLP(nn.Module):
             self.hidden_layers.append(
                 nn.Linear(in_features, self.net_width, bias=bias_enabled)
             )
-            if (self.skip_layer is not None) and (i % self.skip_layer == 0) and (i > 0):
+            if (
+                (self.skip_layer is not None)
+                and (i % self.skip_layer == 0)
+                and (i > 0)
+            ):
                 in_features = self.net_width + self.input_dim
             else:
                 in_features = self.net_width
@@ -82,7 +86,11 @@ class MLP(nn.Module):
         for i in range(self.net_depth):
             x = self.hidden_layers[i](x)
             x = self.hidden_activation(x)
-            if (self.skip_layer is not None) and (i % self.skip_layer == 0) and (i > 0):
+            if (
+                (self.skip_layer is not None)
+                and (i % self.skip_layer == 0)
+                and (i > 0)
+            ):
                 x = torch.cat([x, inputs], dim=-1)
         if self.output_enabled:
             x = self.output_layer(x)
@@ -169,7 +177,9 @@ class SinusoidalEncoder(nn.Module):
 
     @property
     def latent_dim(self) -> int:
-        return (int(self.use_identity) + (self.max_deg - self.min_deg) * 2) * self.x_dim
+        return (
+            int(self.use_identity) + (self.max_deg - self.min_deg) * 2
+        ) * self.x_dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -238,7 +248,8 @@ class DNeRFRadianceField(nn.Module):
         self.posi_encoder = SinusoidalEncoder(3, 0, 0, True)
         self.time_encoder = SinusoidalEncoder(1, 0, 0, True)
         self.warp = MLP(
-            input_dim=self.posi_encoder.latent_dim + self.time_encoder.latent_dim,
+            input_dim=self.posi_encoder.latent_dim
+            + self.time_encoder.latent_dim,
             output_dim=3,
             net_depth=4,
             net_width=64,
