@@ -12,13 +12,13 @@ def _make_lazy_cuda_func(name: str) -> Callable:
 
 
 def _make_lazy_cuda_attribute(name: str) -> Any:
-    try:
-        # pylint: disable=import-outside-toplevel
-        from ._backend import _C
+    # pylint: disable=import-outside-toplevel
+    from ._backend import _C
 
-        return getattr(_C, name)
-    except ImportError:
+    if _C is None:
         return None
+    else:
+        return getattr(_C, name)
 
 
 ContractionType = _make_lazy_cuda_attribute("ContractionType")
