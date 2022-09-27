@@ -87,7 +87,6 @@ def render_image(
         colors.view((*rays_shape[:-1], -1)),
         opacities.view((*rays_shape[:-1], -1)),
         depths.view((*rays_shape[:-1], -1)),
-        sum([info["n_marching_samples"] for info in extra_info]),
         sum([info["n_rendering_samples"] for info in extra_info]),
     )
 
@@ -260,7 +259,7 @@ if __name__ == "__main__":
             occupancy_grid.every_n_step(step, occ_eval_fn)
 
             # render
-            rgb, acc, depth, n_marching_samples, n_rendering_samples = render_image(
+            rgb, acc, depth, n_rendering_samples = render_image(
                 radiance_field,
                 occupancy_grid,
                 rays,
@@ -297,7 +296,6 @@ if __name__ == "__main__":
                     f"elapsed_time={elapsed_time:.2f}s | {step=} | "
                     f"loss={loss:.5f} | "
                     f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
-                    f"n_marching_samples={n_marching_samples:d} | "
                     f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
                 )
 

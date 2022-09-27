@@ -95,33 +95,23 @@ def volumetric_rendering(
             t_max=t_max,
             scene_aabb=scene_aabb,
             grid=grid,
+            sigma_fn=sigma_fn,
+            early_stop_eps=early_stop_eps,
             near_plane=near_plane,
             far_plane=far_plane,
             render_step_size=render_step_size,
             stratified=stratified,
             cone_angle=cone_angle,
-            # optionally pass in sigma_fn which will be used to early stop
-            # boolen to indicates wherther to early stop
         )
         ray_indices = unpack_to_ray_indices(packed_info)
-        extra_info["n_marching_samples"] = t_starts.shape[0]
-
-        # Query sigma without gradients
-        sigmas = sigma_fn(t_starts, t_ends, ray_indices)
-        alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
-
-        # Compress samples through computing transmittance.
-        visibility, packed_info = render_visibility(packed_info, alphas, early_stop_eps)
-        t_starts, t_ends = t_starts[visibility], t_ends[visibility]
-        ray_indices = unpack_to_ray_indices(packed_info)
-        extra_info["n_rendering_samples"] = t_starts.shape[0]
+        extra_info["n_rendering_samples"] = len(t_starts)
 
     # Query sigma and color with gradients
     rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
     assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(rgbs.shape)
-    assert sigmas.shape[-1] == 1, "sigmas must have 1 channel, got {}".format(
-        sigmas.shape
-    )
+    assert (
+        sigmas.shape == t_starts.shape
+    ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
 
     # Rendering: compute weights and ray indices.
     weights = render_weight_from_density(

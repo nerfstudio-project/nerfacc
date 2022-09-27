@@ -70,8 +70,11 @@ def ray_marching(
     t_max: Optional[Tensor] = None,
     # bounding box of the scene
     scene_aabb: Optional[Tensor] = None,
-    # grid for skipping empty space
+    # binarized grid for skipping empty space
     grid: Optional[Grid] = None,
+    # sigma function for skipping invisible space
+    sigma_fn: Optional[Callable] = None,
+    early_stop_eps: float = 1e-4,
     # rendering options
     near_plane: Optional[float] = None,
     far_plane: Optional[float] = None,
@@ -91,7 +94,8 @@ def ray_marching(
             scene_aabb which be ignored if both t_min and t_max are provided.
         grid: Optional. Grid for to idicates where to skip during marching.
             See :class:`nerfacc.Grid` for details.
-        sigma_fn
+        sigma_fn: A function that takes in samples {t_starts (N, 1), t_ends (N, 1),
+            ray indices (N,)} and returns the post-activation density values (N, 1).
         near_plane: Optional. Near plane distance. If provided, it will be used
             to clip t_min.
         far_plane: Optional. Far plane distance. If provided, it will be used
@@ -154,6 +158,7 @@ def ray_marching(
         contraction_type = _C.ContractionType.ROI_TO_UNIT
         contraction_temperature = 1.0
 
+    # marching with grid-based skipping
     packed_info, t_starts, t_ends = _C.ray_marching(
         # rays
         rays_o.contiguous(),
@@ -169,5 +174,22 @@ def ray_marching(
         render_step_size,
         cone_angle,
     )
+
+    # skip invisible space
+    if sigma_fn is not None:
+        # Query sigma without gradients
+        ray_indices = unpack_to_ray_indices(packed_info)
+        sigmas = sigma_fn(t_starts, t_ends, ray_indices)
+        assert (
+            sigmas.shape == t_starts.shape
+        ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
+        alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+
+        # Compute visibility of the samples, and filter out invisible samples
+        visibility, packed_info_visible = render_visibility(
+            packed_info, alphas, early_stop_eps
+        )
+        t_starts, t_ends = t_starts[visibility], t_ends[visibility]
+        packed_info = packed_info_visible
 
     return packed_info, t_starts, t_ends
