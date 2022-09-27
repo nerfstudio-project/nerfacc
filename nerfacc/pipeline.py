@@ -4,11 +4,7 @@ import torch
 
 from .grid import Grid
 from .ray_marching import ray_marching, unpack_to_ray_indices
-from .rendering import (
-    accumulate_along_rays,
-    render_visibility,
-    render_weight_from_density,
-)
+from .rendering import accumulate_along_rays, render_weight_from_density
 
 
 def volumetric_rendering(
