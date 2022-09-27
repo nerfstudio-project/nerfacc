@@ -212,6 +212,13 @@ class VanillaNeRFRadianceField(nn.Module):
             net_width_condition=net_width_condition,
         )
 
+    def query_opacity(self, x, step_size):
+        density = self.query_density(x)
+        # if the density is small enough those two are the same.
+        # opacity = 1.0 - torch.exp(-density * step_size)
+        opacity = density * step_size
+        return opacity
+
     def query_density(self, x):
         x = self.posi_encoder(x)
         sigma = self.mlp.query_density(x)
