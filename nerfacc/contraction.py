@@ -1,9 +1,11 @@
+from enum import Enum
+
 import torch
 
 import nerfacc.cuda as _C
 
 
-class ContractionType:
+class ContractionType(Enum):
     """Space contraction options.
 
     This is an enum class that describes how a :class:`nerfacc.Grid` covers the 3D space.
@@ -63,7 +65,7 @@ def contract(
     Returns:
         torch.Tensor: Contracted points ([0, 1]^3).
     """
-    ctype = _C.ContractionType(type)
+    ctype = _C.ContractionType(type.value)
     return _C.contract(x.contiguous(), roi.contiguous(), ctype)
 
 
@@ -83,5 +85,5 @@ def contract_inv(
     Returns:
         torch.Tensor: Un-contracted points.
     """
-    ctype = _C.ContractionType(type)
+    ctype = _C.ContractionType(type.value)
     return _C.contract_inv(x.contiguous(), roi.contiguous(), ctype)

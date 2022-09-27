@@ -231,7 +231,7 @@ def ray_marching(
     if grid is not None:
         grid_roi_aabb = grid.roi_aabb
         grid_binary = grid.binary
-        contraction_type = _C.ContractionType(grid.contraction_type)
+        contraction_type = _C.ContractionType(grid.contraction_type.value)
     else:
         grid_roi_aabb = torch.tensor(
             [-1e10, -1e10, -1e10, 1e10, 1e10, 1e10],
