@@ -1,7 +1,6 @@
 import argparse
 import math
 import os
-import random
 import time
 
 import imageio
@@ -9,97 +8,15 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
+from radiance_fields.ngp import NGPradianceField
+from utils import render_image, set_random_seed
 
-from nerfacc import ContractionType, OccupancyGrid, ray_marching, rendering
-
-device = "cuda:0"
-
-
-def _set_random_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-
-
-def render_image(
-    # scene
-    radiance_field,
-    occupancy_grid,
-    rays,
-    scene_aabb,
-    # rendering options
-    near_plane,
-    far_plane,
-    render_step_size,
-    render_bkgd,
-    cone_angle,
-    # test options
-    test_chunk_size: int = 8192,
-):
-    """Render the pixels of an image."""
-    rays_shape = rays.origins.shape
-    if len(rays_shape) == 3:
-        height, width, _ = rays_shape
-        num_rays = height * width
-        rays = namedtuple_map(lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays)
-    else:
-        num_rays, _ = rays_shape
-
-    def sigma_fn(t_starts, t_ends, ray_indices):
-        ray_indices = ray_indices.long()
-        t_origins = chunk_rays.origins[ray_indices]
-        t_dirs = chunk_rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
-        return radiance_field.query_density(positions)
-
-    def rgb_sigma_fn(t_starts, t_ends, ray_indices):
-        ray_indices = ray_indices.long()
-        t_origins = chunk_rays.origins[ray_indices]
-        t_dirs = chunk_rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
-        return radiance_field(positions, t_dirs)
-
-    results = []
-    chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
-    for i in range(0, num_rays, chunk):
-        chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        packed_info, t_starts, t_ends = ray_marching(
-            chunk_rays.origins,
-            chunk_rays.viewdirs,
-            scene_aabb=scene_aabb,
-            grid=occupancy_grid,
-            sigma_fn=sigma_fn,
-            near_plane=near_plane,
-            far_plane=far_plane,
-            render_step_size=render_step_size,
-            stratified=radiance_field.training,
-            cone_angle=cone_angle,
-        )
-        rgb, opacity, depth = rendering(
-            rgb_sigma_fn,
-            packed_info,
-            t_starts,
-            t_ends,
-            render_bkgd=render_bkgd,
-        )
-        chunk_results = [rgb, opacity, depth, len(t_starts)]
-        results.append(chunk_results)
-    colors, opacities, depths, n_rendering_samples = [
-        torch.cat(r, dim=0) if isinstance(r[0], torch.Tensor) else r
-        for r in zip(*results)
-    ]
-    return (
-        colors.view((*rays_shape[:-1], -1)),
-        opacities.view((*rays_shape[:-1], -1)),
-        depths.view((*rays_shape[:-1], -1)),
-        sum(n_rendering_samples),
-    )
-
+from nerfacc import ContractionType, OccupancyGrid
 
 if __name__ == "__main__":
-    from radiance_fields.ngp import NGPradianceField
 
-    _set_random_seed(42)
+    device = "cuda:0"
+    set_random_seed(42)
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -185,7 +102,7 @@ if __name__ == "__main__":
     train_dataset_kwargs = {}
     test_dataset_kwargs = {}
     if args.scene == "garden":
-        from datasets.nerf_360_v2 import SubjectLoader, namedtuple_map
+        from datasets.nerf_360_v2 import SubjectLoader
 
         data_root_fp = "/home/ruilongli/data/360_v2/"
         target_sample_batch_size = 1 << 20
@@ -193,7 +110,7 @@ if __name__ == "__main__":
         test_dataset_kwargs = {"factor": 4}
         grid_resolution = 128
     else:
-        from datasets.nerf_synthetic import SubjectLoader, namedtuple_map
+        from datasets.nerf_synthetic import SubjectLoader
 
         data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
         target_sample_batch_size = 1 << 18

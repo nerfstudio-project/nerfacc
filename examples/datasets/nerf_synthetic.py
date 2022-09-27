@@ -7,12 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-Rays = collections.namedtuple("Rays", ("origins", "viewdirs"))
-
-
-def namedtuple_map(fn, tup):
-    """Apply `fn` to each element of `tup` and cast to `tup`'s namedtuple."""
-    return type(tup)(*(None if x is None else fn(x) for x in tup))
+from .utils import Rays
 
 
 def _load_renderings(root_fp: str, subject_id: str, split: str):

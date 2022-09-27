@@ -8,17 +8,12 @@ import torch
 import torch.nn.functional as F
 import tqdm
 
+from .utils import Rays
+
 _PATH = os.path.abspath(__file__)
 
 sys.path.insert(0, os.path.join(os.path.dirname(_PATH), "..", "pycolmap", "pycolmap"))
 from scene_manager import SceneManager
-
-Rays = collections.namedtuple("Rays", ("origins", "viewdirs"))
-
-
-def namedtuple_map(fn, tup):
-    """Apply `fn` to each element of `tup` and cast to `tup`'s namedtuple."""
-    return type(tup)(*(None if x is None else fn(x) for x in tup))
 
 
 def _load_colmap(root_fp: str, subject_id: str, split: str, factor: int = 1):
