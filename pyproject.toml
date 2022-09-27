@@ -15,14 +15,55 @@ dependencies = [
     "rich>=12"
 ]
 
-[project.optional-dependencies]
-
 [tool.setuptools.package-data]
 "*" = ["*.cu", "*.cpp", "*.h"]
+
+[project.optional-dependencies]
 
 # for development
 dev = [
     "black",
     "isort",
     "pytest",
+    "pylint",
+    "pytest-xdist==2.5.0",
+    "pyyaml",
+    "typeguard>=2.13.3",
 ]
+
+# black
+[tool.black]
+line-length = 80
+
+# pylint
+[tool.pylint.messages_control]
+max-line-length = 80
+generated-members = ["numpy.*", "torch.*", "cv2.*", "cv.*"]
+good-names-rgxs = "^[_a-zA-Z][_a-z0-9]?$"
+ignore-paths = ["^tests/.*$", "^nerfacc/cuda/.*$", "^tests/cuda/.*$"]
+jobs = 0
+
+disable = [
+  "line-too-long",
+  "too-many-arguments",
+  "too-many-locals",
+]
+
+#pytest
+[tool.pytest.ini_options]
+addopts = "-n=4 --typeguard-packages=nerfacc --disable-warnings --ignore=tests/cuda"
+testpaths = [
+    "tests",
+]
+
+# pyright
+[tool.pyright]
+include = ["nerfacc"]
+exclude = ["**/node_modules",
+    "**/__pycache__",
+]
+ignore = ["nerfacc/cuda"]
+defineConstant = { DEBUG = true }
+
+pythonVersion = "3.8"
+pythonPlatform = "Linux"
