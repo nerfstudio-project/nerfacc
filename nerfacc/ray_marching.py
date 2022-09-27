@@ -93,6 +93,9 @@ def ray_marching(
             set `t_min` to 0.0, and `t_max` to 1e10. (the case of unbounded scene)
         4. Always clip `t_min` with `near_plane` and `t_max` with `far_plane` if given.
 
+    Warning:
+        This function is not differentiable to any inputs.
+
     Args:
         rays_o: Ray origins of shape (n_rays, 3).
         rays_d: Normalized ray directions of shape (n_rays, 3).
