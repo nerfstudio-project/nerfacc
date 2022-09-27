@@ -1,11 +1,9 @@
-from enum import Enum
-
 import torch
 
 import nerfacc.cuda as _C
 
 
-class ContractionType(Enum):
+class ContractionType:
     """Space contraction options.
 
     This is an enum class that describes how a :class:`nerfacc.Grid` covers the 3D space.

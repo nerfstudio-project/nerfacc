@@ -52,6 +52,7 @@ def accumulate_along_rays(
     else:
         assert n_rays > ray_indices.max()
 
+    ray_indices = ray_indices.int()
     index = ray_indices[:, None].long().expand(-1, src.shape[-1])
     outputs = torch.zeros((n_rays, src.shape[-1]), device=weights.device)
     outputs.scatter_add_(0, index, src)

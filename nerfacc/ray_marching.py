@@ -58,7 +58,7 @@ def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
         ray_indices = _C.unpack_to_ray_indices(packed_info.contiguous())
     else:
         raise NotImplementedError("Only support cuda inputs.")
-    return ray_indices
+    return ray_indices.long()
 
 
 @torch.no_grad()
@@ -82,7 +82,16 @@ def ray_marching(
     stratified: bool = False,
     cone_angle: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Ray marching with grid-based skipping.
+    """Ray marching with space skipping.
+
+    Note:
+        The logic for computing `t_min` and `t_max`:
+        1. If `t_min` and `t_max` are given, use them with highest priority.
+        2. If `t_min` and `t_max` are not given, but `scene_aabb` is given, use \
+            :func:`ray_aabb_intersect` to compute `t_min` and `t_max`.
+        3. If `t_min` and `t_max` are not given, and `scene_aabb` is not given, \
+            set `t_min` to 0.0, and `t_max` to 1e10. (the case of unbounded scene)
+        4. Always clip `t_min` with `near_plane` and `t_max` with `far_plane` if given.
 
     Args:
         rays_o: Ray origins of shape (n_rays, 3).
@@ -91,11 +100,14 @@ def ray_marching(
         t_max: Optional. Per-ray maximum distance. Tensor with shape (n_rays).
         scene_aabb: Optional. Scene bounding box for computing t_min and t_max.
             A tensor with shape (6,) {xmin, ymin, zmin, xmax, ymax, zmax}.
-            scene_aabb which be ignored if both t_min and t_max are provided.
-        grid: Optional. Grid for to idicates where to skip during marching.
+            `scene_aabb` will be ignored if both `t_min` and `t_max` are provided.
+        grid: Optional. Grid that idicates where to skip during marching.
             See :class:`nerfacc.Grid` for details.
-        sigma_fn: A function that takes in samples {t_starts (N, 1), t_ends (N, 1),
+        sigma_fn: Optional. If provided, the marching will skip the invisible space
+            by evaluating the density along the ray with `sigma_fn`. It should be a 
+            function that takes in samples {t_starts (N, 1), t_ends (N, 1),
             ray indices (N,)} and returns the post-activation density values (N, 1).
+        early_stop_eps: Early stop threshold for skipping invisible space. Default: 1e-4.
         near_plane: Optional. Near plane distance. If provided, it will be used
             to clip t_min.
         far_plane: Optional. Far plane distance. If provided, it will be used
@@ -108,12 +120,56 @@ def ray_marching(
     Returns:
         A tuple of tensors.
 
-            - **packed_info**: Stores information on which samples belong to the same ray.
-                Tensor with shape (n_rays, 2). The first column stores the index of the
-                first sample of each ray. The second column stores the number of samples
+            - **packed_info**: Stores information on which samples belong to the same ray. \
+                Tensor with shape (n_rays, 2). The first column stores the index of the \
+                first sample of each ray. The second column stores the number of samples \
                 of each ray.
             - **t_starts**: Per-sample start distance. Tensor with shape (n_samples, 1).
             - **t_ends**: Per-sample end distance. Tensor with shape (n_samples, 1).
+
+    Examples:
+
+    .. code-block:: python
+
+        import torch
+        from nerfacc import OccupancyGrid, ray_marching, unpack_to_ray_indices
+
+        device = "cuda:0"
+        batch_size = 128
+        rays_o = torch.rand((batch_size, 3), device=device)
+        rays_d = torch.randn((batch_size, 3), device=device)
+        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+
+        # Ray marching with near far plane.
+        packed_info, t_starts, t_ends = ray_marching(
+            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
+        )
+
+        # Ray marching with aabb.
+        scene_aabb = torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0, 1.0], device=device)
+        packed_info, t_starts, t_ends = ray_marching(
+            rays_o, rays_d, scene_aabb=scene_aabb, render_step_size=1e-3
+        )
+
+        # Ray marching with per-ray t_min and t_max.
+        t_min = torch.zeros((batch_size,), device=device)
+        t_max = torch.ones((batch_size,), device=device)
+        packed_info, t_starts, t_ends = ray_marching(
+            rays_o, rays_d, t_min=t_min, t_max=t_max, render_step_size=1e-3
+        )
+
+        # Ray marching with aabb and skip areas based on occupancy grid.
+        scene_aabb = torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0, 1.0], device=device)
+        grid = OccupancyGrid(roi_aabb=[0.0, 0.0, 0.0, 0.5, 0.5, 0.5]).to(device)
+        packed_info, t_starts, t_ends = ray_marching(
+            rays_o, rays_d, scene_aabb=scene_aabb, grid=grid, render_step_size=1e-3
+        )
+
+        # Convert t_starts and t_ends to sample locations.
+        ray_indices = unpack_to_ray_indices(packed_info)
+        t_mid = (t_starts + t_ends) / 2.0
+        sample_locs = rays_o[ray_indices] + t_mid * rays_d[ray_indices]
+
     """
     if not rays_o.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
