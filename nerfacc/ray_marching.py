@@ -41,7 +41,7 @@ def ray_aabb_intersect(
 
 @torch.no_grad()
 def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
-    """Unpack `packed_info` to ray indices. Useful for converting per ray data to per sample data.
+    """Unpack `packed_info` to `ray_indices`. Useful for converting per ray data to per sample data.
 
     Note: 
         this function is not differentiable to any inputs.
