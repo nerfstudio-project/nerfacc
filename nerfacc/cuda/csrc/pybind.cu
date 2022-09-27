@@ -64,6 +64,19 @@ torch::Tensor contract_inv(
     const ContractionType type,
     const float temperature);
 
+torch::Tensor rendering_alphas_backward(
+    torch::Tensor weights,
+    torch::Tensor grad_weights,
+    torch::Tensor packed_info,
+    torch::Tensor alphas,
+    float early_stop_eps);
+
+std::vector<torch::Tensor> rendering_alphas_forward(
+    torch::Tensor packed_info,
+    torch::Tensor alphas,
+    float early_stop_eps,
+    bool compression);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
@@ -85,4 +98,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     // rendering
     m.def("rendering_forward", &rendering_forward);
     m.def("rendering_backward", &rendering_backward);
+    m.def("rendering_alphas_forward", &rendering_alphas_forward);
+    m.def("rendering_alphas_backward", &rendering_alphas_backward);
 }

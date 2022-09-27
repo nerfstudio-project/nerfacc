@@ -7,6 +7,7 @@ __global__ void rendering_forward_kernel(
     const scalar_t *starts,        // input start t
     const scalar_t *ends,          // input end t
     const scalar_t *sigmas,        // input density after activation
+    const scalar_t *alphas,        // input alpha (opacity) values.
     const scalar_t early_stop_eps, // transmittance threshold for early stop
     // outputs: should be all-zero initialized
     int *num_steps,        // the number of valid steps for each ray
@@ -22,9 +23,18 @@ __global__ void rendering_forward_kernel(
     if (steps == 0)
         return;
 
-    starts += base;
-    ends += base;
-    sigmas += base;
+    if (alphas != nullptr)
+    {
+        // rendering with alpha
+        alphas += base;
+    }
+    else
+    {
+        // rendering with density
+        starts += base;
+        ends += base;
+        sigmas += base;
+    }
 
     if (num_steps != nullptr)
     {
@@ -48,8 +58,18 @@ __global__ void rendering_forward_kernel(
         {
             break;
         }
-        const scalar_t delta = ends[j] - starts[j];
-        const scalar_t alpha = 1.f - __expf(-sigmas[j] * delta);
+        scalar_t alpha;
+        if (alphas != nullptr)
+        {
+            // rendering with alpha
+            alpha = alphas[j];
+        }
+        else
+        {
+            // rendering with density
+            scalar_t delta = ends[j] - starts[j];
+            alpha = 1.f - __expf(-sigmas[j] * delta);
+        }
         const scalar_t weight = alpha * T;
         T *= (1.f - alpha);
         if (weights != nullptr)
@@ -75,10 +95,14 @@ __global__ void rendering_backward_kernel(
     const scalar_t *starts,        // input start t
     const scalar_t *ends,          // input end t
     const scalar_t *sigmas,        // input density after activation
+    const scalar_t *alphas,        // input alpha (opacity) values.
     const scalar_t early_stop_eps, // transmittance threshold for early stop
     const scalar_t *weights,       // forward output
     const scalar_t *grad_weights,  // input gradients
-    scalar_t *grad_sigmas          // output gradients
+    // if alphas was given, we compute the gradients for alphas.
+    // otherwise, we compute the gradients for sigmas.
+    scalar_t *grad_sigmas, // output gradients
+    scalar_t *grad_alphas  // output gradients
 )
 {
     CUDA_GET_THREAD_ID(i, n_rays);
@@ -89,12 +113,23 @@ __global__ void rendering_backward_kernel(
     if (steps == 0)
         return;
 
-    starts += base;
-    ends += base;
-    sigmas += base;
+    if (alphas != nullptr)
+    {
+        // rendering with alpha
+        alphas += base;
+        grad_alphas += base;
+    }
+    else
+    {
+        // rendering with density
+        starts += base;
+        ends += base;
+        sigmas += base;
+        grad_sigmas += base;
+    }
+
     weights += base;
     grad_weights += base;
-    grad_sigmas += base;
 
     scalar_t accum = 0;
     for (int j = 0; j < steps; ++j)
@@ -110,10 +145,21 @@ __global__ void rendering_backward_kernel(
         {
             break;
         }
-        const scalar_t delta = ends[j] - starts[j];
-        const scalar_t alpha = 1.f - __expf(-sigmas[j] * delta);
+        scalar_t alpha;
+        if (alphas != nullptr)
+        {
+            // rendering with alpha
+            alpha = alphas[j];
+            grad_alphas[j] = (grad_weights[j] * T - accum) / fmaxf(1.f - alpha, 1e-10f);
+        }
+        else
+        {
+            // rendering with density
+            scalar_t delta = ends[j] - starts[j];
+            alpha = 1.f - __expf(-sigmas[j] * delta);
+            grad_sigmas[j] = (grad_weights[j] * T - accum) * delta;
+        }
 
-        grad_sigmas[j] = delta * (grad_weights[j] * T - accum);
         accum -= grad_weights[j] * weights[j];
         T *= (1.f - alpha);
     }
@@ -145,7 +191,8 @@ std::vector<torch::Tensor> rendering_forward(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    if (compression) {
+    if (compression)
+    {
         // compress the samples to get rid of invisible ones.
         torch::Tensor num_steps = torch::zeros({n_rays}, packed_info.options());
         torch::Tensor compact_selector = torch::zeros(
@@ -155,44 +202,46 @@ std::vector<torch::Tensor> rendering_forward(
             sigmas.scalar_type(),
             "rendering_forward",
             ([&]
-            { rendering_forward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
-                n_rays,
-                // inputs
-                packed_info.data_ptr<int>(),
-                starts.data_ptr<scalar_t>(),
-                ends.data_ptr<scalar_t>(),
-                sigmas.data_ptr<scalar_t>(),
-                early_stop_eps,
-                // outputs
-                num_steps.data_ptr<int>(),
-                nullptr,
-                compact_selector.data_ptr<bool>()); }));
+             { rendering_forward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+                   n_rays,
+                   // inputs
+                   packed_info.data_ptr<int>(),
+                   starts.data_ptr<scalar_t>(),
+                   ends.data_ptr<scalar_t>(),
+                   sigmas.data_ptr<scalar_t>(),
+                   nullptr, // alphas
+                   early_stop_eps,
+                   // outputs
+                   num_steps.data_ptr<int>(),
+                   nullptr,
+                   compact_selector.data_ptr<bool>()); }));
 
         torch::Tensor cum_steps = num_steps.cumsum(0, torch::kInt32);
         torch::Tensor compact_packed_info = torch::stack({cum_steps - num_steps, num_steps}, 1);
         return {compact_packed_info, compact_selector};
-
     }
-    else {
+    else
+    {
         // just do the forward rendering.
         torch::Tensor weights = torch::zeros({n_samples}, sigmas.options());
 
         AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-        sigmas.scalar_type(),
-        "rendering_forward",
-        ([&]
-         { rendering_forward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
-               n_rays,
-               // inputs
-               packed_info.data_ptr<int>(),
-               starts.data_ptr<scalar_t>(),
-               ends.data_ptr<scalar_t>(),
-               sigmas.data_ptr<scalar_t>(),
-               early_stop_eps,
-               // outputs
-               nullptr,
-               weights.data_ptr<scalar_t>(),
-               nullptr); }));
+            sigmas.scalar_type(),
+            "rendering_forward",
+            ([&]
+             { rendering_forward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+                   n_rays,
+                   // inputs
+                   packed_info.data_ptr<int>(),
+                   starts.data_ptr<scalar_t>(),
+                   ends.data_ptr<scalar_t>(),
+                   sigmas.data_ptr<scalar_t>(),
+                   nullptr, // alphas
+                   early_stop_eps,
+                   // outputs
+                   nullptr,
+                   weights.data_ptr<scalar_t>(),
+                   nullptr); }));
 
         return {weights};
     }
@@ -228,11 +277,131 @@ torch::Tensor rendering_backward(
                starts.data_ptr<scalar_t>(),
                ends.data_ptr<scalar_t>(),
                sigmas.data_ptr<scalar_t>(),
+               nullptr, // alphas
                early_stop_eps,
                weights.data_ptr<scalar_t>(),
                grad_weights.data_ptr<scalar_t>(),
                // outputs
-               grad_sigmas.data_ptr<scalar_t>()); }));
+               grad_sigmas.data_ptr<scalar_t>(),
+               nullptr // alphas gradients
+           ); }));
 
     return grad_sigmas;
+}
+
+// -- rendering with alphas -- //
+
+std::vector<torch::Tensor> rendering_alphas_forward(
+    torch::Tensor packed_info,
+    torch::Tensor alphas,
+    float early_stop_eps,
+    bool compression)
+{
+    DEVICE_GUARD(packed_info);
+
+    CHECK_INPUT(packed_info);
+    CHECK_INPUT(alphas);
+
+    TORCH_CHECK(packed_info.ndimension() == 2 & packed_info.size(1) == 2);
+    TORCH_CHECK(alphas.ndimension() == 2 & alphas.size(1) == 1);
+
+    const uint32_t n_rays = packed_info.size(0);
+    const uint32_t n_samples = alphas.size(0);
+
+    const int threads = 256;
+    const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
+
+    if (compression)
+    {
+        // compress the samples to get rid of invisible ones.
+        torch::Tensor num_steps = torch::zeros({n_rays}, packed_info.options());
+        torch::Tensor compact_selector = torch::zeros(
+            {n_samples}, alphas.options().dtype(torch::kBool));
+
+        AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+            alphas.scalar_type(),
+            "rendering_alphas_forward",
+            ([&]
+             { rendering_forward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+                   n_rays,
+                   // inputs
+                   packed_info.data_ptr<int>(),
+                   nullptr, // starts
+                   nullptr, // ends
+                   nullptr, // sigmas
+                   alphas.data_ptr<scalar_t>(),
+                   early_stop_eps,
+                   // outputs
+                   num_steps.data_ptr<int>(),
+                   nullptr,
+                   compact_selector.data_ptr<bool>()); }));
+
+        torch::Tensor cum_steps = num_steps.cumsum(0, torch::kInt32);
+        torch::Tensor compact_packed_info = torch::stack({cum_steps - num_steps, num_steps}, 1);
+        return {compact_selector, compact_packed_info};
+    }
+    else
+    {
+        // just do the forward rendering.
+        torch::Tensor weights = torch::zeros({n_samples}, alphas.options());
+
+        AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+            alphas.scalar_type(),
+            "rendering_forward",
+            ([&]
+             { rendering_forward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+                   n_rays,
+                   // inputs
+                   packed_info.data_ptr<int>(),
+                   nullptr, // starts
+                   nullptr, // ends
+                   nullptr, // sigmas
+                   alphas.data_ptr<scalar_t>(),
+                   early_stop_eps,
+                   // outputs
+                   nullptr,
+                   weights.data_ptr<scalar_t>(),
+                   nullptr); }));
+
+        return {weights};
+    }
+}
+
+torch::Tensor rendering_alphas_backward(
+    torch::Tensor weights,
+    torch::Tensor grad_weights,
+    torch::Tensor packed_info,
+    torch::Tensor alphas,
+    float early_stop_eps)
+{
+    DEVICE_GUARD(packed_info);
+    const uint32_t n_rays = packed_info.size(0);
+    const uint32_t n_samples = alphas.size(0);
+
+    const int threads = 256;
+    const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
+
+    // outputs
+    torch::Tensor grad_alphas = torch::zeros(alphas.sizes(), alphas.options());
+
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+        alphas.scalar_type(),
+        "rendering_alphas_backward",
+        ([&]
+         { rendering_backward_kernel<scalar_t><<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+               n_rays,
+               // inputs
+               packed_info.data_ptr<int>(),
+               nullptr, // starts
+               nullptr, // ends
+               nullptr, // sigmas
+               alphas.data_ptr<scalar_t>(),
+               early_stop_eps,
+               weights.data_ptr<scalar_t>(),
+               grad_weights.data_ptr<scalar_t>(),
+               // outputs
+               nullptr, // sigma gradients
+               grad_alphas.data_ptr<scalar_t>()); }));
+
+    return grad_alphas;
 }

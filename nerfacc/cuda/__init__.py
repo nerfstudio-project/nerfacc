@@ -33,3 +33,5 @@ unpack_to_ray_indices = _make_lazy_cuda_func("unpack_to_ray_indices")
 
 rendering_forward = _make_lazy_cuda_func("rendering_forward")
 rendering_backward = _make_lazy_cuda_func("rendering_backward")
+rendering_alphas_forward = _make_lazy_cuda_func("rendering_alphas_forward")
+rendering_alphas_backward = _make_lazy_cuda_func("rendering_alphas_backward")

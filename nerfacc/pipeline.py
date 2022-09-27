@@ -4,7 +4,11 @@ import torch
 
 from .grid import Grid
 from .ray_marching import ray_marching, unpack_to_ray_indices
-from .rendering import accumulate_along_rays, transmittance
+from .rendering import (
+    accumulate_along_rays,
+    render_visibility,
+    render_weight_from_density,
+)
 
 
 def volumetric_rendering(
@@ -36,7 +40,7 @@ def volumetric_rendering(
 
         - ray_aabb_intersect: ray AABB intersection.
         - ray_marching: ray marching with grid-based skipping.
-        - transmittance: compute transmittance and compress samples.
+        - compute_weights: compute transmittance and compress samples.
         - accumulate_along_rays: accumulate samples along rays to get final per-ray RGB etc.
 
     Args:
@@ -99,20 +103,18 @@ def volumetric_rendering(
             # optionally pass in sigma_fn which will be used to early stop
             # boolen to indicates wherther to early stop
         )
-        extra_info["n_marching_samples"] = t_starts.shape[0]
         ray_indices = unpack_to_ray_indices(packed_info)
+        extra_info["n_marching_samples"] = t_starts.shape[0]
 
         # Query sigma without gradients
         sigmas = sigma_fn(t_starts, t_ends, ray_indices)
+        alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
 
         # Compress samples through computing transmittance.
-        # TODO: support computing transmittance from alpha inputs
-        # "filter_occuleded samples"
-        packed_info, t_starts, t_ends, sigmas = transmittance(
-            packed_info, t_starts, t_ends, sigmas, early_stop_eps, compression=True
-        )
-        extra_info["n_rendering_samples"] = t_starts.shape[0]
+        visibility, packed_info = render_visibility(packed_info, alphas, early_stop_eps)
+        t_starts, t_ends = t_starts[visibility], t_ends[visibility]
         ray_indices = unpack_to_ray_indices(packed_info)
+        extra_info["n_rendering_samples"] = t_starts.shape[0]
 
     # Query sigma and color with gradients
     rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
@@ -122,10 +124,8 @@ def volumetric_rendering(
     )
 
     # Rendering: compute weights and ray indices.
-    # TODO: support computing transmittance from alpha inputs
-    # "compute_transmittance_weights"
-    weights = transmittance(
-        packed_info, t_starts, t_ends, sigmas, early_stop_eps, compression=False
+    weights = render_weight_from_density(
+        packed_info, t_starts, t_ends, sigmas, early_stop_eps
     )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.

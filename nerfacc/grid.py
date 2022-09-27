@@ -9,6 +9,9 @@ from .contraction import ContractionType, contract_inv
 # from torch_scatter import scatter_max
 
 
+# TODO: do an ContractionOptions class
+
+
 class Grid(nn.Module):
     """An abstract Grid class.
 

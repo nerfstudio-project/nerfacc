@@ -58,17 +58,14 @@ def accumulate_along_rays(
     return outputs
 
 
-def transmittance(
+def render_weight_from_density(
     packed_info,
     t_starts,
     t_ends,
     sigmas,
     early_stop_eps: float = 1e-4,
-    compression: bool = True,
-) -> Tuple[torch.Tensor, ...]:
-    """Compress the samples based on the transmittance (early stoping).
-
-    TODO: Doc
+) -> torch.Tensor:
+    """Compute transmittance weights from density.
 
     Args:
         packed_info: Stores information on which samples belong to the same ray. \
@@ -77,96 +74,112 @@ def transmittance(
             shape (n_samples, 1).
         t_ends: Where the frustum-shape sample ends along a ray. Tensor with \
             shape (n_samples, 1).
-        sigmas: The sigma values of the samples. Tensor with shape (n_samples, 1).
+        sigmas: The density values of the samples. Tensor with shape (n_samples, 1).
         early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
     
     Returns:
-        A tuple of 5 tensors. The first 4 tensors are the compacted {packed_info, \
-        t_starts, t_ends, sigmas}. The last tensor is the compacted weights.
-
+        transmittance weights with shape (n_samples, 1).
     """
-    if compression:
-        # compact samples
-        with torch.no_grad():
-            packed_info, t_starts, t_ends, sigmas = _transmittance_compression_forward(
-                packed_info, t_starts, t_ends, sigmas, early_stop_eps
-            )
-        # return compacted results.
-        return packed_info, t_starts, t_ends, sigmas
-    else:
-        # compute weights
-        weights = _transmittance_forward(
-            packed_info, t_starts, t_ends, sigmas, early_stop_eps
-        )
-        # register backward: weights -> sigmas.
-        weights = _TransmittanceBackward.apply(
-            packed_info, t_starts, t_ends, sigmas, weights, early_stop_eps
-        )
-        # return compacted results.
-        return weights
-
-
-def _transmittance_forward(
-    packed_info, t_starts, t_ends, sigmas, early_stop_eps: float = 1e-4
-):
-    """Forward pass of the transmittance compression."""
-    with torch.no_grad():
-        weights = _C.rendering_forward(
-            packed_info.contiguous(),
-            t_starts.contiguous(),
-            t_ends.contiguous(),
-            sigmas.contiguous(),
-            early_stop_eps,
-            False,  # no compression
-        )[0]
+    if not sigmas.is_cuda:
+        raise NotImplementedError("Only support cuda inputs.")
+    weights = _RenderingDensity.apply(
+        packed_info, t_starts, t_ends, sigmas, early_stop_eps
+    )
     return weights
 
 
-def _transmittance_compression_forward(
-    packed_info, t_starts, t_ends, sigmas, early_stop_eps: float = 1e-4
-):
-    """Forward pass of the transmittance compression."""
-    with torch.no_grad():
-        _packed_info, compact_selector = _C.rendering_forward(
-            packed_info.contiguous(),
-            t_starts.contiguous(),
-            t_ends.contiguous(),
-            sigmas.contiguous(),
-            early_stop_eps,
-            True,  # compression
-        )
-    _t_starts = t_starts[compact_selector]
-    _t_ends = t_ends[compact_selector]
-    _sigmas = sigmas[compact_selector]
-    return _packed_info, _t_starts, _t_ends, _sigmas
+def render_weight_from_alpha(
+    packed_info,
+    alphas,
+    early_stop_eps: float = 1e-4,
+) -> Tuple[torch.Tensor, ...]:
+    """Compute transmittance weights from density.
+
+    Args:
+        packed_info: Stores information on which samples belong to the same ray. \
+            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
+        alphas: The opacity values of the samples. Tensor with shape (n_samples, 1).
+        early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
+    
+    Returns:
+        transmittance weights with shape (n_samples, 1).
+    """
+    if not alphas.is_cuda:
+        raise NotImplementedError("Only support cuda inputs.")
+    weights = _RenderingAlpha.apply(packed_info, alphas, early_stop_eps)
+    return weights
 
 
-class _TransmittanceBackward(torch.autograd.Function):
-    """Backward pass of the transmittance."""
+@torch.no_grad()
+def render_visibility(
+    packed_info,
+    alphas,
+    early_stop_eps: float = 1e-4,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Filter out invisible samples given alpha (opacity).
+
+    Args:
+        packed_info: Stores information on which samples belong to the same ray. \
+            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
+        alphas: The opacity values of the samples. Tensor with shape (n_samples, 1).
+        early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
+    
+    Returns:
+        A tuple of tensors including:
+
+            - **visibility**: The visibility mask. Boolen tensor of shape (n_samples,).
+            - **packed_info_visible**: The new packed_info for visible samples. 
+                Tensor shape (n_rays, 2). It should be used if you use the visiblity
+                mask to filter out invisible samples.
+
+    """
+    visibility, packed_info_visible = _C.rendering_alphas_forward(
+        packed_info.contiguous(),
+        alphas.contiguous(),
+        early_stop_eps,
+        True,  # compute visibility instead of weights
+    )
+    return visibility, packed_info_visible
+
+
+class _RenderingDensity(torch.autograd.Function):
+    """Rendering transmittance weights from density."""
 
     @staticmethod
     def forward(
         ctx,
-        _packed_info,
-        _t_starts,
-        _t_ends,
-        _sigmas,
-        _weights,
+        packed_info,
+        t_starts,
+        t_ends,
+        sigmas,
         early_stop_eps: float = 1e-4,
     ):
+        packed_info = packed_info.contiguous()
+        t_starts = t_starts.contiguous()
+        t_ends = t_ends.contiguous()
+        sigmas = sigmas.contiguous()
+        weights = _C.rendering_forward(
+            packed_info,
+            t_starts,
+            t_ends,
+            sigmas,
+            early_stop_eps,
+            False,  # not doing filtering
+        )[0]
         if ctx.needs_input_grad[3]:  # sigmas
             ctx.save_for_backward(
-                _packed_info,
-                _t_starts,
-                _t_ends,
-                _sigmas,
-                _weights,
+                packed_info,
+                t_starts,
+                t_ends,
+                sigmas,
+                weights,
             )
             ctx.early_stop_eps = early_stop_eps
-        return _weights
+        return weights
 
     @staticmethod
     def backward(ctx, grad_weights):
+        grad_weights = grad_weights.contiguous()
         early_stop_eps = ctx.early_stop_eps
         (
             packed_info,
@@ -176,12 +189,58 @@ class _TransmittanceBackward(torch.autograd.Function):
             weights,
         ) = ctx.saved_tensors
         grad_sigmas = _C.rendering_backward(
-            weights.contiguous(),
-            grad_weights.contiguous(),
-            packed_info.contiguous(),
-            t_starts.contiguous(),
-            t_ends.contiguous(),
-            sigmas.contiguous(),
+            weights,
+            grad_weights,
+            packed_info,
+            t_starts,
+            t_ends,
+            sigmas,
             early_stop_eps,
         )
-        return None, None, None, grad_sigmas, None, None
+        return None, None, None, grad_sigmas, None
+
+
+class _RenderingAlpha(torch.autograd.Function):
+    """Rendering transmittance weights from alpha."""
+
+    @staticmethod
+    def forward(
+        ctx,
+        packed_info,
+        alphas,
+        early_stop_eps: float = 1e-4,
+    ):
+        packed_info = packed_info.contiguous()
+        alphas = alphas.contiguous()
+        weights = _C.rendering_alphas_forward(
+            packed_info,
+            alphas,
+            early_stop_eps,
+            False,  # not doing filtering
+        )[0]
+        if ctx.needs_input_grad[1]:  # alphas
+            ctx.save_for_backward(
+                packed_info,
+                alphas,
+                weights,
+            )
+            ctx.early_stop_eps = early_stop_eps
+        return weights
+
+    @staticmethod
+    def backward(ctx, grad_weights):
+        grad_weights = grad_weights.contiguous()
+        early_stop_eps = ctx.early_stop_eps
+        (
+            packed_info,
+            alphas,
+            weights,
+        ) = ctx.saved_tensors
+        grad_sigmas = _C.rendering_backward(
+            weights,
+            grad_weights,
+            packed_info,
+            alphas,
+            early_stop_eps,
+        )
+        return None, grad_sigmas, None

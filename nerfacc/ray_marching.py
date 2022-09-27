@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -6,6 +6,7 @@ from torch import Tensor
 import nerfacc.cuda as _C
 
 from .grid import Grid
+from .rendering import render_visibility
 
 
 @torch.no_grad()
@@ -69,7 +70,7 @@ def ray_marching(
     t_max: Optional[Tensor] = None,
     # bounding box of the scene
     scene_aabb: Optional[Tensor] = None,
-    # grid for skipping
+    # grid for skipping empty space
     grid: Optional[Grid] = None,
     # rendering options
     near_plane: Optional[float] = None,
@@ -90,6 +91,7 @@ def ray_marching(
             scene_aabb which be ignored if both t_min and t_max are provided.
         grid: Optional. Grid for to idicates where to skip during marching.
             See :class:`nerfacc.Grid` for details.
+        sigma_fn
         near_plane: Optional. Near plane distance. If provided, it will be used
             to clip t_min.
         far_plane: Optional. Far plane distance. If provided, it will be used
