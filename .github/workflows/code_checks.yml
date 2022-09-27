@@ -27,9 +27,9 @@ jobs:
         run: |
           pip install --upgrade --upgrade-strategy eager -e .[dev]
       - name: Run isort
-        run: isort docs/ nerfacc/ scripts/ tests/ --profile black --check
+        run: isort docs/ nerfacc/ scripts/ examples/ tests/ --profile black --check
       - name: Run Black
-        run: black docs/ nerfacc/ scripts/ tests/ --check
-      - name: Python Pylint
-        run: |
-          pylint nerfacc tests scripts
+        run: black docs/ nerfacc/ scripts/ examples/ tests/ --check
+      # - name: Python Pylint
+      #   run: |
+      #     pylint nerfacc/ tests/ scripts/ examples/
