@@ -16,8 +16,6 @@ except ImportError as e:
     )
     exit()
 
-from .base import BaseRadianceField
-
 
 class _TruncExp(Function):  # pylint: disable=abstract-method
     # Implementation from torch-ngp:
@@ -38,7 +36,7 @@ class _TruncExp(Function):  # pylint: disable=abstract-method
 trunc_exp = _TruncExp.apply
 
 
-class NGPradianceField(BaseRadianceField):
+class NGPradianceField(torch.nn.Module):
     """Instance-NGP radiance Field"""
 
     def __init__(
