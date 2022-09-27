@@ -15,12 +15,12 @@ def accumulate_along_rays(
     """Accumulate volumetric values along the ray.
 
     Note:
-        this function is only differentiable to `weights` and `values`.
+        This function is only differentiable to `weights` and `values`.
 
     Args:
         weights: Volumetric rendering weights for those samples. Tensor with shape \
-            (n_samples).
-        ray_indices: Ray index of each sample. IntTensor with shape (n_sample). \
+            (n_samples,).
+        ray_indices: Ray index of each sample. IntTensor with shape (n_samples). \
             It can be obtained from `unpack_to_ray_indices(packed_info)`.
         values: The values to be accmulated. Tensor with shape (n_samples, D). If \
             None, the accumulated values are just weights. Default is None.
@@ -31,6 +31,23 @@ def accumulate_along_rays(
     Returns:
         Accumulated values with shape (n_rays, D). If `values` is not given then we return \
             the accumulated weights, in which case D == 1.
+
+    Examples:
+
+    .. code-block:: python
+
+        # Rendering: accumulate rgbs, opacities, and depths along the rays.
+        colors = accumulate_along_rays(weights, ray_indices, values=rgbs, n_rays=n_rays)
+        opacities = accumulate_along_rays(weights, ray_indices, values=None, n_rays=n_rays)
+        depths = accumulate_along_rays(
+            weights,
+            ray_indices,
+            values=(t_starts + t_ends) / 2.0,
+            n_rays=n_rays,
+        )
+        # (n_rays, 3), (n_rays, 1), (n_rays, 1)
+        print(colors.shape, opacities.shape, depths.shape)
+
     """
     assert ray_indices.dim() == 1 and weights.dim() == 1
     if not weights.is_cuda:
@@ -79,7 +96,29 @@ def render_weight_from_density(
         early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
     
     Returns:
-        transmittance weights with shape (n_samples, 1).
+        transmittance weights with shape (n_samples,).
+
+    Examples:
+
+    .. code-block:: python
+
+        rays_o = torch.rand((128, 3), device="cuda:0")
+        rays_d = torch.randn((128, 3), device="cuda:0")
+        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+
+        # Ray marching with near far plane.
+        packed_info, t_starts, t_ends = ray_marching(
+            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
+        )
+        # pesudo density
+        sigmas = torch.rand((t_starts.shape[0], 1), device="cuda:0")
+        # Rendering: compute weights and ray indices.
+        weights = render_weight_from_density(
+            packed_info, t_starts, t_ends, sigmas, early_stop_eps=1e-4
+        )
+        # torch.Size([115200, 1]) torch.Size([115200])
+        print(sigmas.shape, weights.shape)
+
     """
     if not sigmas.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
@@ -103,7 +142,29 @@ def render_weight_from_alpha(
         early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
     
     Returns:
-        transmittance weights with shape (n_samples, 1).
+        transmittance weights with shape (n_samples,).
+
+    Examples:
+
+    .. code-block:: python
+
+        rays_o = torch.rand((128, 3), device="cuda:0")
+        rays_d = torch.randn((128, 3), device="cuda:0")
+        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+
+        # Ray marching with near far plane.
+        packed_info, t_starts, t_ends = ray_marching(
+            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
+        )
+        # pesudo opacity
+        alphas = torch.rand((t_starts.shape[0], 1), device="cuda:0")
+        # Rendering: compute weights and ray indices.
+        weights = render_weight_from_alpha(
+            packed_info, alphas, early_stop_eps=1e-4
+        )
+        # torch.Size([115200, 1]) torch.Size([115200])
+        print(alphas.shape, weights.shape)
+
     """
     if not alphas.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
@@ -133,6 +194,29 @@ def render_visibility(
             - **packed_info_visible**: The new packed_info for visible samples. \
                 Tensor shape (n_rays, 2). It should be used if you use the visiblity \
                 mask to filter out invisible samples.
+
+    Examples:
+
+    .. code-block:: python
+
+        rays_o = torch.rand((128, 3), device="cuda:0")
+        rays_d = torch.randn((128, 3), device="cuda:0")
+        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+
+        # Ray marching with near far plane.
+        packed_info, t_starts, t_ends = ray_marching(
+            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
+        )
+        # pesudo opacity
+        alphas = torch.rand((t_starts.shape[0], 1), device="cuda:0")
+        # Rendering but only for computing visibility of each samples.
+        visibility, packed_info_visible = render_visibility(
+            packed_info, alphas, early_stop_eps=1e-4
+        )
+        t_starts_visible = t_starts[visibility]
+        t_ends_visible = t_ends[visibility]
+        # torch.Size([115200, 1]) torch.Size([1283, 1])
+        print(t_starts.shape, t_starts_visible.shape)
 
     """
     visibility, packed_info_visible = _C.rendering_alphas_forward(
