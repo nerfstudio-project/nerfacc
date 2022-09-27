@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nerfacc"
-version = "0.0.9"
+version = "0.1.0"
 authors = [{name = "Ruilong", email = "ruilongli94@gmail.com"}]
 license = { text="MIT" }
 requires-python = ">=3.8"
@@ -34,6 +34,11 @@ dev = [
 # black
 [tool.black]
 line-length = 80
+
+[tool.isort]
+multi_line_output = 3
+line_length = 80
+include_trailing_comma = true
 
 # pylint
 [tool.pylint.messages_control]

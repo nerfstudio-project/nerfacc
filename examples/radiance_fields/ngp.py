@@ -14,8 +14,6 @@ except ImportError as e:
     )
     exit()
 
-from .base import BaseRadianceField
-
 
 class _TruncExp(Function):  # pylint: disable=abstract-method
     # Implementation from torch-ngp:
@@ -36,7 +34,7 @@ class _TruncExp(Function):  # pylint: disable=abstract-method
 trunc_exp = _TruncExp.apply
 
 
-class NGPradianceField(BaseRadianceField):
+class NGPradianceField(torch.nn.Module):
     """Instance-NGP radiance Field"""
 
     def __init__(
@@ -45,7 +43,7 @@ class NGPradianceField(BaseRadianceField):
         num_dim: int = 3,
         use_viewdirs: bool = True,
         density_activation: Callable = lambda x: trunc_exp(x - 1),
-        # density_activation: Callable = lambda x: torch.nn.functional.softplus(x - 1),
+        unbounded: bool = False,
     ) -> None:
         super().__init__()
         if not isinstance(aabb, torch.Tensor):
@@ -54,6 +52,7 @@ class NGPradianceField(BaseRadianceField):
         self.num_dim = num_dim
         self.use_viewdirs = use_viewdirs
         self.density_activation = density_activation
+        self.unbounded = unbounded
 
         self.geo_feat_dim = 15
         per_level_scale = 1.4472692012786865
@@ -96,7 +95,11 @@ class NGPradianceField(BaseRadianceField):
 
         self.mlp_head = tcnn.Network(
             n_input_dims=(
-                (self.direction_encoding.n_output_dims if self.use_viewdirs else 0)
+                (
+                    self.direction_encoding.n_output_dims
+                    if self.use_viewdirs
+                    else 0
+                )
                 + self.geo_feat_dim
             ),
             n_output_dims=3,
@@ -109,9 +112,36 @@ class NGPradianceField(BaseRadianceField):
             },
         )
 
+    def query_opacity(self, x, step_size):
+        density = self.query_density(x)
+        aabb_min, aabb_max = torch.split(self.aabb, self.num_dim, dim=-1)
+        if self.unbounded:
+            # TODO: [revisit] is this necessary?
+            # 1.0 / derivative of tanh contraction
+            x = (x - aabb_min) / (aabb_max - aabb_min)
+            x = x - 0.5
+            scaling = 1.0 / (
+                torch.clamp(1.0 - torch.tanh(x) ** 2, min=1e6) * 0.5
+            )
+            scaling = scaling * (aabb_max - aabb_min)
+        else:
+            scaling = aabb_max - aabb_min
+        step_size = step_size * scaling.norm(dim=-1, keepdim=True)
+        # if the density is small enough those two are the same.
+        # opacity = 1.0 - torch.exp(-density * step_size)
+        opacity = density * step_size
+        return opacity
+
     def query_density(self, x, return_feat: bool = False):
-        bb_min, bb_max = torch.split(self.aabb, [self.num_dim, self.num_dim], dim=0)
-        x = (x - bb_min) / (bb_max - bb_min)
+        if self.unbounded:
+            # tanh contraction
+            aabb_min, aabb_max = torch.split(self.aabb, self.num_dim, dim=-1)
+            x = (x - aabb_min) / (aabb_max - aabb_min)
+            x = x - 0.5
+            x = (torch.tanh(x) + 1) * 0.5
+        else:
+            aabb_min, aabb_max = torch.split(self.aabb, self.num_dim, dim=-1)
+            x = (x - aabb_min) / (aabb_max - aabb_min)
         selector = ((x > 0.0) & (x < 1.0)).all(dim=-1)
         x = (
             self.mlp_base(x.view(-1, self.num_dim))
@@ -122,7 +152,8 @@ class NGPradianceField(BaseRadianceField):
             x, [1, self.geo_feat_dim], dim=-1
         )
         density = (
-            self.density_activation(density_before_activation) * selector[..., None]
+            self.density_activation(density_before_activation)
+            * selector[..., None]
         )
         if return_feat:
             return density, base_mlp_out
@@ -137,36 +168,22 @@ class NGPradianceField(BaseRadianceField):
             h = torch.cat([d, embedding.view(-1, self.geo_feat_dim)], dim=-1)
         else:
             h = embedding.view(-1, self.geo_feat_dim)
-        rgb = self.mlp_head(h).view(list(embedding.shape[:-1]) + [3]).to(embedding)
+        rgb = (
+            self.mlp_head(h)
+            .view(list(embedding.shape[:-1]) + [3])
+            .to(embedding)
+        )
         return rgb
 
     def forward(
         self,
         positions: torch.Tensor,
         directions: torch.Tensor = None,
-        mask: torch.Tensor = None,
-        only_density: bool = False,
     ):
         if self.use_viewdirs and (directions is not None):
             assert (
                 positions.shape == directions.shape
             ), f"{positions.shape} v.s. {directions.shape}"
-        if mask is not None:
-            density = torch.zeros_like(positions[..., :1])
-            rgb = torch.zeros(list(positions.shape[:-1]) + [3], device=positions.device)
-            density[mask], embedding = self.query_density(positions[mask])
-            if only_density:
-                return density
-
-            rgb[mask] = self.query_rgb(
-                directions[mask] if directions is not None else None,
-                embedding=embedding,
-            )
-        else:
             density, embedding = self.query_density(positions, return_feat=True)
-            if only_density:
-                return density
-
             rgb = self._query_rgb(directions, embedding=embedding)
-
         return rgb, density

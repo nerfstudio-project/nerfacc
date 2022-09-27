@@ -1,22 +1,31 @@
-"""nerfacc - A Python package for the fast volumetric rendering."""
-from .occupancy_field import OccupancyField
-from .utils import (
+from .contraction import ContractionType, contract, contract_inv
+from .grid import Grid, OccupancyGrid
+from .pipeline import rendering, volumetric_rendering
+from .ray_marching import (
     ray_aabb_intersect,
+    ray_marching,
     unpack_to_ray_indices,
-    volumetric_marching,
-    volumetric_rendering_accumulate,
-    volumetric_rendering_steps,
-    volumetric_rendering_weights,
 )
-from .volumetric_rendering import volumetric_rendering_pipeline
+from .vol_rendering import (
+    accumulate_along_rays,
+    render_visibility,
+    render_weight_from_alpha,
+    render_weight_from_density,
+)
 
 __all__ = [
-    "OccupancyField",
+    "Grid",
+    "OccupancyGrid",
+    "ContractionType",
+    "contract",
+    "contract_inv",
     "ray_aabb_intersect",
-    "volumetric_marching",
-    "volumetric_rendering_accumulate",
-    "volumetric_rendering_steps",
-    "volumetric_rendering_weights",
-    "volumetric_rendering_pipeline",
+    "ray_marching",
     "unpack_to_ray_indices",
+    "accumulate_along_rays",
+    "render_visibility",
+    "render_weight_from_alpha",
+    "render_weight_from_density",
+    "volumetric_rendering",
+    "rendering",
 ]

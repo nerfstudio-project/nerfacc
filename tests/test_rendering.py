@@ -1,65 +1,36 @@
+import pytest
 import torch
-import tqdm
 
-from nerfacc import (
-    unpack_to_ray_indices,
-    volumetric_marching,
-    volumetric_rendering_accumulate,
-    volumetric_rendering_steps,
-    volumetric_rendering_weights,
-)
+from nerfacc.ray_marching import ray_marching
+from nerfacc.vol_rendering import render_weight_from_density
 
 device = "cuda:0"
+batch_size = 128
 
 
-def test_rendering():
-    scene_aabb = torch.tensor([0, 0, 0, 1, 1, 1], device=device).float()
-    scene_occ_binary = torch.ones((128 * 128 * 128), device=device).bool()
-    rays_o = torch.rand((10000, 3), device=device)
-    rays_d = torch.randn((10000, 3), device=device)
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_transmittance_compress():
+    rays_o = torch.rand((batch_size, 3), device=device)
+    rays_d = torch.randn((batch_size, 3), device=device)
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
-    for step in tqdm.tqdm(range(1000)):
-        (packed_info, frustum_starts, frustum_ends,) = volumetric_marching(
-            rays_o,
-            rays_d,
-            aabb=scene_aabb,
-            scene_resolution=[128, 128, 128],
-            scene_occ_binary=scene_occ_binary,
-        )
-
-        sigmas = torch.rand_like(frustum_ends[:, :1], requires_grad=True) * 100
-
-        (
-            packed_info,
-            frustum_starts,
-            frustum_ends,
-        ) = volumetric_rendering_steps(
-            packed_info,
-            sigmas,
-            frustum_starts,
-            frustum_ends,
-        )
-        ray_indices = unpack_to_ray_indices(packed_info)
-
-        sigmas = torch.rand_like(frustum_ends[:, :1], requires_grad=True) * 100
-        values = torch.rand_like(frustum_starts, requires_grad=True)
-        weights = volumetric_rendering_weights(
-            packed_info,
-            sigmas,
-            frustum_starts,
-            frustum_ends,
-        )
-
-        accum_values = volumetric_rendering_accumulate(
-            weights,
-            ray_indices,
-            values,
-            n_rays=rays_o.shape[0],
-        )
-
-        accum_values.sum().backward()
+    packed_info, t_starts, t_ends = ray_marching(
+        rays_o,
+        rays_d,
+        near_plane=0.1,
+        far_plane=1.0,
+        render_step_size=1e-2,
+    )
+    sigmas = torch.rand_like(t_starts, requires_grad=True)
+    weights = render_weight_from_density(
+        packed_info,
+        t_starts,
+        t_ends,
+        sigmas * 1e2,
+    )
+    weights.sum().backward()
+    assert sigmas.grad is not None
 
 
 if __name__ == "__main__":
-    test_rendering()
+    test_transmittance_compress()
