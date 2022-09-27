@@ -9,9 +9,6 @@ from .contraction import ContractionType, contract_inv
 # from torch_scatter import scatter_max
 
 
-# TODO: do an ContractionOptions class
-
-
 class Grid(nn.Module):
     """An abstract Grid class.
 
@@ -23,10 +20,10 @@ class Grid(nn.Module):
     To work with :func:`nerfacc.ray_marching`, three attributes must exist:
 
         - :attr:`roi_aabb`: The axis-aligned bounding box of the region of interest.
-        - :attr:`binary`: A 3D binarized tensor of shape {resx, resy, resz},
+        - :attr:`binary`: A 3D binarized tensor of shape {resx, resy, resz}, \
             with torch.bool data type.
-        - :attr:`contraction_type`: The contraction type of the grid, indicating how
-            the 3D space is contracted to the grid.
+        - :attr:`contraction_type`: The contraction type of the grid, indicating how \
+            the 3D space is mapped to the grid.
     """
 
     def __init__(self, *args, **kwargs):
@@ -39,12 +36,9 @@ class Grid(nn.Module):
 
     @property
     def roi_aabb(self) -> torch.Tensor:
-        """Return the axis-aligned bounding box of the region of interest.
+        """The axis-aligned bounding box of the region of interest.
 
-        The roi_aabb is a (6,) tensor in the format of [minx, miny, minz, maxx, maxy, maxz].
-
-        Note:
-            this function is required by :func:`nerfacc.ray_marching`.
+        Its is a shape (6,) tensor in the format of {minx, miny, minz, maxx, maxy, maxz}.
         """
         if hasattr(self, "_roi_aabb"):
             return getattr(self, "_roi_aabb")
@@ -53,13 +47,10 @@ class Grid(nn.Module):
 
     @property
     def binary(self) -> torch.Tensor:
-        """Return a 3D binarized tensor with torch.bool data type.
+        """A 3D binarized tensor with torch.bool data type.
 
-        The tensor is of shape (resx, resy, resz). in which each boolen value
-        represents whether the corresponding voxel are should be kept or not.
-
-        Note:
-            this function is required by :func:`nerfacc.ray_marching`.
+        The tensor is of shape (resx, resy, resz), in which each boolen value
+        represents whether the corresponding voxel should be kept or not.
         """
         if hasattr(self, "_binary"):
             return getattr(self, "_binary")
@@ -68,13 +59,10 @@ class Grid(nn.Module):
 
     @property
     def contraction_type(self) -> ContractionType:
-        """Return the contraction type of the grid.
+        """The contraction type of the grid.
 
         The contraction type is an indicator of how the 3D space is contracted
         to this voxel grid. See :class:`nerfacc.ContractionType` for more details.
-
-        Note:
-            this function is required by :func:`nerfacc.ray_marching`.
         """
         if hasattr(self, "_contraction_type"):
             return getattr(self, "_contraction_type")
