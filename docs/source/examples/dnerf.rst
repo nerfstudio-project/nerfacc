@@ -12,6 +12,7 @@ split for training and test split for evaluation. Our experiments are conducted 
 single NVIDIA TITAN RTX GPU. 
 
 .. note::
+
     The :ref:`Occupancy Grid` used in this example is shared by all the frames. In other words, 
     instead of using it to indicate the opacity of an area at a single timestamp, 
     Here we use it to indicate the `maximum` opacity at this area `over all the timestamps`.
@@ -31,3 +32,4 @@ single NVIDIA TITAN RTX GPU.
 .. _`D-Nerf`: https://arxiv.org/abs/2104.00677
 .. _`D-Nerf dataset`: https://www.dropbox.com/s/0bf6fl0ye2vz3vr/data.zip?dl=0
 .. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/
+
