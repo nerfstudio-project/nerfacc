@@ -5,12 +5,12 @@ NerfAcc is a PyTorch Nerf acceleration toolbox for both training and inference.
 
 Using NerfAcc, 
 
-- The `vanilla Nerf model`_ with 8-layer MLPs can be trained to *better quality* (+~1.0 PNSR) \
-  in *45 minutes* rather than *1~2 days* as in the paper.
-- The `instant-ngp Nerf model`_ can be trained to *equal quality* with *9/10th* of the training time \
+- The `vanilla Nerf model`_ with 8-layer MLPs can be trained to *better quality* (+~0.5 PNSR) \
+  in *1 hour* rather than *1~2 days* as in the paper.
+- The `instant-ngp Nerf model`_ can be trained to *equal quality* with *9/10th* of the training time (4.5 minutes) \
   comparing to the official pure-CUDA implementation.
-- The `D-Nerf model`_ for *dynamic* objects can also be trained in *45 minutes* \
-  rather than *2 days* as in the paper, and with *better quality* (+~2.0 PSNR).
+- The `D-Nerf model`_ for *dynamic* objects can also be trained in *1 hour* \
+  rather than *2 days* as in the paper, and with *better quality* (+~0.5 PSNR).
 - *Unbounded scenes* from `MipNerf360`_ can also be trained in \
   *~1 hour* and get comparable quality to the paper.
 
