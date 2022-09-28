@@ -27,7 +27,7 @@ class ContractionType(Enum):
             .. math:: f(x) = \\frac{1}{2}(tanh(\\frac{x - x_0}{x_1 - x_0} - \\frac{1}{2}) + 1)
 
         UN_BOUNDED_SPHERE: Contract an unbounded space into a unit sphere. Used in
-            `Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields`_.
+            `Mip-Nerf 360: Unbounded Anti-Aliased Neural Radiance Fields`_.
 
             .. math:: 
                 f(x) = 
@@ -39,7 +39,7 @@ class ContractionType(Enum):
             .. math::
                 z(x) = \\frac{x - x_0}{x_1 - x_0} * 2 - 1
 
-            .. _Mip-NeRF 360\: Unbounded Anti-Aliased Neural Radiance Fields:
+            .. _Mip-Nerf 360\: Unbounded Anti-Aliased Neural Radiance Fields:
                 https://arxiv.org/abs/2111.12077
 
     """

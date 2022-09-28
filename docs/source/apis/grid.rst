@@ -1,3 +1,5 @@
+.. _`Occupancy Grid`:
+
 Occupancy Grid
 ===================================
 

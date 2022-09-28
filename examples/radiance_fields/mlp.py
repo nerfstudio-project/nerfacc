@@ -163,7 +163,7 @@ class NerfMLP(nn.Module):
 
 
 class SinusoidalEncoder(nn.Module):
-    """Sinusoidal Positional Encoder used in NeRF."""
+    """Sinusoidal Positional Encoder used in Nerf."""
 
     def __init__(self, x_dim, min_deg, max_deg, use_identity: bool = True):
         super().__init__()
