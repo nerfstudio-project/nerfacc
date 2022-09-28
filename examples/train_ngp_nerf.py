@@ -42,6 +42,12 @@ if __name__ == "__main__":
             "ship",
             # mipnerf360 unbounded
             "garden",
+            "bicycle",
+            "bonsai",
+            "counter",
+            "kitchen",
+            "room",
+            "stump",
         ],
         help="which scene to use",
     )
@@ -74,7 +80,7 @@ if __name__ == "__main__":
     # setup the dataset
     train_dataset_kwargs = {}
     test_dataset_kwargs = {}
-    if args.scene == "garden":
+    if args.unbounded:
         from datasets.nerf_360_v2 import SubjectLoader
 
         data_root_fp = "/home/ruilongli/data/360_v2/"
@@ -142,7 +148,7 @@ if __name__ == "__main__":
         ).item()
 
     # setup the radiance field we want to train.
-    max_steps = 50000 if args.unbounded else 20000
+    max_steps = 40000 if args.unbounded else 20000
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPradianceField(
         aabb=args.aabb,
