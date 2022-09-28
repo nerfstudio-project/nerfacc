@@ -34,6 +34,31 @@ class _TruncExp(Function):  # pylint: disable=abstract-method
 trunc_exp = _TruncExp.apply
 
 
+def contract_to_unisphere(
+    x: torch.Tensor,
+    aabb: torch.Tensor,
+    eps: float = 1e-6,
+    derivative: bool = False,
+):
+    aabb_min, aabb_max = torch.split(aabb, 3, dim=-1)
+    x = (x - aabb_min) / (aabb_max - aabb_min)
+    x = x * 2 - 1  # aabb is at [-1, 1]
+    mag = x.norm(dim=-1, keepdim=True)
+    mask = mag.squeeze(-1) > 1
+
+    if derivative:
+        dev = (2 * mag - 1) / mag**2 + 2 * x**2 * (
+            1 / mag**3 - (2 * mag - 1) / mag**4
+        )
+        dev[~mask] = 1.0
+        dev = torch.clamp(dev, min=eps)
+        return dev
+    else:
+        x[mask] = (2 - 1 / mag[mask]) * (x[mask] / mag[mask])
+        x = x / 4 + 0.5  # [-inf, inf] is at [0, 1]
+        return x
+
+
 class NGPradianceField(torch.nn.Module):
     """Instance-NGP radiance Field"""
 
@@ -114,31 +139,18 @@ class NGPradianceField(torch.nn.Module):
 
     def query_opacity(self, x, step_size):
         density = self.query_density(x)
-        aabb_min, aabb_max = torch.split(self.aabb, self.num_dim, dim=-1)
         if self.unbounded:
-            # TODO: [revisit] is this necessary?
-            # 1.0 / derivative of tanh contraction
-            x = (x - aabb_min) / (aabb_max - aabb_min)
-            x = x - 0.5
-            scaling = 1.0 / (
-                torch.clamp(1.0 - torch.tanh(x) ** 2, min=1e6) * 0.5
-            )
-            scaling = scaling * (aabb_max - aabb_min)
-        else:
-            scaling = aabb_max - aabb_min
-        step_size = step_size * scaling.norm(dim=-1, keepdim=True)
-        # if the density is small enough those two are the same.
-        # opacity = 1.0 - torch.exp(-density * step_size)
+            # NOTE: In principle, we should use the following formula to scale
+            # up the step size, but in practice, it is somehow not helpful.
+            # derivitive = contract_to_unisphere(x, self.aabb, derivative=True)
+            # step_size = step_size / derivitive.norm(dim=-1, keepdim=True)
+            pass
         opacity = density * step_size
         return opacity
 
     def query_density(self, x, return_feat: bool = False):
         if self.unbounded:
-            # tanh contraction
-            aabb_min, aabb_max = torch.split(self.aabb, self.num_dim, dim=-1)
-            x = (x - aabb_min) / (aabb_max - aabb_min)
-            x = x - 0.5
-            x = (torch.tanh(x) + 1) * 0.5
+            x = contract_to_unisphere(x, self.aabb)
         else:
             aabb_min, aabb_max = torch.split(self.aabb, self.num_dim, dim=-1)
             x = (x - aabb_min) / (aabb_max - aabb_min)

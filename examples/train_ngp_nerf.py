@@ -42,6 +42,12 @@ if __name__ == "__main__":
             "ship",
             # mipnerf360 unbounded
             "garden",
+            "bicycle",
+            "bonsai",
+            "counter",
+            "kitchen",
+            "room",
+            "stump",
         ],
         help="which scene to use",
     )
@@ -61,58 +67,27 @@ if __name__ == "__main__":
         action="store_true",
         help="whether to use unbounded rendering",
     )
+    parser.add_argument(
+        "--auto_aabb",
+        action="store_true",
+        help="whether to automatically compute the aabb",
+    )
     parser.add_argument("--cone_angle", type=float, default=0.0)
     args = parser.parse_args()
 
     render_n_samples = 1024
 
-    # setup the scene bounding box.
-    if args.unbounded:
-        print("Using unbounded rendering")
-        contraction_type = ContractionType.UN_BOUNDED_SPHERE
-        # contraction_type = ContractionType.UN_BOUNDED_TANH
-        scene_aabb = None
-        near_plane = 0.2
-        far_plane = 1e4
-        render_step_size = 1e-2
-    else:
-        contraction_type = ContractionType.AABB
-        scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
-        near_plane = None
-        far_plane = None
-        render_step_size = (
-            (scene_aabb[3:] - scene_aabb[:3]).max()
-            * math.sqrt(3)
-            / render_n_samples
-        ).item()
-
-    # setup the radiance field we want to train.
-    max_steps = 20000
-    grad_scaler = torch.cuda.amp.GradScaler(2**10)
-    radiance_field = NGPradianceField(
-        aabb=args.aabb,
-        unbounded=args.unbounded,
-    ).to(device)
-    optimizer = torch.optim.Adam(
-        radiance_field.parameters(), lr=1e-2, eps=1e-15
-    )
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer,
-        milestones=[max_steps // 2, max_steps * 3 // 4, max_steps * 9 // 10],
-        gamma=0.33,
-    )
-
     # setup the dataset
     train_dataset_kwargs = {}
     test_dataset_kwargs = {}
-    if args.scene == "garden":
+    if args.unbounded:
         from datasets.nerf_360_v2 import SubjectLoader
 
         data_root_fp = "/home/ruilongli/data/360_v2/"
         target_sample_batch_size = 1 << 20
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
-        grid_resolution = 128
+        grid_resolution = 256
     else:
         from datasets.nerf_synthetic import SubjectLoader
 
@@ -142,6 +117,51 @@ if __name__ == "__main__":
     test_dataset.images = test_dataset.images.to(device)
     test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
     test_dataset.K = test_dataset.K.to(device)
+
+    if args.auto_aabb:
+        camera_locs = torch.cat(
+            [train_dataset.camtoworlds, test_dataset.camtoworlds]
+        )[:, :3, -1]
+        args.aabb = torch.cat(
+            [camera_locs.min(dim=0).values, camera_locs.max(dim=0).values]
+        ).tolist()
+        print("Using auto aabb", args.aabb)
+
+    # setup the scene bounding box.
+    if args.unbounded:
+        print("Using unbounded rendering")
+        contraction_type = ContractionType.UN_BOUNDED_SPHERE
+        # contraction_type = ContractionType.UN_BOUNDED_TANH
+        scene_aabb = None
+        near_plane = 0.2
+        far_plane = 1e4
+        render_step_size = 1e-2
+    else:
+        contraction_type = ContractionType.AABB
+        scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
+        near_plane = None
+        far_plane = None
+        render_step_size = (
+            (scene_aabb[3:] - scene_aabb[:3]).max()
+            * math.sqrt(3)
+            / render_n_samples
+        ).item()
+
+    # setup the radiance field we want to train.
+    max_steps = 40000 if args.unbounded else 20000
+    grad_scaler = torch.cuda.amp.GradScaler(2**10)
+    radiance_field = NGPradianceField(
+        aabb=args.aabb,
+        unbounded=args.unbounded,
+    ).to(device)
+    optimizer = torch.optim.Adam(
+        radiance_field.parameters(), lr=1e-2, eps=1e-15
+    )
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer,
+        milestones=[max_steps // 2, max_steps * 3 // 4, max_steps * 9 // 10],
+        gamma=0.33,
+    )
 
     occupancy_grid = OccupancyGrid(
         roi_aabb=args.aabb,
@@ -201,7 +221,7 @@ if __name__ == "__main__":
             optimizer.step()
             scheduler.step()
 
-            if step % 5000 == 0:
+            if step % 10000 == 0:
                 elapsed_time = time.time() - tic
                 loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
                 print(

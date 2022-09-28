@@ -144,6 +144,12 @@ class SubjectLoader(torch.utils.data.Dataset):
     SPLITS = ["train", "test"]
     SUBJECT_IDS = [
         "garden",
+        "bicycle",
+        "bonsai",
+        "counter",
+        "kitchen",
+        "room",
+        "stump",
     ]
 
     OPENGL_CAMERA = False
