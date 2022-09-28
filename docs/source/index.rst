@@ -5,14 +5,13 @@ NerfAcc is a PyTorch Nerf acceleration toolbox for both training and inference.
 
 Using NerfAcc, 
 
-- The `vanilla Nerf model`_ with 8-layer MLPs can be trained to *better quality* (+~0.5 PNSR) \
+- The `vanilla Nerf`_ model with 8-layer MLPs can be trained to *better quality* (+~0.5 PNSR) \
   in *1 hour* rather than *1~2 days* as in the paper.
-- The `instant-ngp Nerf model`_ can be trained to *equal quality* with *9/10th* of the training time (4.5 minutes) \
+- The `Instant-NGP Nerf`_ model can be trained to *equal quality* with *9/10th* of the training time (4.5 minutes) \
   comparing to the official pure-CUDA implementation.
-- The `D-Nerf model`_ for *dynamic* objects can also be trained in *1 hour* \
+- The `D-Nerf`_ model for *dynamic* objects can also be trained in *1 hour* \
   rather than *2 days* as in the paper, and with *better quality* (+~0.5 PSNR).
-- *Unbounded scenes* from `MipNerf360`_ can also be trained in \
-  *~1 hour* and get comparable quality to the paper.
+- Both the *bounded* and *unbounded* scenes are supported.
 
 *And it is pure python interface with flexible apis!*
 
@@ -50,8 +49,8 @@ Installation:
    NeRFactory <https://plenoptix-nerfactory.readthedocs-hosted.com/>
 
 
-.. _`vanilla NeRF model`: https://arxiv.org/abs/2003.08934
-.. _`instant-ngp NeRF model`: https://arxiv.org/abs/2103.13497
-.. _`D-Nerf model`: https://arxiv.org/abs/2104.00677
+.. _`vanilla Nerf`: https://arxiv.org/abs/2003.08934
+.. _`Instant-NGP Nerf`: https://arxiv.org/abs/2103.13497
+.. _`D-Nerf`: https://arxiv.org/abs/2104.00677
 .. _`MipNerf360`: https://arxiv.org/abs/2111.12077
 .. _`pixel-Nerf`: https://arxiv.org/abs/2012.02190

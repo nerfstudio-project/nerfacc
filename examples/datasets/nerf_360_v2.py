@@ -53,7 +53,7 @@ def _load_colmap(root_fp: str, subject_id: str, split: str, factor: int = 1):
     # image names anymore.
     image_names = [imdata[k].name for k in imdata]
 
-    # # Switch from COLMAP (right, down, fwd) to NeRF (right, up, back) frame.
+    # # Switch from COLMAP (right, down, fwd) to Nerf (right, up, back) frame.
     # poses = poses @ np.diag([1, -1, -1, 1])
 
     # Get distortion parameters.
@@ -96,7 +96,7 @@ def _load_colmap(root_fp: str, subject_id: str, split: str, factor: int = 1):
 
     assert params is None, "Only support pinhole camera model."
 
-    # Previous NeRF results were generated with images sorted by filename,
+    # Previous Nerf results were generated with images sorted by filename,
     # ensure metrics are reported on the same test set.
     inds = np.argsort(image_names)
     image_names = [image_names[i] for i in inds]
