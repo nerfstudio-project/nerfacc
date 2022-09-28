@@ -1,22 +1,23 @@
 NerfAcc Documentation
 ===================================
 
-NerfAcc is a PyTorch NeRF acceleration toolbox for both training and inference. 
+NerfAcc is a PyTorch Nerf acceleration toolbox for both training and inference. 
 
 Using NerfAcc, 
 
-- The `vanilla Nerf model`_ with 8-layer MLPs can be trained in **45 minutes** \
-  rather than **1~2 days** as in the paper.
-- The `instant-ngp Nerf model`_ can be trained to **better quality** (+~1.0 PNSR) \
-  in **5 minutes** compare to the paper, and all the training code is in **Python**.
-- The `D-Nerf model`_ for **dynamic** objects can also be trained in **45 minutes** \
-  rather than **2 days** as in the paper, and with **better quality** (+~2.0 PSNR).
-- **Unbounded scenes** from `MipNerf360`_ can be trained in \
-  **~1 hour** and get comparable quality to the paper.
+- The `vanilla Nerf model`_ with 8-layer MLPs can be trained to *better quality* (+~1.0 PNSR) \
+  in *45 minutes* rather than *1~2 days* as in the paper.
+- The `instant-ngp Nerf model`_ can be trained to *better quality* (+~1.0 PNSR) \
+  in *5 minutes* compare to the paper.
+- The `D-Nerf model`_ for *dynamic* objects can also be trained in *45 minutes* \
+  rather than *2 days* as in the paper, and with *better quality* (+~2.0 PSNR).
+- *Unbounded scenes* from `MipNerf360`_ can also be trained in \
+  *~1 hour* and get comparable quality to the paper.
 
-And it is pure python interface with flexible apis for any customized Nerf models!
+*And it is pure python interface with flexible apis!*
 
-Note:
+.. note::
+
    This repo is focusing on the single scene situation. Generalizable Nerfs across \
    multiple scenes is currently out of the scope of this repo. But you may still find
    some useful tricks in this repo. :)
