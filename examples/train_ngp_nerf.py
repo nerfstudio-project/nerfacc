@@ -142,7 +142,7 @@ if __name__ == "__main__":
         ).item()
 
     # setup the radiance field we want to train.
-    max_steps = 20000 if args.unbounded else 20000
+    max_steps = 50000 if args.unbounded else 20000
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPradianceField(
         aabb=args.aabb,
@@ -215,7 +215,7 @@ if __name__ == "__main__":
             optimizer.step()
             scheduler.step()
 
-            if step % 1000 == 0:
+            if step % 10000 == 0:
                 elapsed_time = time.time() - tic
                 loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
                 print(
