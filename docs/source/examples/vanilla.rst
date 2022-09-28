@@ -13,9 +13,9 @@ Benchmarks
 +======================+=======+=======+============+=======+========+========+========+========+
 | Paper (PSNR: 5min)   | 32.54 | 32.91 | 29.62      | 33.00 | 36.18  | 30.13  | 25.01  | 28.65  |
 +----------------------+-------+-------+------------+-------+--------+--------+--------+--------+
-| Ours  (PSNR)         | XX.XX | XX.XX | XX.XX      | XX.XX | XX.XX  | XX.XX  | XX.XX  | XX.XX  |
+| Ours  (PSNR)         | XX.XX | XX.XX | XX.XX      | 33.26 | XX.XX  | XX.XX  | XX.XX  | XX.XX  |
 +----------------------+-------+-------+------------+-------+--------+--------+--------+--------+
-| Ours  (Training time)| XXmin | XXmin | XXmin      | 45min | XXmin  | XXmin  | 41min  | XXmin  |
+| Ours  (Training time)| XXmin | XXmin | XXmin      | 62min | XXmin  | XXmin  | 41min  | XXmin  |
 +----------------------+-------+-------+------------+-------+--------+--------+--------+--------+
 
 .. _`github repository`: : https://github.com/KAIR-BAIR/nerfacc/

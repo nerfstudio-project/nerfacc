@@ -177,6 +177,11 @@ class OccupancyGrid(Grid):
         x = (
             grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
         ) / self.resolution
+        if self._contraction_type == ContractionType.UN_BOUNDED_SPHERE:
+            # only the points inside the sphere are valid
+            mask = (x - 0.5).norm(dim=1) < 0.5
+            x = x[mask]
+            indices = indices[mask]
         # voxel coordinates [0, 1]^3 -> world
         x = contract_inv(
             x,

@@ -58,4 +58,5 @@ Performance:
 
 |  | Garden |
 | - | - |
-| Ours | 25.13 |
+| Ours | 25.40 |
+| Time | 1246s |
