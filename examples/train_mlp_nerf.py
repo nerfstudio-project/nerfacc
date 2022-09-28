@@ -87,13 +87,18 @@ if __name__ == "__main__":
         ).item()
 
     # setup the radiance field we want to train.
-    max_steps = 40000
+    max_steps = 50000
     grad_scaler = torch.cuda.amp.GradScaler(1)
     radiance_field = VanillaNeRFRadianceField().to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer,
-        milestones=[max_steps // 2, max_steps * 3 // 4, max_steps * 9 // 10],
+        milestones=[
+            max_steps // 2,
+            max_steps * 3 // 4,
+            max_steps * 5 // 6,
+            max_steps * 9 // 10,
+        ],
         gamma=0.33,
     )
 
