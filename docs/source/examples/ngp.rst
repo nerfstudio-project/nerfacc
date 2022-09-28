@@ -14,7 +14,7 @@ memory footprint is about 3GB.
 .. note::
     
     The paper makes use of the alpha channel in the images to apply random background
-    augmentation during training. Yet we only uses a constant white background.
+    augmentation during training. Yet we only uses RGB values with a constant white background.
 
 +----------------------+-------+-------+------------+-------+--------+--------+--------+--------+--------+
 |                      | Lego  | Mic   | Materials  |Chair  |Hotdog  | Ficus  | Drums  | Ship   | AVG    |
