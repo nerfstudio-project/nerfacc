@@ -1,6 +1,6 @@
 from .contraction import ContractionType, contract, contract_inv
 from .grid import Grid, OccupancyGrid
-from .pipeline import rendering, volumetric_rendering
+from .pipeline import rendering
 from .ray_marching import (
     ray_aabb_intersect,
     ray_marching,
@@ -26,6 +26,5 @@ __all__ = [
     "render_visibility",
     "render_weight_from_alpha",
     "render_weight_from_density",
-    "volumetric_rendering",
     "rendering",
 ]
