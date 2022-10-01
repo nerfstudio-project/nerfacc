@@ -322,7 +322,7 @@ class _RenderingAlpha(torch.autograd.Function):
             alphas,
             weights,
         ) = ctx.saved_tensors
-        grad_sigmas = _C.rendering_backward(
+        grad_sigmas = _C.rendering_alphas_backward(
             weights,
             grad_weights,
             packed_info,
