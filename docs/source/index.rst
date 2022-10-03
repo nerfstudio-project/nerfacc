@@ -46,7 +46,7 @@ Installation:
    :maxdepth: 1
    :caption: Projects
 
-   NeRFactory <https://plenoptix-nerfactory.readthedocs-hosted.com/>
+   nerfstudio <https://docs.nerf.studio/>
 
 
 .. _`vanilla Nerf`: https://arxiv.org/abs/2003.08934
