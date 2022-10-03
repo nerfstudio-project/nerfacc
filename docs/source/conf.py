@@ -61,8 +61,8 @@ html_theme_options = {
             "children": [
                 # A vanilla dropdown item
                 {
-                    "name": "NeRFactory",
-                    "url": "https://plenoptix-nerfactory.readthedocs-hosted.com/en/latest/?badge=latest",
+                    "name": "nerfstudio",
+                    "url": "https://docs.nerf.studio/",
                     "description": "The all-in-one repo for NeRFs",
                 },
             ],
