@@ -11,17 +11,7 @@ def _make_lazy_cuda_func(name: str) -> Callable:
     return call_cuda
 
 
-def _make_lazy_cuda_attribute(name: str) -> Any:
-    # pylint: disable=import-outside-toplevel
-    from ._backend import _C
-
-    if _C is None:
-        return None
-    else:
-        return getattr(_C, name)
-
-
-ContractionType = _make_lazy_cuda_attribute("ContractionType")
+ContractionTypeGetter = _make_lazy_cuda_func("ContractionType")
 contract = _make_lazy_cuda_func("contract")
 contract_inv = _make_lazy_cuda_func("contract_inv")
 

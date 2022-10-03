@@ -4,6 +4,7 @@ import torch
 from torch import Tensor
 
 import nerfacc.cuda as _C
+from nerfacc.contraction import ContractionType
 
 from .grid import Grid
 from .vol_rendering import render_visibility
@@ -231,7 +232,7 @@ def ray_marching(
     if grid is not None:
         grid_roi_aabb = grid.roi_aabb
         grid_binary = grid.binary
-        contraction_type = _C.ContractionType(grid.contraction_type.value)
+        contraction_type = grid.contraction_type.to_cpp_version()
     else:
         grid_roi_aabb = torch.tensor(
             [-1e10, -1e10, -1e10, 1e10, 1e10, 1e10],
@@ -241,7 +242,7 @@ def ray_marching(
         grid_binary = torch.ones(
             [1, 1, 1], dtype=torch.bool, device=rays_o.device
         )
-        contraction_type = _C.ContractionType.AABB
+        contraction_type = ContractionType.AABB.to_cpp_version()
 
     # marching with grid-based skipping
     packed_info, t_starts, t_ends = _C.ray_marching(
