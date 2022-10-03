@@ -48,6 +48,15 @@ class ContractionType(Enum):
     UN_BOUNDED_TANH = 1
     UN_BOUNDED_SPHERE = 2
 
+    def to_cpp_version(self):
+        """Convert to the C++ version of the enum class.
+
+        Returns:
+            The C++ version of the enum class.
+
+        """
+        return _C.ContractionTypeGetter(self.value)
+
 
 @torch.no_grad()
 def contract(
@@ -65,7 +74,7 @@ def contract(
     Returns:
         torch.Tensor: Contracted points ([0, 1]^3).
     """
-    ctype = _C.ContractionType(type.value)
+    ctype = type.to_cpp_version()
     return _C.contract(x.contiguous(), roi.contiguous(), ctype)
 
 
@@ -85,5 +94,5 @@ def contract_inv(
     Returns:
         torch.Tensor: Un-contracted points.
     """
-    ctype = _C.ContractionType(type.value)
+    ctype = type.to_cpp_version()
     return _C.contract_inv(x.contiguous(), roi.contiguous(), ctype)
