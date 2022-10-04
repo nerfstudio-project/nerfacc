@@ -8,6 +8,7 @@ std::vector<torch::Tensor> rendering_forward(
     torch::Tensor ends,
     torch::Tensor sigmas,
     float early_stop_eps,
+    float alpha_thre,
     bool compression);
 
 torch::Tensor rendering_backward(
@@ -17,7 +18,8 @@ torch::Tensor rendering_backward(
     torch::Tensor starts,
     torch::Tensor ends,
     torch::Tensor sigmas,
-    float early_stop_eps);
+    float early_stop_eps,
+    float alpha_thre);
 
 std::vector<torch::Tensor> ray_aabb_intersect(
     const torch::Tensor rays_o,
@@ -65,12 +67,14 @@ torch::Tensor rendering_alphas_backward(
     torch::Tensor grad_weights,
     torch::Tensor packed_info,
     torch::Tensor alphas,
-    float early_stop_eps);
+    float early_stop_eps,
+    float alpha_thre);
 
 std::vector<torch::Tensor> rendering_alphas_forward(
     torch::Tensor packed_info,
     torch::Tensor alphas,
     float early_stop_eps,
+    float alpha_thre,
     bool compression);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
