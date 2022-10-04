@@ -2,14 +2,15 @@
 
 import pytorch_sphinx_theme
 
+from nerfacc import __version__
+
 # -- Project information
 
 project = "nerfacc"
 copyright = "2022, Ruilong"
 author = "Ruilong"
 
-release = "0.1.4"
-version = "0.1.4"
+release = __version__
 
 # -- General configuration
 
