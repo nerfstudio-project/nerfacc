@@ -52,8 +52,8 @@ __global__ void rendering_forward_kernel(
 
     // accumulated rendering
     scalar_t T = 1.f;
-    int j = 0;
-    for (; j < steps; ++j)
+    int cnt = 0;
+    for (int j = 0; j < steps; ++j)
     {
         if (T < early_stop_eps)
         {
@@ -86,10 +86,11 @@ __global__ void rendering_forward_kernel(
         {
             compact_selector[j] = true;
         }
+        cnt += 1;
     }
     if (num_steps != nullptr)
     {
-        *num_steps = j;
+        *num_steps = cnt;
     }
     return;
 }
