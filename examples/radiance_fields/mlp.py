@@ -1,4 +1,7 @@
-""" The MLPs and Voxels. """
+'''
+Copyright (c) 2022 Ruilong Li, UC Berkeley.
+'''
+
 import functools
 import math
 from typing import Callable, Optional

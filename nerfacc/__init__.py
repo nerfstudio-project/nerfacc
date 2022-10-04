@@ -1,3 +1,7 @@
+'''
+Copyright (c) 2022 Ruilong Li, UC Berkeley.
+'''
+
 from .contraction import ContractionType, contract, contract_inv
 from .grid import Grid, OccupancyGrid
 from .pipeline import rendering

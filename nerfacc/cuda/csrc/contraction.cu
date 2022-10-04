@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2022 Ruilong Li, UC Berkeley.
+ */
+
 #include "include/helpers_cuda.h"
 #include "include/helpers_math.h"
 #include "include/helpers_contraction.h"

@@ -1,3 +1,7 @@
+'''
+Copyright (c) 2022 Ruilong Li, UC Berkeley.
+'''
+
 from typing import Callable, Optional, Tuple
 
 import torch

@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2022 Ruilong Li, UC Berkeley.
+ */
+
 #include "include/helpers_cuda.h"
 
 template <typename scalar_t>

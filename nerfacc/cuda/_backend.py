@@ -1,4 +1,7 @@
-"""Setup cuda backend."""
+'''
+Copyright (c) 2022 Ruilong Li, UC Berkeley.
+'''
+
 import glob
 import os
 from subprocess import DEVNULL, call
