@@ -1,5 +1,3 @@
-# Configuration file for the Sphinx documentation builder.
-
 import pytorch_sphinx_theme
 
 from nerfacc import __version__
