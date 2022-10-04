@@ -82,6 +82,7 @@ def render_weight_from_density(
     t_ends,
     sigmas,
     early_stop_eps: float = 1e-4,
+    alpha_thre: float = 0.0,
 ) -> torch.Tensor:
     """Compute transmittance weights from density.
 
@@ -94,6 +95,7 @@ def render_weight_from_density(
             shape (n_samples, 1).
         sigmas: The density values of the samples. Tensor with shape (n_samples, 1).
         early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
+        alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
     
     Returns:
         transmittance weights with shape (n_samples,).
@@ -123,7 +125,7 @@ def render_weight_from_density(
     if not sigmas.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
     weights = _RenderingDensity.apply(
-        packed_info, t_starts, t_ends, sigmas, early_stop_eps
+        packed_info, t_starts, t_ends, sigmas, early_stop_eps, alpha_thre
     )
     return weights
 
@@ -132,6 +134,7 @@ def render_weight_from_alpha(
     packed_info,
     alphas,
     early_stop_eps: float = 1e-4,
+    alpha_thre: float = 0.0,
 ) -> Tuple[torch.Tensor, ...]:
     """Compute transmittance weights from density.
 
@@ -140,7 +143,8 @@ def render_weight_from_alpha(
             See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
         alphas: The opacity values of the samples. Tensor with shape (n_samples, 1).
         early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
-    
+        alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
+
     Returns:
         transmittance weights with shape (n_samples,).
 
@@ -168,7 +172,9 @@ def render_weight_from_alpha(
     """
     if not alphas.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
-    weights = _RenderingAlpha.apply(packed_info, alphas, early_stop_eps)
+    weights = _RenderingAlpha.apply(
+        packed_info, alphas, early_stop_eps, alpha_thre
+    )
     return weights
 
 
@@ -177,6 +183,7 @@ def render_visibility(
     packed_info: torch.Tensor,
     alphas: torch.Tensor,
     early_stop_eps: float = 1e-4,
+    alpha_thre: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Filter out invisible samples given alpha (opacity).
 
@@ -185,6 +192,7 @@ def render_visibility(
             See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
         alphas: The opacity values of the samples. Tensor with shape (n_samples, 1).
         early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
+        alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
     
     Returns:
         A tuple of tensors.
@@ -223,6 +231,7 @@ def render_visibility(
         packed_info.contiguous(),
         alphas.contiguous(),
         early_stop_eps,
+        alpha_thre,
         True,  # compute visibility instead of weights
     )
     return visibility, packed_info_visible
@@ -239,6 +248,7 @@ class _RenderingDensity(torch.autograd.Function):
         t_ends,
         sigmas,
         early_stop_eps: float = 1e-4,
+        alpha_thre: float = 0.0,
     ):
         packed_info = packed_info.contiguous()
         t_starts = t_starts.contiguous()
@@ -250,6 +260,7 @@ class _RenderingDensity(torch.autograd.Function):
             t_ends,
             sigmas,
             early_stop_eps,
+            alpha_thre,
             False,  # not doing filtering
         )[0]
         if ctx.needs_input_grad[3]:  # sigmas
@@ -261,12 +272,14 @@ class _RenderingDensity(torch.autograd.Function):
                 weights,
             )
             ctx.early_stop_eps = early_stop_eps
+            ctx.alpha_thre = alpha_thre
         return weights
 
     @staticmethod
     def backward(ctx, grad_weights):
         grad_weights = grad_weights.contiguous()
         early_stop_eps = ctx.early_stop_eps
+        alpha_thre = ctx.alpha_thre
         (
             packed_info,
             t_starts,
@@ -282,8 +295,9 @@ class _RenderingDensity(torch.autograd.Function):
             t_ends,
             sigmas,
             early_stop_eps,
+            alpha_thre,
         )
-        return None, None, None, grad_sigmas, None
+        return None, None, None, grad_sigmas, None, None
 
 
 class _RenderingAlpha(torch.autograd.Function):
@@ -295,6 +309,7 @@ class _RenderingAlpha(torch.autograd.Function):
         packed_info,
         alphas,
         early_stop_eps: float = 1e-4,
+        alpha_thre: float = 0.0,
     ):
         packed_info = packed_info.contiguous()
         alphas = alphas.contiguous()
@@ -302,6 +317,7 @@ class _RenderingAlpha(torch.autograd.Function):
             packed_info,
             alphas,
             early_stop_eps,
+            alpha_thre,
             False,  # not doing filtering
         )[0]
         if ctx.needs_input_grad[1]:  # alphas
@@ -311,12 +327,14 @@ class _RenderingAlpha(torch.autograd.Function):
                 weights,
             )
             ctx.early_stop_eps = early_stop_eps
+            ctx.alpha_thre = alpha_thre
         return weights
 
     @staticmethod
     def backward(ctx, grad_weights):
         grad_weights = grad_weights.contiguous()
         early_stop_eps = ctx.early_stop_eps
+        alpha_thre = ctx.alpha_thre
         (
             packed_info,
             alphas,
@@ -328,5 +346,6 @@ class _RenderingAlpha(torch.autograd.Function):
             packed_info,
             alphas,
             early_stop_eps,
+            alpha_thre,
         )
-        return None, grad_sigmas, None
+        return None, grad_sigmas, None, None

@@ -9,6 +9,7 @@ __global__ void rendering_forward_kernel(
     const scalar_t *sigmas,        // input density after activation
     const scalar_t *alphas,        // input alpha (opacity) values.
     const scalar_t early_stop_eps, // transmittance threshold for early stop
+    const scalar_t alpha_thre,     // alpha threshold for emtpy space
     // outputs: should be all-zero initialized
     int *num_steps,        // the number of valid steps for each ray
     scalar_t *weights,     // the number rendering weights for each sample
@@ -70,6 +71,11 @@ __global__ void rendering_forward_kernel(
             scalar_t delta = ends[j] - starts[j];
             alpha = 1.f - __expf(-sigmas[j] * delta);
         }
+        if (alpha < alpha_thre)
+        {
+            // empty space
+            continue;
+        }
         const scalar_t weight = alpha * T;
         T *= (1.f - alpha);
         if (weights != nullptr)
@@ -97,6 +103,7 @@ __global__ void rendering_backward_kernel(
     const scalar_t *sigmas,        // input density after activation
     const scalar_t *alphas,        // input alpha (opacity) values.
     const scalar_t early_stop_eps, // transmittance threshold for early stop
+    const scalar_t alpha_thre,     // alpha threshold for emtpy space
     const scalar_t *weights,       // forward output
     const scalar_t *grad_weights,  // input gradients
     // if alphas was given, we compute the gradients for alphas.
@@ -150,6 +157,11 @@ __global__ void rendering_backward_kernel(
         {
             // rendering with alpha
             alpha = alphas[j];
+            if (alpha < alpha_thre)
+            {
+                // empty space
+                continue;
+            }
             grad_alphas[j] = (grad_weights[j] * T - accum) / fmaxf(1.f - alpha, 1e-10f);
         }
         else
@@ -157,6 +169,11 @@ __global__ void rendering_backward_kernel(
             // rendering with density
             scalar_t delta = ends[j] - starts[j];
             alpha = 1.f - __expf(-sigmas[j] * delta);
+            if (alpha < alpha_thre)
+            {
+                // empty space
+                continue;
+            }
             grad_sigmas[j] = (grad_weights[j] * T - accum) * delta;
         }
 
@@ -171,6 +188,7 @@ std::vector<torch::Tensor> rendering_forward(
     torch::Tensor ends,
     torch::Tensor sigmas,
     float early_stop_eps,
+    float alpha_thre,
     bool compression)
 {
     DEVICE_GUARD(packed_info);
@@ -211,6 +229,7 @@ std::vector<torch::Tensor> rendering_forward(
                    sigmas.data_ptr<scalar_t>(),
                    nullptr, // alphas
                    early_stop_eps,
+                   alpha_thre,
                    // outputs
                    num_steps.data_ptr<int>(),
                    nullptr,
@@ -238,6 +257,7 @@ std::vector<torch::Tensor> rendering_forward(
                    sigmas.data_ptr<scalar_t>(),
                    nullptr, // alphas
                    early_stop_eps,
+                   alpha_thre,
                    // outputs
                    nullptr,
                    weights.data_ptr<scalar_t>(),
@@ -254,7 +274,8 @@ torch::Tensor rendering_backward(
     torch::Tensor starts,
     torch::Tensor ends,
     torch::Tensor sigmas,
-    float early_stop_eps)
+    float early_stop_eps,
+    float alpha_thre)
 {
     DEVICE_GUARD(packed_info);
     const uint32_t n_rays = packed_info.size(0);
@@ -279,6 +300,7 @@ torch::Tensor rendering_backward(
                sigmas.data_ptr<scalar_t>(),
                nullptr, // alphas
                early_stop_eps,
+               alpha_thre,
                weights.data_ptr<scalar_t>(),
                grad_weights.data_ptr<scalar_t>(),
                // outputs
@@ -295,6 +317,7 @@ std::vector<torch::Tensor> rendering_alphas_forward(
     torch::Tensor packed_info,
     torch::Tensor alphas,
     float early_stop_eps,
+    float alpha_thre,
     bool compression)
 {
     DEVICE_GUARD(packed_info);
@@ -331,6 +354,7 @@ std::vector<torch::Tensor> rendering_alphas_forward(
                    nullptr, // sigmas
                    alphas.data_ptr<scalar_t>(),
                    early_stop_eps,
+                   alpha_thre,
                    // outputs
                    num_steps.data_ptr<int>(),
                    nullptr,
@@ -358,6 +382,7 @@ std::vector<torch::Tensor> rendering_alphas_forward(
                    nullptr, // sigmas
                    alphas.data_ptr<scalar_t>(),
                    early_stop_eps,
+                   alpha_thre,
                    // outputs
                    nullptr,
                    weights.data_ptr<scalar_t>(),
@@ -372,7 +397,8 @@ torch::Tensor rendering_alphas_backward(
     torch::Tensor grad_weights,
     torch::Tensor packed_info,
     torch::Tensor alphas,
-    float early_stop_eps)
+    float early_stop_eps,
+    float alpha_thre)
 {
     DEVICE_GUARD(packed_info);
     const uint32_t n_rays = packed_info.size(0);
@@ -397,6 +423,7 @@ torch::Tensor rendering_alphas_backward(
                nullptr, // sigmas
                alphas.data_ptr<scalar_t>(),
                early_stop_eps,
+               alpha_thre,
                weights.data_ptr<scalar_t>(),
                grad_weights.data_ptr<scalar_t>(),
                // outputs

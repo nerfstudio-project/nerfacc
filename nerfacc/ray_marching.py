@@ -104,6 +104,7 @@ def ray_marching(
     # sigma function for skipping invisible space
     sigma_fn: Optional[Callable] = None,
     early_stop_eps: float = 1e-4,
+    alpha_thre: float = 0.0,
     # rendering options
     near_plane: Optional[float] = None,
     far_plane: Optional[float] = None,
@@ -140,6 +141,7 @@ def ray_marching(
             function that takes in samples {t_starts (N, 1), t_ends (N, 1),
             ray indices (N,)} and returns the post-activation density values (N, 1).
         early_stop_eps: Early stop threshold for skipping invisible space. Default: 1e-4.
+        alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
         near_plane: Optional. Near plane distance. If provided, it will be used
             to clip t_min.
         far_plane: Optional. Far plane distance. If provided, it will be used
@@ -272,7 +274,7 @@ def ray_marching(
 
         # Compute visibility of the samples, and filter out invisible samples
         visibility, packed_info_visible = render_visibility(
-            packed_info, alphas, early_stop_eps
+            packed_info, alphas, early_stop_eps, alpha_thre
         )
         t_starts, t_ends = t_starts[visibility], t_ends[visibility]
         packed_info = packed_info_visible

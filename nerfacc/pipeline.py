@@ -15,6 +15,7 @@ def rendering(
     t_ends: torch.Tensor,
     # rendering options
     early_stop_eps: float = 1e-4,
+    alpha_thre: float = 1e-2,
     render_bkgd: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Render the rays through the radience field defined by `rgb_sigma_fn`.
@@ -33,6 +34,7 @@ def rendering(
         t_starts: Per-sample start distance. Tensor with shape (n_samples, 1).
         t_ends: Per-sample end distance. Tensor with shape (n_samples, 1).
         early_stop_eps: Early stop threshold during trasmittance accumulation. Default: 1e-4.
+        alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
         render_bkgd: Optional. Background color. Tensor with shape (3,).
 
     Returns:
@@ -82,7 +84,7 @@ def rendering(
 
     # Rendering: compute weights and ray indices.
     weights = render_weight_from_density(
-        packed_info, t_starts, t_ends, sigmas, early_stop_eps
+        packed_info, t_starts, t_ends, sigmas, early_stop_eps, alpha_thre
     )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
