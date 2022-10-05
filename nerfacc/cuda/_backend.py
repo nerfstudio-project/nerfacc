@@ -34,5 +34,8 @@ if cuda_toolkit_available():
             extra_cflags=["-O3"],
             extra_cuda_cflags=["-O3"],
         )
+else:
+    console = Console()
+    console.print("[bold red]No CUDA toolkit found. NerfAcc will be disabled.")
 
 __all__ = ["_C"]
