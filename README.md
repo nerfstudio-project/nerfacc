@@ -2,8 +2,15 @@
 [![Core Tests.](https://github.com/KAIR-BAIR/nerfacc/actions/workflows/code_checks.yml/badge.svg)](https://github.com/KAIR-BAIR/nerfacc/actions/workflows/code_checks.yml)
 [![Documentation Status](https://readthedocs.com/projects/plenoptix-nerfacc/badge/?version=latest)](https://plenoptix-nerfacc.readthedocs-hosted.com/en/latest/?badge=latest)
 
+https://www.nerfacc.com/
 
 This is a **tiny** toolbox  for **accelerating** NeRF training & rendering using PyTorch CUDA extensions. Plug-and-play for most of the NeRFs!
+
+## Installation
+
+```
+pip install nerfacc
+```
 
 ## Examples: 
 
