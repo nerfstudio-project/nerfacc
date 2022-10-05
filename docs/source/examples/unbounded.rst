@@ -36,7 +36,7 @@ that takes from `MipNerf360`_.
 | Ours  (Training time)| 40min | 35min | 47min      | 39min | 60min  | 41min  | 28min  |
 +----------------------+-------+-------+------------+-------+--------+--------+--------+
 
-.. _`Instant-NGP Nerf`: https://arxiv.org/abs/2103.13497
+.. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
 .. _`MipNerf360`: https://arxiv.org/abs/2111.12077
 .. _`Nerf++`: https://arxiv.org/abs/2010.07492
 .. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/

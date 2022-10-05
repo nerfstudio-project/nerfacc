@@ -50,7 +50,7 @@ Installation:
 
 
 .. _`vanilla Nerf`: https://arxiv.org/abs/2003.08934
-.. _`Instant-NGP Nerf`: https://arxiv.org/abs/2103.13497
-.. _`D-Nerf`: https://arxiv.org/abs/2104.00677
+.. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
+.. _`D-Nerf`: https://arxiv.org/abs/2011.13961
 .. _`MipNerf360`: https://arxiv.org/abs/2111.12077
 .. _`pixel-Nerf`: https://arxiv.org/abs/2012.02190

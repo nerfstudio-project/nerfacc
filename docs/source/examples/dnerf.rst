@@ -29,7 +29,7 @@ single NVIDIA TITAN RTX GPU.
 | Ours  (Training time)| 45min    | 49min   | 51min | 46min   | 53min | 57min  | 49min   | 46min | 50min |
 +----------------------+----------+---------+-------+---------+-------+--------+---------+-------+-------+
 
-.. _`D-Nerf`: https://arxiv.org/abs/2104.00677
+.. _`D-Nerf`: https://arxiv.org/abs/2011.13961
 .. _`D-Nerf dataset`: https://www.dropbox.com/s/0bf6fl0ye2vz3vr/data.zip?dl=0
 .. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/
 
