@@ -17,10 +17,6 @@ Using NerfAcc,
 
 .. note::
 
-   The Github of this repo with be accessable soon.
-
-.. note::
-
    This repo is focusing on the single scene situation. Generalizable Nerfs across \
    multiple scenes is currently out of the scope of this repo. But you may still find
    some useful tricks in this repo. :)
