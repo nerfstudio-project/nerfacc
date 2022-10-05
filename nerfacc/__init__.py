@@ -13,6 +13,7 @@ from .vol_rendering import (
     render_visibility,
     render_weight_from_alpha,
     render_weight_from_density,
+    rendering,
 )
 
 __all__ = [

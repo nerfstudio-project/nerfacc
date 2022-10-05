@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nerfacc"
-version = "0.1.4-1"
+version = "0.1.5"
 description = "A General NeRF Acceleration Toolbox."
 readme = "README.md"
 authors = [{name = "Ruilong", email = "ruilongli94@gmail.com"}]
@@ -13,9 +13,16 @@ requires-python = ">=3.8"
 dependencies = [
     "ninja>=1.10.2.3",
     "pybind11>=2.10.0",
-    "torch>=1.12.1",
+    "torch>=1.12.0",
     "rich>=12"
 ]
+
+# [options]
+# equivalent to using --extra-index-url with pip, 
+# which is needed for specifying the CUDA version for torch
+# dependency_links = [
+#     "https://download.pytorch.org/whl/cu116"
+# ]
 
 [tool.setuptools.package-data]
 "*" = ["*.cu", "*.cpp", "*.h"]
