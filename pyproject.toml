@@ -58,7 +58,7 @@ examples = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["nerfacc"]
+include = ["nerfacc", "scripts"]
 
 [tool.black]
 line-length = 80
