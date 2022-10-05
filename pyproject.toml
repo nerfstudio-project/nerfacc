@@ -40,21 +40,8 @@ dev = [
     "pytest-xdist==2.5.0",
     "typeguard>=2.13.3",
     "pyyaml==6.0",
-]
-# Documentation packages
-docs = [
-    "pytorch_sphinx_theme @ git+https://github.com/liruilong940607/pytorch_sphinx_theme.git#egg=pytorch_sphinx_theme",
-    "sphinx==5.2.1",
-    "sphinx-copybutton==0.5.0",
-    "sphinx-design==0.2.0"
-]
-# Example packages
-examples = [
-    "tinycudann @ git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch",
-    "imageio",
-    "opencv-python",
-    "numpy",
-    "tqdm"
+    "build",
+    "twine",
 ]
 
 # [tool.setuptools.packages.find]
