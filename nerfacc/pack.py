@@ -42,7 +42,7 @@ def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
 
     """
     if packed_info.is_cuda:
-        ray_indices = _C.unpack_to_ray_indices(packed_info.contiguous())
+        ray_indices = _C.unpack_to_ray_indices(packed_info.contiguous().int())
     else:
         raise NotImplementedError("Only support cuda inputs.")
     return ray_indices.long()

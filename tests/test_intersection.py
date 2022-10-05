@@ -1,7 +1,6 @@
 import pytest
 import torch
 
-import nerfacc.cuda as _C
 from nerfacc import ray_aabb_intersect
 
 device = "cuda:0"
