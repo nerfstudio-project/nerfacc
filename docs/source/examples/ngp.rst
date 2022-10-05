@@ -29,6 +29,6 @@ memory footprint is about 3GB.
 | Ours  (Training time)| 286s  | 251s  | 250s       | 311s  | 275s   | 254s   | 249s   | 255s   | 266s   |
 +----------------------+-------+-------+------------+-------+--------+--------+--------+--------+--------+
 
-.. _`Instant-NGP Nerf`: https://arxiv.org/abs/2103.13497
+.. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
 .. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/
 .. _`Nerf-Synthetic dataset`: https://drive.google.com/drive/folders/1JDdLGDruGNXWnM1eqY1FNL9PlStjaKWi
