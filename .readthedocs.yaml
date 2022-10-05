@@ -14,5 +14,8 @@ python:
     # Equivalent to 'pip install .'
     - method: pip
       path: .
-    # Equivalent to 'pip install -r docs/requirements.txt'
-    - requirements: docs/requirements.txt
+    # Equivalent to 'pip install .[docs]'
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
