@@ -47,29 +47,29 @@ copybutton_prompt_is_regexp = True
 # documentation.
 html_theme_options = {
     # The target url that the logo directs to. Unset to do nothing
-    "logo_url": "https://plenoptix-nerfacc.readthedocs-hosted.com/en/latest/index.html",
+    "logo_url": "https://www.nerfacc.com/en/latest/index.html",
     # "menu" is a list of dictionaries where you can specify the content and the
     # behavior of each item in the menu. Each item can either be a link or a
     # dropdown menu containing a list of links.
-    "menu": [
-        # A link
-        {"name": "GitHub", "url": "https://github.com/KAIR-BAIR/nerfacc"},
-        # A dropdown menu
-        {
-            "name": "Projects",
-            "children": [
-                # A vanilla dropdown item
-                {
-                    "name": "nerfstudio",
-                    "url": "https://docs.nerf.studio/",
-                    "description": "The all-in-one repo for NeRFs",
-                },
-            ],
-            # Optional, determining whether this dropdown menu will always be
-            # highlighted.
-            # "active": True,
-        },
-    ],
+    # "menu": [
+    #     # A link
+    #     {"name": "GitHub", "url": "https://github.com/KAIR-BAIR/nerfacc"},
+    #     # A dropdown menu
+    #     {
+    #         "name": "Projects",
+    #         "children": [
+    #             # A vanilla dropdown item
+    #             {
+    #                 "name": "nerfstudio",
+    #                 "url": "https://docs.nerf.studio/",
+    #                 "description": "The all-in-one repo for NeRFs",
+    #             },
+    #         ],
+    #         # Optional, determining whether this dropdown menu will always be
+    #         # highlighted.
+    #         # "active": True,
+    #     },
+    # ],
 }
 # html_theme_options = {
 #     "canonical_url": "",
