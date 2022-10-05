@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from nerfacc.contraction import ContractionType, contract, contract_inv
+from nerfacc import ContractionType, contract, contract_inv
 
 device = "cuda:0"
 

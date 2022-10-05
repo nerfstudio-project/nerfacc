@@ -1,8 +1,7 @@
 import pytest
 import torch
 
-from nerfacc.grid import OccupancyGrid
-from nerfacc.ray_marching import ray_marching, unpack_to_ray_indices
+from nerfacc import OccupancyGrid, ray_marching, unpack_to_ray_indices
 
 device = "cuda:0"
 batch_size = 128

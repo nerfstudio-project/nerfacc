@@ -1,8 +1,7 @@
 import pytest
 import torch
 
-from nerfacc.contraction import ContractionType
-from nerfacc.grid import OccupancyGrid
+from nerfacc import OccupancyGrid
 
 device = "cuda:0"
 

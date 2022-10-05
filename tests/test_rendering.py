@@ -1,8 +1,7 @@
 import pytest
 import torch
 
-from nerfacc.ray_marching import ray_marching
-from nerfacc.vol_rendering import render_weight_from_density
+from nerfacc import ray_marching, render_weight_from_density
 
 device = "cuda:0"
 batch_size = 128
