@@ -1,4 +1,7 @@
-"""Setup cuda backend."""
+"""
+Copyright (c) 2022 Ruilong Li, UC Berkeley.
+"""
+
 import glob
 import os
 from subprocess import DEVNULL, call
@@ -31,5 +34,8 @@ if cuda_toolkit_available():
             extra_cflags=["-O3"],
             extra_cuda_cflags=["-O3"],
         )
+else:
+    console = Console()
+    console.print("[bold red]No CUDA toolkit found. NerfAcc will be disabled.")
 
 __all__ = ["_C"]

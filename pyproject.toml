@@ -4,34 +4,62 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nerfacc"
-version = "0.1.4-1"
+version = "0.1.5"
+description = "A General NeRF Acceleration Toolbox."
+readme = "README.md"
 authors = [{name = "Ruilong", email = "ruilongli94@gmail.com"}]
 license = { text="MIT" }
 requires-python = ">=3.8"
 dependencies = [
     "ninja>=1.10.2.3",
     "pybind11>=2.10.0",
-    "torch>=1.12.1",
+    "torch>=1.12.0",
     "rich>=12"
 ]
+
+# [options]
+# equivalent to using --extra-index-url with pip, 
+# which is needed for specifying the CUDA version for torch
+# dependency_links = [
+#     "https://download.pytorch.org/whl/cu116"
+# ]
 
 [tool.setuptools.package-data]
 "*" = ["*.cu", "*.cpp", "*.h"]
 
-[project.optional-dependencies]
+[project.urls]
+"Documentation" = "https://www.nerfacc.com/en/latest/"
 
-# for development
+[project.optional-dependencies]
+# Development packages
 dev = [
-    "black",
-    "isort",
-    "pytest",
-    "pylint",
+    "black[jupyter]==22.3.0",
+    "isort==5.10.1",
+    "pylint==2.13.4",
+    "pytest==7.1.2",
     "pytest-xdist==2.5.0",
-    "pyyaml",
     "typeguard>=2.13.3",
+    "pyyaml==6.0",
+]
+# Documentation packages
+docs = [
+    "pytorch_sphinx_theme @ git+https://github.com/liruilong940607/pytorch_sphinx_theme.git#egg=pytorch_sphinx_theme",
+    "sphinx==5.2.1",
+    "sphinx-copybutton==0.5.0",
+    "sphinx-design==0.2.0"
+]
+# Example packages
+examples = [
+    "tinycudann @ git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch",
+    "imageio",
+    "opencv-python",
+    "numpy",
+    "tqdm"
 ]
 
-# black
+# [tool.setuptools.packages.find]
+# include = ["nerfacc", "scripts"]
+
 [tool.black]
 line-length = 80
 
@@ -40,28 +68,29 @@ multi_line_output = 3
 line_length = 80
 include_trailing_comma = true
 
-# pylint
 [tool.pylint.messages_control]
 max-line-length = 80
 generated-members = ["numpy.*", "torch.*", "cv2.*", "cv.*"]
 good-names-rgxs = "^[_a-zA-Z][_a-z0-9]?$"
-ignore-paths = ["^tests/.*$", "^nerfacc/cuda/.*$", "^tests/cuda/.*$"]
+ignore-paths = ["^tests/.*$", "examples/pycolmap"]
 jobs = 0
-
 disable = [
-  "line-too-long",
+  "duplicate-code",
+  "fixme",
+  "logging-fstring-interpolation",
   "too-many-arguments",
+  "too-many-branches",
+  "too-many-instance-attributes",
   "too-many-locals",
+  "unnecessary-ellipsis",
 ]
 
-#pytest
 [tool.pytest.ini_options]
-addopts = "-n=4 --typeguard-packages=nerfacc --disable-warnings --ignore=tests/cuda"
+addopts = "-n=4 --typeguard-packages=nerfacc --disable-warnings"
 testpaths = [
     "tests",
 ]
 
-# pyright
 [tool.pyright]
 include = ["nerfacc"]
 exclude = ["**/node_modules",
@@ -70,5 +99,5 @@ exclude = ["**/node_modules",
 ignore = ["nerfacc/cuda"]
 defineConstant = { DEBUG = true }
 
-pythonVersion = "3.8"
+pythonVersion = "3.9"
 pythonPlatform = "Linux"

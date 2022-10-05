@@ -1,104 +1,25 @@
 from typing import Callable, Optional, Tuple
 
 import torch
-from torch import Tensor
 
 import nerfacc.cuda as _C
-from nerfacc.contraction import ContractionType
 
+from .contraction import ContractionType
 from .grid import Grid
+from .intersection import ray_aabb_intersect
+from .pack import unpack_to_ray_indices
 from .vol_rendering import render_visibility
-
-
-@torch.no_grad()
-def ray_aabb_intersect(
-    rays_o: Tensor, rays_d: Tensor, aabb: Tensor
-) -> Tuple[Tensor, Tensor]:
-    """Ray AABB Test.
-
-    Note:
-        this function is not differentiable to any inputs.
-
-    Args:
-        rays_o: Ray origins of shape (n_rays, 3).
-        rays_d: Normalized ray directions of shape (n_rays, 3).
-        aabb: Scene bounding box {xmin, ymin, zmin, xmax, ymax, zmax}. \
-            Tensor with shape (6)
-
-    Returns:
-        Ray AABB intersection {t_min, t_max} with shape (n_rays) respectively. \
-        Note the t_min is clipped to minimum zero. 1e10 means no intersection.
-
-    Examples:
-
-    .. code-block:: python
-
-        aabb = torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0, 1.0], device="cuda:0")
-        rays_o = torch.rand((128, 3), device="cuda:0")
-        rays_d = torch.randn((128, 3), device="cuda:0")
-        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
-        t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabb)
-
-    """
-    if rays_o.is_cuda and rays_d.is_cuda and aabb.is_cuda:
-        rays_o = rays_o.contiguous()
-        rays_d = rays_d.contiguous()
-        aabb = aabb.contiguous()
-        t_min, t_max = _C.ray_aabb_intersect(rays_o, rays_d, aabb)
-    else:
-        raise NotImplementedError("Only support cuda inputs.")
-    return t_min, t_max
-
-
-@torch.no_grad()
-def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
-    """Unpack `packed_info` to `ray_indices`. Useful for converting per ray data to per sample data.
-
-    Note: 
-        this function is not differentiable to any inputs.
-
-    Args:
-        packed_info: Stores information on which samples belong to the same ray. \
-            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
-
-    Returns:
-        Ray index of each sample. LongTensor with shape (n_sample).
-
-    Examples:
-
-    .. code-block:: python
-
-        rays_o = torch.rand((128, 3), device="cuda:0")
-        rays_d = torch.randn((128, 3), device="cuda:0")
-        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
-        # Ray marching with near far plane.
-        packed_info, t_starts, t_ends = ray_marching(
-            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
-        )
-        # torch.Size([128, 2]) torch.Size([115200, 1]) torch.Size([115200, 1])
-        print(packed_info.shape, t_starts.shape, t_ends.shape)
-        # Unpack per-ray info to per-sample info.
-        ray_indices = unpack_to_ray_indices(packed_info)
-        # torch.Size([115200]) torch.int64
-        print(ray_indices.shape, ray_indices.dtype)
-
-    """
-    if packed_info.is_cuda:
-        ray_indices = _C.unpack_to_ray_indices(packed_info.contiguous())
-    else:
-        raise NotImplementedError("Only support cuda inputs.")
-    return ray_indices.long()
 
 
 @torch.no_grad()
 def ray_marching(
     # rays
-    rays_o: Tensor,
-    rays_d: Tensor,
-    t_min: Optional[Tensor] = None,
-    t_max: Optional[Tensor] = None,
+    rays_o: torch.Tensor,
+    rays_d: torch.Tensor,
+    t_min: Optional[torch.Tensor] = None,
+    t_max: Optional[torch.Tensor] = None,
     # bounding box of the scene
-    scene_aabb: Optional[Tensor] = None,
+    scene_aabb: Optional[torch.Tensor] = None,
     # binarized grid for skipping empty space
     grid: Optional[Grid] = None,
     # sigma function for skipping invisible space

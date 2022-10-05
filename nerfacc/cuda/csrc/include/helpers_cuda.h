@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2022 Ruilong Li, UC Berkeley.
+ */
+
 #pragma once
 
 #include <torch/extension.h>
