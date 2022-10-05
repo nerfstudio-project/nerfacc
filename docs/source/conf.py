@@ -51,25 +51,25 @@ html_theme_options = {
     # "menu" is a list of dictionaries where you can specify the content and the
     # behavior of each item in the menu. Each item can either be a link or a
     # dropdown menu containing a list of links.
-    # "menu": [
-    #     # A link
-    #     {"name": "GitHub", "url": "https://github.com/KAIR-BAIR/nerfacc"},
-    #     # A dropdown menu
-    #     {
-    #         "name": "Projects",
-    #         "children": [
-    #             # A vanilla dropdown item
-    #             {
-    #                 "name": "nerfstudio",
-    #                 "url": "https://docs.nerf.studio/",
-    #                 "description": "The all-in-one repo for NeRFs",
-    #             },
-    #         ],
-    #         # Optional, determining whether this dropdown menu will always be
-    #         # highlighted.
-    #         # "active": True,
-    #     },
-    # ],
+    "menu": [
+        # A link
+        {"name": "GitHub", "url": "https://github.com/KAIR-BAIR/nerfacc"},
+        # A dropdown menu
+        # {
+        #     "name": "Projects",
+        #     "children": [
+        #         # A vanilla dropdown item
+        #         {
+        #             "name": "nerfstudio",
+        #             "url": "https://docs.nerf.studio/",
+        #             "description": "The all-in-one repo for NeRFs",
+        #         },
+        #     ],
+        #     # Optional, determining whether this dropdown menu will always be
+        #     # highlighted.
+        #     # "active": True,
+        # },
+    ],
 }
 # html_theme_options = {
 #     "canonical_url": "",
