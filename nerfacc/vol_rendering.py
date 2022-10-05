@@ -243,7 +243,7 @@ def render_weight_from_alpha(
     alphas,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
-) -> Tuple[torch.Tensor, ...]:
+) -> torch.Tensor:
     """Compute transmittance weights from density.
 
     Args:
