@@ -21,7 +21,7 @@ dependencies = [
 "*" = ["*.cu", "*.cpp", "*.h"]
 
 [project.urls]
-"Documentation" = "https://plenoptix-nerfacc.readthedocs-hosted.com/en/latest/"
+"Documentation" = "https://www.nerfacc.com/en/latest/"
 
 [project.optional-dependencies]
 # Development packages
