@@ -14,7 +14,7 @@ pip install nerfacc
 
 ## Examples: 
 
-Note: Before running those example scripts, please check in the script which dataset it is needed, and download
+Before running those example scripts, please check the script about which dataset it is needed, and download
 the dataset first.
 
 ``` bash
