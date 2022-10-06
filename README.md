@@ -14,6 +14,9 @@ pip install nerfacc
 
 ## Examples: 
 
+Note: Before running those example scripts, please check in the script which dataset it is needed, and download
+the dataset first.
+
 ``` bash
 # Instant-NGP NeRF in 4.5 minutes.
 # See results at here: https://www.nerfacc.com/en/latest/examples/ngp.html
