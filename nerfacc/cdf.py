@@ -27,7 +27,7 @@ def ray_resampling(
             shape (n_samples, 1).
         weights: Volumetric rendering weights for those samples. Tensor with shape \
             (n_samples,).
-        n_samples (int): Number of samples to resample.
+        n_samples (int): Number of samples per ray to resample.
 
     Returns:
         Resampled packed info (n_rays, 2), t_starts (n_samples, 1), and t_ends (n_samples, 1).
