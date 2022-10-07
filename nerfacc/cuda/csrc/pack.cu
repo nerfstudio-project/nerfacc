@@ -31,6 +31,7 @@ __global__ void unpack_info_to_mask_kernel(
     // input
     const int n_rays,
     const int *packed_info,
+    const int n_samples,
     // output
     bool *masks) // [n_rays, n_samples]
 {
@@ -42,7 +43,7 @@ __global__ void unpack_info_to_mask_kernel(
     if (steps == 0)
         return;
 
-    masks += n_rays;
+    masks += i * n_samples;
 
     for (int j = 0; j < steps; ++j)
     {
@@ -101,7 +102,8 @@ torch::Tensor unpack_info(const torch::Tensor packed_info)
 }
 
 
-torch::Tensor unpack_info_to_mask(const torch::Tensor packed_info)
+torch::Tensor unpack_info_to_mask(
+    const torch::Tensor packed_info, const int n_samples)
 {
     DEVICE_GUARD(packed_info);
     CHECK_INPUT(packed_info);
@@ -110,13 +112,13 @@ torch::Tensor unpack_info_to_mask(const torch::Tensor packed_info)
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    int n_samples = packed_info[n_rays - 1].sum(0).item<int>();
     torch::Tensor masks = torch::zeros(
         {n_rays, n_samples}, packed_info.options().dtype(torch::kBool));
 
     unpack_info_to_mask_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         n_rays,
         packed_info.data_ptr<int>(),
+        n_samples,
         masks.data_ptr<bool>());
     return masks;
 }

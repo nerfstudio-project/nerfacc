@@ -9,8 +9,8 @@ from torch import Tensor
 import nerfacc.cuda as _C
 
 
-def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor]:
-    """Pack data according to selector.
+def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
+    """Pack data according to a mask selector.
 
     Args:
         data: Tensor with shape (n_rays, n_samples, D).
@@ -26,8 +26,8 @@ def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor]:
     .. code-block:: python
 
         data = torch.rand((10, 3, 4), device="cuda:0")
-        selector = data.rand((10, 3), dtype=torch.bool, device="cuda:0")
-        packed_data, packed_info = pack(data, selector)
+        mask = data.rand((10, 3), dtype=torch.bool, device="cuda:0")
+        packed_data, packed_info = pack(data, mask)
         print(packed_data.shape, packed_info.shape)
 
     """
@@ -39,7 +39,7 @@ def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor]:
     packed_data = data[mask]
     num_steps = mask.long().sum(dim=-1)
     cum_steps = num_steps.cumsum(dim=0, dtype=torch.long)
-    packed_info = torch.stack([cum_steps, num_steps], dim=-1)
+    packed_info = torch.stack([cum_steps - num_steps, num_steps], dim=-1)
     return packed_data, packed_info
 
 
@@ -89,19 +89,19 @@ def unpack_info(packed_info: Tensor) -> Tensor:
 def unpack_data(
     packed_info: Tensor,
     data: Tensor,
-    num_samples: Optional[int] = None,
-) -> Tuple[Tensor, Tensor, Tensor]:
-    """Unpack packed data (all_samples, D) to per-ray data (n_rays, num_samples, D).
+    n_samples: Optional[int] = None,
+) -> Tensor:
+    """Unpack packed data (all_samples, D) to per-ray data (n_rays, n_samples, D).
 
     Args:
         packed_info (Tensor): Stores information on which samples belong to the same ray. \
             See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
         data: Packed data to unpack. Tensor with shape (n_samples, D).
-        num_samples (int): Optional Number of samples per ray. If not provided, it \
+        n_samples (int): Optional Number of samples per ray. If not provided, it \
             will be inferred from the packed_info.
 
     Returns:
-        Unpacked data (n_rays, num_samples, D).
+        Unpacked data (n_rays, n_samples, D).
 
     Examples:
 
@@ -118,7 +118,7 @@ def unpack_data(
         )
         print(t_starts.shape)  # torch.Size([all_samples, 1])
 
-        t_starts = unpack_data(packed_info, t_starts, num_samples=1024)
+        t_starts = unpack_data(packed_info, t_starts, n_samples=1024)
         print(t_starts.shape)  # torch.Size([128, 1024, 1])
     """
     assert (
@@ -127,28 +127,29 @@ def unpack_data(
     assert (
         data.dim() == 2
     ), "data must be a 2D tensor with shape (n_samples, D)."
-    if num_samples is None:
-        num_samples = packed_info[:, 1].max().item()
-    return _UnpackData.apply(packed_info, data, num_samples)
+    if n_samples is None:
+        n_samples = packed_info[:, 1].max().item()
+    return _UnpackData.apply(packed_info, data, n_samples)
 
 
 class _UnpackData(torch.autograd.Function):
-    """Unpack packed data (all_samples, D) to per-ray data (n_rays, num_samples, D)."""
+    """Unpack packed data (all_samples, D) to per-ray data (n_rays, n_samples, D)."""
 
     @staticmethod
-    def forward(ctx, packed_info: Tensor, data: Tensor, num_samples: int):
+    def forward(ctx, packed_info: Tensor, data: Tensor, n_samples: int):
         # shape of the data should be (all_samples, D)
-        packed_info = packed_info.contiguous()
+        packed_info = packed_info.contiguous().int()
         data = data.contiguous()
         if ctx.needs_input_grad[1]:
             ctx.save_for_backward(packed_info)
-            ctx.data_shape = data.shape
-        return _C.unpack_data(packed_info, data, num_samples)
+            ctx.n_samples = n_samples
+        return _C.unpack_data(packed_info, data, n_samples)
 
     @staticmethod
     def backward(ctx, grad: Tensor):
-        # shape of the grad should be (n_rays, num_samples, D)
+        # shape of the grad should be (n_rays, n_samples, D)
         packed_info = ctx.saved_tensors[0]
-        mask = _C.unpack_info_to_mask(packed_info)
-        packed_grad = grad[mask]
+        n_samples = ctx.n_samples
+        mask = _C.unpack_info_to_mask(packed_info, n_samples)
+        packed_grad = grad[mask].contiguous()
         return None, packed_grad, None

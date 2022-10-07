@@ -1,3 +1,7 @@
+"""
+Copyright (c) 2022 Ruilong Li, UC Berkeley.
+"""
+
 from typing import Tuple
 
 from torch import Tensor
@@ -10,7 +14,7 @@ def ray_resampling(
     t_starts: Tensor,
     t_ends: Tensor,
     weights: Tensor,
-    num_samples: int,
+    n_samples: int,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """Resample a set of rays based on the CDF of the weights.
 
@@ -23,15 +27,15 @@ def ray_resampling(
             shape (n_samples, 1).
         weights: Volumetric rendering weights for those samples. Tensor with shape \
             (n_samples,).
-        num_samples (int): Number of samples to resample.
+        n_samples (int): Number of samples to resample.
 
     Returns:
-        Resampled packed info (n_rays, 2), t_starts (num_samples, 1), and t_ends (num_samples, 1).
+        Resampled packed info (n_rays, 2), t_starts (n_samples, 1), and t_ends (n_samples, 1).
     """
     return _C.ray_resampling(
         packed_info.contiguous(),
         t_starts.contiguous(),
         t_ends.contiguous(),
         weights.contiguous(),
-        num_samples,
+        n_samples,
     )

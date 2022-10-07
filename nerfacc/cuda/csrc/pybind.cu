@@ -48,7 +48,7 @@ torch::Tensor unpack_info(
     const torch::Tensor packed_info);
 
 torch::Tensor unpack_info_to_mask(
-    const torch::Tensor packed_info);
+    const torch::Tensor packed_info, const int n_samples);
 
 torch::Tensor grid_query(
     const torch::Tensor samples,
