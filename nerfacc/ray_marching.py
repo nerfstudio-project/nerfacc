@@ -7,7 +7,7 @@ import nerfacc.cuda as _C
 from .contraction import ContractionType
 from .grid import Grid
 from .intersection import ray_aabb_intersect
-from .pack import unpack_to_ray_indices
+from .pack import unpack_info
 from .vol_rendering import render_visibility
 
 
@@ -87,7 +87,7 @@ def ray_marching(
     .. code-block:: python
 
         import torch
-        from nerfacc import OccupancyGrid, ray_marching, unpack_to_ray_indices
+        from nerfacc import OccupancyGrid, ray_marching, unpack_info
 
         device = "cuda:0"
         batch_size = 128
@@ -121,7 +121,7 @@ def ray_marching(
         )
 
         # Convert t_starts and t_ends to sample locations.
-        ray_indices = unpack_to_ray_indices(packed_info)
+        ray_indices = unpack_info(packed_info)
         t_mid = (t_starts + t_ends) / 2.0
         sample_locs = rays_o[ray_indices] + t_mid * rays_d[ray_indices]
 
@@ -186,7 +186,7 @@ def ray_marching(
     # skip invisible space
     if sigma_fn is not None:
         # Query sigma without gradients
-        ray_indices = unpack_to_ray_indices(packed_info)
+        ray_indices = unpack_info(packed_info)
         sigmas = sigma_fn(t_starts, t_ends, ray_indices)
         assert (
             sigmas.shape == t_starts.shape

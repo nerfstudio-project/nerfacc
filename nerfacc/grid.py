@@ -7,10 +7,44 @@ from typing import Callable, List, Union
 import torch
 import torch.nn as nn
 
+import nerfacc.cuda as _C
+
 from .contraction import ContractionType, contract_inv
 
-# TODO: add this to the dependency
+# TODO: check torch.scatter_reduce_
 # from torch_scatter import scatter_max
+
+
+@torch.no_grad()
+def query_grid(
+    samples: torch.Tensor,
+    grid_roi: torch.Tensor,
+    grid_values: torch.Tensor,
+    grid_type: ContractionType,
+):
+    """Query grid values given coordinates.
+
+    Args:
+        samples: (n_samples, 3) tensor of coordinates.
+        grid_roi: (6,) region of interest of the grid. Usually it should be
+            accquired from the grid itself using `grid.roi_aabb`.
+        grid_values: A 3D tensor of grid values in the shape of (resx, resy, resz).
+        grid_type: Contraction type of the grid. Usually it should be
+            accquired from the grid itself using `grid.contraction_type`.
+
+    Returns:
+        (n_samples) values for those samples queried from the grid.
+    """
+    assert samples.dim() == 2 and samples.size(-1) == 3
+    assert grid_roi.dim() == 1 and grid_roi.size(0) == 6
+    assert grid_values.dim() == 3
+    assert isinstance(grid_type, ContractionType)
+    return _C.grid_query(
+        samples.contiguous(),
+        grid_roi.contiguous(),
+        grid_values.contiguous(),
+        grid_type.to_cpp_version(),
+    )
 
 
 class Grid(nn.Module):
@@ -241,6 +275,23 @@ class OccupancyGrid(Grid):
                 ema_decay=ema_decay,
                 warmup_steps=warmup_steps,
             )
+
+    @torch.no_grad()
+    def query_occ(self, samples: torch.Tensor) -> torch.Tensor:
+        """Query the occupancy field at the given samples.
+
+        Args:
+            samples: Samples in the world coordinates. (n_samples, 3)
+
+        Returns:
+            Occupancy values at the given samples. (n_samples,)
+        """
+        return query_grid(
+            samples,
+            self._roi_aabb,
+            self.occs.reshape(self.resolution.tolist()),
+            self.contraction_type,
+        )
 
 
 def _meshgrid3d(

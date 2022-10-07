@@ -24,11 +24,12 @@ inline __device__ __host__ int grid_idx_at(
     return idx;
 }
 
-inline __device__ __host__ bool grid_occupied_at(
+template <typename scalar_t>
+inline __device__ __host__ scalar_t grid_occupied_at(
     const float3 xyz,
     const float3 roi_min, const float3 roi_max,
     ContractionType type,
-    const int3 grid_res, const bool *grid_binary)
+    const int3 grid_res, const scalar_t *grid_value)
 {
     if (type == ContractionType::AABB &&
         (xyz.x < roi_min.x || xyz.x > roi_max.x ||
@@ -40,7 +41,7 @@ inline __device__ __host__ bool grid_occupied_at(
     float3 xyz_unit = apply_contraction(
         xyz, roi_min, roi_max, type);
     int idx = grid_idx_at(xyz_unit, grid_res);
-    return grid_binary[idx];
+    return grid_value[idx];
 }
 
 // dda like step
@@ -283,6 +284,7 @@ std::vector<torch::Tensor> ray_marching(
 // Query the occupancy grid
 // ----------------------------------------------------------------------------
 
+template <typename scalar_t>
 __global__ void query_occ_kernel(
     // rays info
     const uint32_t n_samples,
@@ -290,10 +292,10 @@ __global__ void query_occ_kernel(
     // occupancy grid & contraction
     const float *roi,
     const int3 grid_res,
-    const bool *grid_binary, // shape (reso_x, reso_y, reso_z)
+    const scalar_t *grid_value, // shape (reso_x, reso_y, reso_z)
     const ContractionType type,
     // outputs
-    bool *occs)
+    scalar_t *occs)
 {
     CUDA_GET_THREAD_ID(i, n_samples);
 
@@ -305,15 +307,15 @@ __global__ void query_occ_kernel(
     const float3 roi_max = make_float3(roi[3], roi[4], roi[5]);
     const float3 xyz = make_float3(samples[0], samples[1], samples[2]);
 
-    *occs = grid_occupied_at(xyz, roi_min, roi_max, type, grid_res, grid_binary);
+    *occs = grid_occupied_at(xyz, roi_min, roi_max, type, grid_res, grid_value);
     return;
 }
 
-torch::Tensor query_occ(
+torch::Tensor grid_query(
     const torch::Tensor samples,
     // occupancy grid & contraction
     const torch::Tensor roi,
-    const torch::Tensor grid_binary,
+    const torch::Tensor grid_value,
     const ContractionType type)
 {
     DEVICE_GUARD(samples);
@@ -321,23 +323,28 @@ torch::Tensor query_occ(
 
     const int n_samples = samples.size(0);
     const int3 grid_res = make_int3(
-        grid_binary.size(0), grid_binary.size(1), grid_binary.size(2));
+        grid_value.size(0), grid_value.size(1), grid_value.size(2));
 
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_samples, threads);
 
-    torch::Tensor occs = torch::zeros(
-        {n_samples}, samples.options().dtype(torch::kBool));
+    torch::Tensor occs = torch::zeros({n_samples}, grid_value.options());
 
-    query_occ_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
-        n_samples,
-        samples.data_ptr<float>(),
-        // grid
-        roi.data_ptr<float>(),
-        grid_res,
-        grid_binary.data_ptr<bool>(),
-        type,
-        // outputs
-        occs.data_ptr<bool>());
+    AT_DISPATCH_FLOATING_TYPES_AND(
+        at::ScalarType::Bool,
+        occs.scalar_type(),
+        "grid_query",
+        ([&]
+         { query_occ_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+               n_samples,
+               samples.data_ptr<float>(),
+               // grid
+               roi.data_ptr<float>(),
+               grid_res,
+               grid_value.data_ptr<scalar_t>(),
+               type,
+               // outputs
+               occs.data_ptr<scalar_t>()); }));
+
     return occs;
 }

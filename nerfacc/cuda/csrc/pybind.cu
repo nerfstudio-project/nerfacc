@@ -44,14 +44,17 @@ std::vector<torch::Tensor> ray_marching(
     const float step_size,
     const float cone_angle);
 
-torch::Tensor unpack_to_ray_indices(
+torch::Tensor unpack_info(
     const torch::Tensor packed_info);
 
-torch::Tensor query_occ(
+torch::Tensor unpack_info_to_mask(
+    const torch::Tensor packed_info, const int n_samples);
+
+torch::Tensor grid_query(
     const torch::Tensor samples,
     // occupancy grid & contraction
     const torch::Tensor roi,
-    const torch::Tensor grid_binary,
+    const torch::Tensor grid_value,
     const ContractionType type);
 
 torch::Tensor contract(
@@ -81,6 +84,18 @@ std::vector<torch::Tensor> rendering_alphas_forward(
     float alpha_thre,
     bool compression);
 
+std::vector<torch::Tensor> ray_resampling(
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor weights,
+    const int steps);
+
+torch::Tensor unpack_data(
+    torch::Tensor packed_info,
+    torch::Tensor data,
+    int n_samples_per_ray);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
@@ -92,16 +107,21 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("contract_inv", &contract_inv);
 
     // grid
-    m.def("query_occ", &query_occ);
+    m.def("grid_query", &grid_query);
 
     // marching
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
     m.def("ray_marching", &ray_marching);
-    m.def("unpack_to_ray_indices", &unpack_to_ray_indices);
+    m.def("ray_resampling", &ray_resampling);
 
     // rendering
     m.def("rendering_forward", &rendering_forward);
     m.def("rendering_backward", &rendering_backward);
     m.def("rendering_alphas_forward", &rendering_alphas_forward);
     m.def("rendering_alphas_backward", &rendering_alphas_backward);
+
+    // pack & unpack
+    m.def("unpack_data", &unpack_data);
+    m.def("unpack_info", &unpack_info);
+    m.def("unpack_info_to_mask", &unpack_info_to_mask);
 }
