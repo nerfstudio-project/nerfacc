@@ -21,7 +21,7 @@ def rendering(
     t_ends: torch.Tensor,
     # rendering options
     early_stop_eps: float = 1e-4,
-    alpha_thre: float = 1e-2,
+    alpha_thre: float = 0.0,
     render_bkgd: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Render the rays through the radience field defined by `rgb_sigma_fn`.
