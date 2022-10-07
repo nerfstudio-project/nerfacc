@@ -1,6 +1,7 @@
 """
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
+import warnings
 
 from .cdf import ray_resampling
 from .contraction import ContractionType, contract, contract_inv
@@ -16,6 +17,17 @@ from .vol_rendering import (
     render_weight_from_density,
     rendering,
 )
+
+
+# About to be deprecated
+def unpack_to_ray_indices(*args, **kwargs):
+    warnings.warn(
+        "`unpack_to_ray_indices` will be deprecated. Please use `unpack_info` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return unpack_info(*args, **kwargs)
+
 
 __all__ = [
     "__version__",

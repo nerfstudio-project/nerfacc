@@ -10,7 +10,7 @@ import nerfacc.cuda as _C
 
 
 def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
-    """Pack data according to a mask selector.
+    """Pack per-ray data (n_rays, n_samples, D) to (all_samples, D) based on mask.
 
     Args:
         data: Tensor with shape (n_rays, n_samples, D).

@@ -16,7 +16,6 @@ Utils
    render_visibility
 
    ray_resampling
-   query_grid
    pack_data
    unpack_data
    
