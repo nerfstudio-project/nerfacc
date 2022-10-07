@@ -32,10 +32,15 @@ def ray_resampling(
     Returns:
         Resampled packed info (n_rays, 2), t_starts (n_samples, 1), and t_ends (n_samples, 1).
     """
-    return _C.ray_resampling(
+    (
+        resampled_packed_info,
+        resampled_t_starts,
+        resampled_t_ends,
+    ) = _C.ray_resampling(
         packed_info.contiguous(),
         t_starts.contiguous(),
         t_ends.contiguous(),
         weights.contiguous(),
         n_samples,
     )
+    return resampled_packed_info, resampled_t_starts, resampled_t_ends
