@@ -7,6 +7,7 @@ from .cdf import ray_resampling
 from .contraction import ContractionType, contract, contract_inv
 from .grid import Grid, OccupancyGrid, query_grid
 from .intersection import ray_aabb_intersect
+from .losses import distortion as loss_distortion
 from .pack import pack_data, unpack_data, unpack_info
 from .ray_marching import ray_marching
 from .version import __version__
@@ -48,4 +49,5 @@ __all__ = [
     "unpack_data",
     "unpack_info",
     "ray_resampling",
+    "loss_distortion",
 ]
