@@ -7,10 +7,43 @@ from typing import Callable, List, Union
 import torch
 import torch.nn as nn
 
+import nerfacc.cuda as _C
+
 from .contraction import ContractionType, contract_inv
 
-# TODO: add this to the dependency
+# TODO: check torch.scatter_reduce_
 # from torch_scatter import scatter_max
+
+
+def query_grid(
+    samples: torch.Tensor,
+    grid_roi: torch.Tensor,
+    grid_values: torch.Tensor,
+    grid_type: torch.Tensor,
+):
+    """Query grid values given coordinates.
+
+    Args:
+        samples: (n_samples, 3) tensor of coordinates.
+        grid_roi: (6,) region of interest of the grid. Usually it should be
+            accquired from the grid itself using `grid.roi_aabb`.
+        grid_values: A 3D tensor of grid values in the shape of (resx, resy, resz).
+        grid_type: Contraction type of the grid. Usually it should be
+            accquired from the grid itself using `grid.contraction_type`.
+
+    Returns:
+        (n_samples) values for those samples queried from the grid.
+    """
+    assert samples.dim() == 2 and samples.size(-1) == 3
+    assert grid_roi.dim() == 1 and grid_roi.size(0) == 6
+    assert grid_values.dim() == 3
+    assert grid_type in ContractionType
+    return _C.grid_query(
+        samples.contiguous(),
+        grid_roi.contiguous(),
+        grid_values.contiguous(),
+        _C.ContractionType(grid_type.value),
+    )
 
 
 class Grid(nn.Module):

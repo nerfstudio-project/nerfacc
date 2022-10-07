@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from nerfacc import OccupancyGrid, ray_marching, unpack_to_ray_indices
+from nerfacc import OccupancyGrid, ray_marching, unpack_info
 
 device = "cuda:0"
 batch_size = 128
@@ -39,7 +39,7 @@ def test_marching_with_grid():
         far_plane=1.0,
         render_step_size=1e-2,
     )
-    ray_indices = unpack_to_ray_indices(packed_info).long()
+    ray_indices = unpack_info(packed_info).long()
     samples = (
         rays_o[ray_indices] + rays_d[ray_indices] * (t_starts + t_ends) / 2.0
     )

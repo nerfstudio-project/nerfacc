@@ -1,6 +1,7 @@
 """
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
+from typing import Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -8,8 +9,42 @@ from torch import Tensor
 import nerfacc.cuda as _C
 
 
+def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor]:
+    """Pack data according to selector.
+
+    Args:
+        data: Tensor with shape (n_rays, n_samples, D).
+        mask: Boolen tensor with shape (n_rays, n_samples).
+
+    Returns:
+        Tuple of Tensors including packed data (all_samples, D), \
+        and packed_info (n_rays, 2) which stores the start index of the sample,
+        and the number of samples kept for each ray. \
+
+    Examples:
+
+    .. code-block:: python
+
+        data = torch.rand((10, 3, 4), device="cuda:0")
+        selector = data.rand((10, 3), dtype=torch.bool, device="cuda:0")
+        packed_data, packed_info = pack(data, selector)
+        print(packed_data.shape, packed_info.shape)
+
+    """
+    assert data.dim() == 3, "data must be with shape of (n_rays, n_samples, D)."
+    assert (
+        mask.shape == data.shape[:2]
+    ), "mask must be with shape of (n_rays, n_samples)."
+    assert mask.dtype == torch.bool, "mask must be a boolean tensor."
+    packed_data = data[mask]
+    num_steps = mask.long().sum(dim=-1)
+    cum_steps = num_steps.cumsum(dim=0, dtype=torch.long)
+    packed_info = torch.stack([cum_steps, num_steps], dim=-1)
+    return packed_data, packed_info
+
+
 @torch.no_grad()
-def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
+def unpack_info(packed_info: Tensor) -> Tensor:
     """Unpack `packed_info` to `ray_indices`. Useful for converting per ray data to per sample data.
 
     Note: 
@@ -36,13 +71,84 @@ def unpack_to_ray_indices(packed_info: Tensor) -> Tensor:
         # torch.Size([128, 2]) torch.Size([115200, 1]) torch.Size([115200, 1])
         print(packed_info.shape, t_starts.shape, t_ends.shape)
         # Unpack per-ray info to per-sample info.
-        ray_indices = unpack_to_ray_indices(packed_info)
+        ray_indices = unpack_info(packed_info)
         # torch.Size([115200]) torch.int64
         print(ray_indices.shape, ray_indices.dtype)
 
     """
+    assert (
+        packed_info.dim() == 2 and packed_info.shape[-1] == 2
+    ), "packed_info must be a 2D tensor with shape (n_rays, 2)."
     if packed_info.is_cuda:
-        ray_indices = _C.unpack_to_ray_indices(packed_info.contiguous().int())
+        ray_indices = _C.unpack_info(packed_info.contiguous().int())
     else:
         raise NotImplementedError("Only support cuda inputs.")
     return ray_indices.long()
+
+
+def unpack_data(
+    packed_info: Tensor,
+    data: Tensor,
+    num_samples: Optional[int] = None,
+) -> Tuple[Tensor, Tensor, Tensor]:
+    """Unpack packed data (all_samples, D) to per-ray data (n_rays, num_samples, D).
+
+    Args:
+        packed_info (Tensor): Stores information on which samples belong to the same ray. \
+            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
+        data: Packed data to unpack. Tensor with shape (n_samples, D).
+        num_samples (int): Optional Number of samples per ray. If not provided, it \
+            will be inferred from the packed_info.
+
+    Returns:
+        Unpacked data (n_rays, num_samples, D).
+
+    Examples:
+
+    .. code-block:: python
+
+        rays_o = torch.rand((128, 3), device="cuda:0")
+        rays_d = torch.randn((128, 3), device="cuda:0")
+        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+
+        # Ray marching with aabb.
+        scene_aabb = torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0, 1.0], device="cuda:0")
+        packed_info, t_starts, t_ends = ray_marching(
+            rays_o, rays_d, scene_aabb=scene_aabb, render_step_size=1e-2
+        )
+        print(t_starts.shape)  # torch.Size([all_samples, 1])
+
+        t_starts = unpack_data(packed_info, t_starts, num_samples=1024)
+        print(t_starts.shape)  # torch.Size([128, 1024, 1])
+    """
+    assert (
+        packed_info.dim() == 2 and packed_info.shape[-1] == 2
+    ), "packed_info must be a 2D tensor with shape (n_rays, 2)."
+    assert (
+        data.dim() == 2
+    ), "data must be a 2D tensor with shape (n_samples, D)."
+    if num_samples is None:
+        num_samples = packed_info[:, 1].max().item()
+    return _UnpackData.apply(packed_info, data, num_samples)
+
+
+class _UnpackData(torch.autograd.Function):
+    """Unpack packed data (all_samples, D) to per-ray data (n_rays, num_samples, D)."""
+
+    @staticmethod
+    def forward(ctx, packed_info: Tensor, data: Tensor, num_samples: int):
+        # shape of the data should be (all_samples, D)
+        packed_info = packed_info.contiguous()
+        data = data.contiguous()
+        if ctx.needs_input_grad[1]:
+            ctx.save_for_backward(packed_info)
+            ctx.data_shape = data.shape
+        return _C.unpack_data(packed_info, data, num_samples)
+
+    @staticmethod
+    def backward(ctx, grad: Tensor):
+        # shape of the grad should be (n_rays, num_samples, D)
+        packed_info = ctx.saved_tensors[0]
+        mask = _C.unpack_info_to_mask(packed_info)
+        packed_grad = grad[mask]
+        return None, packed_grad, None
