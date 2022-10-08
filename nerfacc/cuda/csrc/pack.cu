@@ -91,7 +91,7 @@ torch::Tensor unpack_info(const torch::Tensor packed_info)
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
     int n_samples = packed_info[n_rays - 1].sum(0).item<int>();
-    torch::Tensor ray_indices = torch::zeros(
+    torch::Tensor ray_indices = torch::empty(
         {n_samples}, packed_info.options().dtype(torch::kInt32));
 
     unpack_info_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(

@@ -223,7 +223,7 @@ std::vector<torch::Tensor> ray_marching(
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
     // helper counter
-    torch::Tensor num_steps = torch::zeros(
+    torch::Tensor num_steps = torch::empty(
         {n_rays}, rays_o.options().dtype(torch::kInt32));
 
     // count number of samples per ray
@@ -253,8 +253,8 @@ std::vector<torch::Tensor> ray_marching(
 
     // output samples starts and ends
     int total_steps = cum_steps[cum_steps.size(0) - 1].item<int>();
-    torch::Tensor t_starts = torch::zeros({total_steps, 1}, rays_o.options());
-    torch::Tensor t_ends = torch::zeros({total_steps, 1}, rays_o.options());
+    torch::Tensor t_starts = torch::empty({total_steps, 1}, rays_o.options());
+    torch::Tensor t_ends = torch::empty({total_steps, 1}, rays_o.options());
 
     ray_marching_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         // rays
@@ -328,7 +328,7 @@ torch::Tensor grid_query(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_samples, threads);
 
-    torch::Tensor occs = torch::zeros({n_samples}, grid_value.options());
+    torch::Tensor occs = torch::empty({n_samples}, grid_value.options());
 
     AT_DISPATCH_FLOATING_TYPES_AND(
         at::ScalarType::Bool,
