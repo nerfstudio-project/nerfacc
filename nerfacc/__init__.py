@@ -50,4 +50,5 @@ __all__ = [
     "unpack_info",
     "ray_resampling",
     "loss_distortion",
+    "unpack_to_ray_indices",
 ]
