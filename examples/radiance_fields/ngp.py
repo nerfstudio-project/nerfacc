@@ -141,17 +141,6 @@ class NGPradianceField(torch.nn.Module):
             },
         )
 
-    def query_opacity(self, x, step_size):
-        density = self.query_density(x)
-        if self.unbounded:
-            # NOTE: In principle, we should use the following formula to scale
-            # up the step size, but in practice, it is somehow not helpful.
-            # derivitive = contract_to_unisphere(x, self.aabb, derivative=True)
-            # step_size = step_size / derivitive.norm(dim=-1, keepdim=True)
-            pass
-        opacity = density * step_size
-        return opacity
-
     def query_density(self, x, return_feat: bool = False):
         if self.unbounded:
             x = contract_to_unisphere(x, self.aabb)

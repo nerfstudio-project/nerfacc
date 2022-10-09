@@ -186,6 +186,8 @@ if __name__ == "__main__":
                 render_bkgd=render_bkgd,
                 cone_angle=args.cone_angle,
             )
+            if n_rendering_samples == 0:
+                continue
 
             # dynamic batch size for rays to keep sample batch size constant.
             num_rays = len(pixels)

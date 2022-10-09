@@ -76,7 +76,7 @@ if __name__ == "__main__":
     ).item()
 
     # setup the radiance field we want to train.
-    max_steps = 50000
+    max_steps = 30000
     grad_scaler = torch.cuda.amp.GradScaler(1)
     radiance_field = DNeRFRadianceField().to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
@@ -156,9 +156,12 @@ if __name__ == "__main__":
                 render_step_size=render_step_size,
                 render_bkgd=render_bkgd,
                 cone_angle=args.cone_angle,
+                alpha_thre=0.01 if step > 1000 else 0.00,
                 # dnerf options
                 timestamps=timestamps,
             )
+            if n_rendering_samples == 0:
+                continue
 
             # dynamic batch size for rays to keep sample batch size constant.
             num_rays = len(pixels)
@@ -213,6 +216,7 @@ if __name__ == "__main__":
                             render_step_size=render_step_size,
                             render_bkgd=render_bkgd,
                             cone_angle=args.cone_angle,
+                            alpha_thre=0.01,
                             # test options
                             test_chunk_size=args.test_chunk_size,
                             # dnerf options

@@ -248,8 +248,8 @@ class VanillaNeRFRadianceField(nn.Module):
 class DNeRFRadianceField(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.posi_encoder = SinusoidalEncoder(3, 0, 0, True)
-        self.time_encoder = SinusoidalEncoder(1, 0, 0, True)
+        self.posi_encoder = SinusoidalEncoder(3, 0, 4, True)
+        self.time_encoder = SinusoidalEncoder(1, 0, 4, True)
         self.warp = MLP(
             input_dim=self.posi_encoder.latent_dim
             + self.time_encoder.latent_dim,

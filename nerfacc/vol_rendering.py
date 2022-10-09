@@ -80,7 +80,7 @@ def rendering(
     ray_indices = unpack_info(packed_info)
 
     # Query sigma and color with gradients
-    rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
+    rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices.long())
     assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
         rgbs.shape
     )

@@ -187,7 +187,7 @@ def ray_marching(
     if sigma_fn is not None:
         # Query sigma without gradients
         ray_indices = unpack_info(packed_info)
-        sigmas = sigma_fn(t_starts, t_ends, ray_indices)
+        sigmas = sigma_fn(t_starts, t_ends, ray_indices.long())
         assert (
             sigmas.shape == t_starts.shape
         ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)

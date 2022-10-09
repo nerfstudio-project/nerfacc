@@ -9,7 +9,7 @@ Benchmarks
 Here we trained a 8-layer-MLP for the radiance field and a 4-layer-MLP for the warping field,
 (similar to the T-Nerf model in the `D-Nerf`_ paper) on the `D-Nerf dataset`_. We used train 
 split for training and test split for evaluation. Our experiments are conducted on a 
-single NVIDIA TITAN RTX GPU. 
+single NVIDIA TITAN RTX GPU. The training memory footprint is about 11GB.
 
 .. note::
 
@@ -19,12 +19,12 @@ single NVIDIA TITAN RTX GPU.
     It is not optimal but still makes the rendering very efficient.
 
 +----------------------+----------+---------+-------+---------+-------+--------+---------+-------+-------+
-|                      | bouncing | hell    | hook  | jumping | lego  | mutant | standup | trex  | AVG   |
+| PSNR                 | bouncing | hell    | hook  | jumping | lego  | mutant | standup | trex  | MEAN  |
 |                      | balls    | warrior |       | jacks   |       |        |         |       |       |
 +======================+==========+=========+=======+=========+=======+========+=========+=======+=======+
-| D-Nerf (PSNR: ~2day) | 38.93    | 25.02   | 29.25 | 32.80   | 21.64 | 31.29  | 32.79   | 31.75 | 30.43 |
+| D-Nerf (~ days)      | 38.93    | 25.02   | 29.25 | 32.80   | 21.64 | 31.29  | 32.79   | 31.75 | 30.43 |
 +----------------------+----------+---------+-------+---------+-------+--------+---------+-------+-------+
-| Ours  (PSNR: ~50min) | 39.60    | 22.41   | 30.64 | 29.79   | 24.75 | 35.20  | 34.50   | 31.83 | 31.09 |
+| Ours  (~ 50min)      | 39.60    | 22.41   | 30.64 | 29.79   | 24.75 | 35.20  | 34.50   | 31.83 | 31.09 |
 +----------------------+----------+---------+-------+---------+-------+--------+---------+-------+-------+
 | Ours  (Training time)| 45min    | 49min   | 51min | 46min   | 53min | 57min  | 49min   | 46min | 50min |
 +----------------------+----------+---------+-------+---------+-------+--------+---------+-------+-------+
