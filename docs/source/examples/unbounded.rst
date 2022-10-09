@@ -5,6 +5,7 @@ See code `examples/train_ngp_nerf.py` at our `github repository`_ for details.
 
 Benchmarks
 ------------
+*updated on 2022-10-08*
 
 Here we trained a `Instant-NGP Nerf`_  on the `MipNerf360`_ dataset. We used train 
 split for training and test split for evaluation. Our experiments are conducted on a 
@@ -35,7 +36,6 @@ that takes from `MipNerf360`_.
 +----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
 | Ours (Training time) | 25min | 17min | 19min | 23min | 28min | 20min | 17min | 21min |
 +----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
-*updated on 2022-10-08*
 
 .. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
 .. _`MipNerf360`: https://arxiv.org/abs/2111.12077

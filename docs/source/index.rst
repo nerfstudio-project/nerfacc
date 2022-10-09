@@ -2,7 +2,7 @@ NerfAcc Documentation
 ===================================
 
 NerfAcc is a PyTorch Nerf acceleration toolbox for both training and inference. It focus on
-efficient volumetric rendering of radiance fields, which is universal for most of the NeRFs.
+efficient volumetric rendering of radiance fields, which is universal and plug-and-play for most of the NeRFs.
 
 Using NerfAcc, 
 
@@ -12,7 +12,7 @@ Using NerfAcc,
   the training time (4.5 minutes) comparing to the official pure-CUDA implementation.
 - The `D-Nerf`_ model for *dynamic* objects can also be trained in *1 hour* \
   rather than *2 days* as in the paper, and with *better quality* (+~0.5 PSNR).
-- The *unbounded* scenes can be trained to *better quality* (+~1.1 PSNR) than `Nerf++`_ in *20 minutes*.
+- Both *bounded* and *unbounded* scenes are supported.
 
 **And it is pure Python interface with flexible APIs!**
 

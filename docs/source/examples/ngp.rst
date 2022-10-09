@@ -7,6 +7,7 @@ See code `examples/train_ngp_nerf.py` at our `github repository`_ for details.
 
 Benchmarks
 ------------
+*updated on 2022-10-08*
 
 Here we trained a `Instant-NGP Nerf`_ model on the `Nerf-Synthetic dataset`_. We follow the same
 settings with the Instant-NGP paper, which uses trainval split for training and test split for
@@ -28,7 +29,6 @@ memory footprint is about 3GB.
 +----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
 | Ours  (Training time)| 288s  | 259s  | 256s    | 324s  | 288s  | 245s  | 262s  | 257s  | 272s  |
 +----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
-*updated on 2022-10-08*
 
 .. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
 .. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/
