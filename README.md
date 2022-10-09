@@ -10,7 +10,7 @@ efficient volumetric rendering of radiance fields, which is universal and plug-a
 Using NerfAcc, 
 
 - The `vanilla NeRF` model with 8-layer MLPs can be trained to *better quality* (+~0.5 PNSR)
-  in *1 hour* rather than *1~2 days* as in the paper.
+  in *1 hour* rather than *days* as in the paper.
 - The `Instant-NGP NeRF` model can be trained to *better quality* (+~0.7 PSNR) with *9/10th* of
   the training time (4.5 minutes) comparing to the official pure-CUDA implementation.
 - The `D-NeRF` model for *dynamic* objects can also be trained in *1 hour*
