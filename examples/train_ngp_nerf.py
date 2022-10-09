@@ -140,6 +140,7 @@ if __name__ == "__main__":
         near_plane = 0.2
         far_plane = 1e4
         render_step_size = 1e-2
+        alpha_thre = 1e-2
     else:
         contraction_type = ContractionType.AABB
         scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
@@ -150,9 +151,10 @@ if __name__ == "__main__":
             * math.sqrt(3)
             / render_n_samples
         ).item()
+        alpha_thre = 0.0
 
     # setup the radiance field we want to train.
-    max_steps = 40000 if args.unbounded else 20000
+    max_steps = 20000
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPradianceField(
         aabb=args.aabb,
@@ -185,13 +187,33 @@ if __name__ == "__main__":
             rays = data["rays"]
             pixels = data["pixels"]
 
+            def occ_eval_fn(x):
+                if args.cone_angle > 0.0:
+                    # randomly sample a camera for computing step size.
+                    camera_ids = torch.randint(
+                        0, len(train_dataset), (x.shape[0],), device=device
+                    )
+                    origins = train_dataset.camtoworlds[camera_ids, :3, -1]
+                    t = (origins - x).norm(dim=-1, keepdim=True)
+                    # compute actual step size used in marching, based on the distance to the camera.
+                    step_size = torch.clamp(
+                        t * args.cone_angle, min=render_step_size
+                    )
+                    # filter out the points that are not in the near far plane.
+                    if (near_plane is not None) and (near_plane is not None):
+                        step_size = torch.where(
+                            (t > near_plane) & (t < far_plane),
+                            step_size,
+                            torch.zeros_like(step_size),
+                        )
+                else:
+                    step_size = render_step_size
+                # compute occupancy
+                density = radiance_field.query_density(x)
+                return density * step_size
+
             # update occupancy grid
-            occupancy_grid.every_n_step(
-                step=step,
-                occ_eval_fn=lambda x: radiance_field.query_opacity(
-                    x, render_step_size
-                ),
-            )
+            occupancy_grid.every_n_step(step=step, occ_eval_fn=occ_eval_fn)
 
             # render
             rgb, acc, depth, n_rendering_samples = render_image(
@@ -205,7 +227,10 @@ if __name__ == "__main__":
                 render_step_size=render_step_size,
                 render_bkgd=render_bkgd,
                 cone_angle=args.cone_angle,
+                alpha_thre=alpha_thre,
             )
+            if n_rendering_samples == 0:
+                continue
 
             # dynamic batch size for rays to keep sample batch size constant.
             num_rays = len(pixels)
@@ -254,11 +279,12 @@ if __name__ == "__main__":
                             rays,
                             scene_aabb,
                             # rendering options
-                            near_plane=None,
-                            far_plane=None,
+                            near_plane=near_plane,
+                            far_plane=far_plane,
                             render_step_size=render_step_size,
                             render_bkgd=render_bkgd,
                             cone_angle=args.cone_angle,
+                            alpha_thre=alpha_thre,
                             # test options
                             test_chunk_size=args.test_chunk_size,
                         )

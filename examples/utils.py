@@ -30,6 +30,7 @@ def render_image(
     render_step_size: float = 1e-3,
     render_bkgd: Optional[torch.Tensor] = None,
     cone_angle: float = 0.0,
+    alpha_thre: float = 0.0,
     # test options
     test_chunk_size: int = 8192,
     # only useful for dnerf
@@ -95,6 +96,7 @@ def render_image(
             render_step_size=render_step_size,
             stratified=radiance_field.training,
             cone_angle=cone_angle,
+            alpha_thre=alpha_thre,
         )
         rgb, opacity, depth = rendering(
             rgb_sigma_fn,

@@ -8,7 +8,7 @@ Benchmarks
 
 Here we trained a `Instant-NGP Nerf`_  on the `MipNerf360`_ dataset. We used train 
 split for training and test split for evaluation. Our experiments are conducted on a 
-single NVIDIA TITAN RTX GPU. 
+single NVIDIA TITAN RTX GPU. The training memory footprint is about 6-9GB.
 
 The main difference between working with unbounded scenes and bounded scenes, is that
 a contraction method is needed to map the infinite space to a finite :ref:`Occupancy Grid`.
@@ -23,18 +23,19 @@ that takes from `MipNerf360`_.
     show how to use the library, we didn't want to make it too complicated.
 
 
-+----------------------+-------+-------+------------+-------+--------+--------+--------+
-|                      |Garden |Bicycle| Bonsai     |Counter|Kitchen | Room   | Stump  |
-|                      |       |       |            |       |        |        |        |
-+======================+=======+=======+============+=======+========+========+========+
-|Nerf++(PSNR:~days)    | 24.32 | 22.64 | 29.15      | 26.38 | 27.80  | 28.87  | 24.34  |
-+----------------------+-------+-------+------------+-------+--------+--------+--------+
-|MipNerf360(PSNR:~days)| 26.98 | 24.37 | 33.46      | 29.55 | 32.23  | 31.63  | 28.65  |
-+----------------------+-------+-------+------------+-------+--------+--------+--------+
-| Ours  (PSNR:~1hr)    | 25.41 | 22.89 | 27.35      | 23.15 | 27.74  | 30.66  | 21.83  |
-+----------------------+-------+-------+------------+-------+--------+--------+--------+
-| Ours  (Training time)| 40min | 35min | 47min      | 39min | 60min  | 41min  | 28min  |
-+----------------------+-------+-------+------------+-------+--------+--------+--------+
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| PSNR                 |Garden |Bicycle|Bonsai |Counter|Kitchen| Room  | Stump | MEAN  |
+|                      |       |       |       |       |       |       |       |       |
++======================+=======+=======+=======+=======+=======+=======+=======+=======+
+| Nerf++ (~days)       | 24.32 | 22.64 | 29.15 | 26.38 | 27.80 | 28.87 | 24.34 | 26.21 |
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| MipNerf360 (~days)   | 26.98 | 24.37 | 33.46 | 29.55 | 32.23 | 31.63 | 28.65 | 29.55 |
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| Ours (~20 mins)      | 25.41 | 22.97 | 30.71 | 27.34 | 30.32 | 31.00 | 23.43 | 27.31 |
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| Ours (Training time) | 25min | 17min | 19min | 23min | 28min | 20min | 17min | 21min |
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+*updated on 2022-10-08*
 
 .. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
 .. _`MipNerf360`: https://arxiv.org/abs/2111.12077

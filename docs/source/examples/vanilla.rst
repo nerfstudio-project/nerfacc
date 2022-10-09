@@ -8,7 +8,7 @@ Benchmarks
 
 Here we trained a 8-layer-MLP for the radiance field as in the `vanilla Nerf`_. We used the 
 train split for training and test split for evaluation as in the Nerf paper. Our experiments are 
-conducted on a single NVIDIA TITAN RTX GPU. 
+conducted on a single NVIDIA TITAN RTX GPU. The training memory footprint is about 10GB.
 
 .. note:: 
     The vanilla Nerf paper uses two MLPs for course-to-fine sampling. Instead here we only use a 
@@ -18,7 +18,7 @@ conducted on a single NVIDIA TITAN RTX GPU.
     with the coarse-to-fine sampling, without runtime or memory issue.
 
 +----------------------+-------+-------+------------+-------+--------+--------+--------+--------+--------+
-|                      | Lego  | Mic   | Materials  |Chair  |Hotdog  | Ficus  | Drums  | Ship   | AVG    |
+|                      | Lego  | Mic   | Materials  |Chair  |Hotdog  | Ficus  | Drums  | Ship   | MEAN   |
 |                      |       |       |            |       |        |        |        |        |        |
 +======================+=======+=======+============+=======+========+========+========+========+========+
 | NeRF  (PSNR: ~days)  | 32.54 | 32.91 | 29.62      | 33.00 | 36.18  | 30.13  | 25.01  | 28.65  | 31.00  |
