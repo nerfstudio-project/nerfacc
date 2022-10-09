@@ -19,7 +19,6 @@ Using NerfAcc,
 
 **And it is pure Python interface with flexible APIs!**
 
-
 ## Installation
 
 ```
