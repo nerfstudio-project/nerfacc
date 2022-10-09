@@ -5,6 +5,7 @@ See code `examples/train_mlp_nerf.py` at our `github repository`_ for details.
 
 Benchmarks
 ------------
+*updated on 2022-10-08*
 
 Here we trained a 8-layer-MLP for the radiance field as in the `vanilla Nerf`_. We used the 
 train split for training and test split for evaluation as in the Nerf paper. Our experiments are 
@@ -28,5 +29,5 @@ conducted on a single NVIDIA TITAN RTX GPU. The training memory footprint is abo
 | Ours  (Training time)| 58min | 53min | 46min   | 62min | 56min | 42min | 52min | 49min | 52min |
 +----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
 
-.. _`github repository`: : https://github.com/KAIR-BAIR/nerfacc/
+.. _`github repository`: : https://github.com/KAIR-BAIR/nerfacc/tree/5637cc9a1565b2685c02250eb1ee1c53d3b07af1
 .. _`vanilla Nerf`: https://arxiv.org/abs/2003.08934
