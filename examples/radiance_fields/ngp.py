@@ -73,6 +73,9 @@ class NGPradianceField(torch.nn.Module):
         use_viewdirs: bool = True,
         density_activation: Callable = lambda x: trunc_exp(x - 1),
         unbounded: bool = False,
+        geo_feat_dim: int = 15,
+        n_levels: int = 16,
+        log2_hashmap_size: int = 19,
     ) -> None:
         super().__init__()
         if not isinstance(aabb, torch.Tensor):
@@ -83,7 +86,7 @@ class NGPradianceField(torch.nn.Module):
         self.density_activation = density_activation
         self.unbounded = unbounded
 
-        self.geo_feat_dim = 15
+        self.geo_feat_dim = geo_feat_dim
         per_level_scale = 1.4472692012786865
 
         if self.use_viewdirs:
@@ -107,9 +110,9 @@ class NGPradianceField(torch.nn.Module):
             n_output_dims=1 + self.geo_feat_dim,
             encoding_config={
                 "otype": "HashGrid",
-                "n_levels": 16,
+                "n_levels": n_levels,
                 "n_features_per_level": 2,
-                "log2_hashmap_size": 19,
+                "log2_hashmap_size": log2_hashmap_size,
                 "base_resolution": 16,
                 "per_level_scale": per_level_scale,
             },
@@ -121,25 +124,25 @@ class NGPradianceField(torch.nn.Module):
                 "n_hidden_layers": 1,
             },
         )
-
-        self.mlp_head = tcnn.Network(
-            n_input_dims=(
-                (
-                    self.direction_encoding.n_output_dims
-                    if self.use_viewdirs
-                    else 0
-                )
-                + self.geo_feat_dim
-            ),
-            n_output_dims=3,
-            network_config={
-                "otype": "FullyFusedMLP",
-                "activation": "ReLU",
-                "output_activation": "Sigmoid",
-                "n_neurons": 64,
-                "n_hidden_layers": 2,
-            },
-        )
+        if self.geo_feat_dim > 0:
+            self.mlp_head = tcnn.Network(
+                n_input_dims=(
+                    (
+                        self.direction_encoding.n_output_dims
+                        if self.use_viewdirs
+                        else 0
+                    )
+                    + self.geo_feat_dim
+                ),
+                n_output_dims=3,
+                network_config={
+                    "otype": "FullyFusedMLP",
+                    "activation": "ReLU",
+                    "output_activation": "Sigmoid",
+                    "n_neurons": 64,
+                    "n_hidden_layers": 2,
+                },
+            )
 
     def query_density(self, x, return_feat: bool = False):
         if self.unbounded:
