@@ -17,6 +17,7 @@ Using NerfAcc,
 **And it is pure Python interface with flexible APIs!**
 
 | Github: https://github.com/KAIR-BAIR/nerfacc
+| Paper: https://arxiv.org/pdf/2210.04847.pdf
 | Authors: `Ruilong Li`_, `Matthew Tancik`_, `Angjoo Kanazawa`_
 
 .. note::
