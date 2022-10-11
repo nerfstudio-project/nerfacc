@@ -121,3 +121,15 @@ python examples/train_mlp_dnerf.py --train_split train --scene lego
 # See results at here: https://www.nerfacc.com/en/latest/examples/unbounded.html
 python examples/train_ngp_nerf.py --train_split train --scene garden --auto_aabb --unbounded --cone_angle=0.004
 ```
+
+
+## Citation
+
+```bibtex
+@article{li2022nerfacc,
+  title={NerfAcc: A General NeRF Accleration Toolbox.},
+  author={Li, Ruilong and Tancik, Matthew and Kanazawa, Angjoo},
+  journal={arXiv preprint arXiv:2210.04847},
+  year={2022}
+}
+```
