@@ -32,5 +32,5 @@ single NVIDIA TITAN RTX GPU. The training memory footprint is about 11GB.
 
 .. _`D-Nerf`: https://arxiv.org/abs/2011.13961
 .. _`D-Nerf dataset`: https://www.dropbox.com/s/0bf6fl0ye2vz3vr/data.zip?dl=0
-.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/tree/5637cc9a1565b2685c02250eb1ee1c53d3b07af1
+.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/tree/76c0f9817da4c9c8b5ccf827eb069ee2ce854b75
 

@@ -12,8 +12,8 @@ Using NerfAcc,
 
 - The `vanilla NeRF` model with 8-layer MLPs can be trained to *better quality* (+~0.5 PNSR)
   in *1 hour* rather than *days* as in the paper.
-- The `Instant-NGP NeRF` model can be trained to *better quality* (+~0.7 PSNR) with *9/10th* of
-  the training time (4.5 minutes) comparing to the official pure-CUDA implementation.
+- The `Instant-NGP NeRF` model can be trained to *equal quality* in *4.5 minutes*,
+  comparing to the official pure-CUDA implementation.
 - The `D-NeRF` model for *dynamic* objects can also be trained in *1 hour*
   rather than *2 days* as in the paper, and with *better quality* (+~2.5 PSNR).
 - Both *bounded* and *unbounded* scenes are supported.
@@ -100,9 +100,9 @@ Before running those example scripts, please check the script about which datase
 the dataset first.
 
 ``` bash
-# Instant-NGP NeRF in 4.5 minutes with better performance!
+# Instant-NGP NeRF in 4.5 minutes with reproduced performance!
 # See results at here: https://www.nerfacc.com/en/latest/examples/ngp.html
-python examples/train_ngp_nerf.py --train_split trainval --scene lego
+python examples/train_ngp_nerf.py --train_split train --scene lego
 ```
 
 ``` bash

@@ -40,4 +40,4 @@ that takes from `MipNerf360`_.
 .. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
 .. _`MipNerf360`: https://arxiv.org/abs/2111.12077
 .. _`Nerf++`: https://arxiv.org/abs/2010.07492
-.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/tree/5637cc9a1565b2685c02250eb1ee1c53d3b07af1
+.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/tree/76c0f9817da4c9c8b5ccf827eb069ee2ce854b75
