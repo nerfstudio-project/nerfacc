@@ -29,5 +29,5 @@ conducted on a single NVIDIA TITAN RTX GPU. The training memory footprint is abo
 | Ours  (Training time)| 58min | 53min | 46min   | 62min | 56min | 42min | 52min | 49min | 52min |
 +----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
 
-.. _`github repository`: : https://github.com/KAIR-BAIR/nerfacc/tree/5637cc9a1565b2685c02250eb1ee1c53d3b07af1
+.. _`github repository`: : https://github.com/KAIR-BAIR/nerfacc/tree/76c0f9817da4c9c8b5ccf827eb069ee2ce854b75
 .. _`vanilla Nerf`: https://arxiv.org/abs/2003.08934
