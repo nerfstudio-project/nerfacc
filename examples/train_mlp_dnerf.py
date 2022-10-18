@@ -185,7 +185,7 @@ if __name__ == "__main__":
                 elapsed_time = time.time() - tic
                 loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
                 print(
-                    f"elapsed_time={elapsed_time:.2f}s | {step=} | "
+                    f"elapsed_time={elapsed_time:.2f}s | step={step} | "
                     f"loss={loss:.5f} | "
                     f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
                     f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
@@ -235,7 +235,7 @@ if __name__ == "__main__":
                         # )
                         # break
                 psnr_avg = sum(psnrs) / len(psnrs)
-                print(f"evaluation: {psnr_avg=}")
+                print(f"evaluation: psnr_avg={psnr_avg}")
                 train_dataset.training = True
 
             if step == max_steps:
