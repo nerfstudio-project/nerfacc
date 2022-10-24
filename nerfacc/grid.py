@@ -66,7 +66,7 @@ class Grid(nn.Module):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self._dummy = torch.nn.Parameter(torch.empty(0))
+        self.register_buffer("_dummy", torch.empty(0), persistent=False)
 
     @property
     def device(self) -> torch.device:
