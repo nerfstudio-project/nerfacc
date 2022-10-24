@@ -442,6 +442,9 @@ template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename V
 inline void exclusive_sum_by_key(
     KeysInputIteratorT keys, ValuesInputIteratorT input, ValuesOutputIteratorT output, int64_t num_items)
 {
+    // CUB is supported in CUDA >= 11.0
+    // ExclusiveSumByKey is supported in CUB >= 1.15.0 (CUDA >= 11.6)
+    // https://github.com/NVIDIA/cub/tree/main#releases
     TORCH_CHECK(num_items <= std::numeric_limits<int>::max(),
                 "cub ExclusiveSumByKey does not support more than INT_MAX elements");
     CUB_WRAPPER(cub::DeviceScan::ExclusiveSumByKey,
@@ -463,8 +466,6 @@ torch::Tensor transmittance_from_sigma_forward(
     const uint32_t n_samples = sigmas_dt.size(0);
     torch::Tensor sigmas_dt_cumsum = torch::empty_like(sigmas_dt);
 
-    // CUB is supported in CUDA >= 11.0
-    // ExclusiveSumByKey is supported in CUDA >= 11.5
     exclusive_sum_by_key(
         ray_indices.data_ptr<int>(),
         sigmas_dt.data_ptr<float>(),
@@ -498,8 +499,6 @@ torch::Tensor transmittance_from_sigma_backward(
     torch::Tensor sigmas_dt_cumsum_grads = - transmittance_grads * transmittance;
     torch::Tensor sigmas_dt_grads = torch::empty_like(sigmas_dt);
 
-    // CUB is supported in CUDA >= 11.0
-    // ExclusiveSumByKey is supported in CUDA >= 11.5
     exclusive_sum_by_key(
         thrust::make_reverse_iterator(ray_indices.data_ptr<int>() + n_samples),
         thrust::make_reverse_iterator(sigmas_dt_cumsum_grads.data_ptr<float>() + n_samples),

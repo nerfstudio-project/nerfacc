@@ -191,13 +191,21 @@ def ray_marching(
         assert (
             sigmas.shape == t_starts.shape
         ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
-        alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+        # alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
 
         # Compute visibility of the samples, and filter out invisible samples
-        visibility, packed_info_visible = render_visibility(
-            packed_info, alphas, early_stop_eps, alpha_thre
+        masks = render_visibility(
+            ray_indices.int(),
+            t_starts,
+            t_ends,
+            sigmas,
+            early_stop_eps,
+            alpha_thre,
         )
-        t_starts, t_ends = t_starts[visibility], t_ends[visibility]
-        packed_info = packed_info_visible
+        ray_indices, t_starts, t_ends = (
+            ray_indices[masks],
+            t_starts[masks],
+            t_ends[masks],
+        )
 
-    return packed_info, t_starts, t_ends
+    return ray_indices, t_starts, t_ends

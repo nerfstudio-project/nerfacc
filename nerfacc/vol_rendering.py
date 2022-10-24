@@ -9,14 +9,13 @@ from torch import Tensor
 
 import nerfacc.cuda as _C
 
-from .pack import unpack_info
-
 
 def rendering(
     # radiance field
     rgb_sigma_fn: Callable,
     # ray marching results
-    packed_info: torch.Tensor,
+    n_rays: int,
+    ray_indices: torch.Tensor,
     t_starts: torch.Tensor,
     t_ends: torch.Tensor,
     # rendering options
@@ -76,9 +75,6 @@ def rendering(
         print(colors.shape, opacities.shape, depths.shape)
 
     """
-    n_rays = packed_info.shape[0]
-    ray_indices = unpack_info(packed_info)
-
     # Query sigma and color with gradients
     rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices.long())
     assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
@@ -291,8 +287,10 @@ def render_weight_from_alpha(
 
 @torch.no_grad()
 def render_visibility(
-    packed_info: torch.Tensor,
-    alphas: torch.Tensor,
+    ray_indices: torch.Tensor,
+    t_starts: torch.Tensor,
+    t_ends: torch.Tensor,
+    sigmas: torch.Tensor,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -338,14 +336,23 @@ def render_visibility(
         print(t_starts.shape, t_starts_visible.shape)
 
     """
-    visibility, packed_info_visible = _C.rendering_alphas_forward(
-        packed_info.contiguous(),
-        alphas.contiguous(),
-        early_stop_eps,
-        alpha_thre,
-        True,  # compute visibility instead of weights
-    )
-    return visibility, packed_info_visible
+    # visibility, packed_info_visible = _C.rendering_alphas_forward(
+    #     packed_info.contiguous(),
+    #     alphas.contiguous(),
+    #     early_stop_eps,
+    #     alpha_thre,
+    #     True,  # compute visibility instead of weights
+    # )
+    # return visibility, packed_info_visible
+
+    sigmas_dt = sigmas * (t_ends - t_starts)
+    transmittance = _C.transmittance_from_sigma_forward(ray_indices, sigmas_dt)
+    visibility = transmittance >= early_stop_eps
+    if alpha_thre > 0:
+        alphas = 1.0 - torch.exp(-sigmas_dt)
+        visibility = visibility & (alphas >= alpha_thre)
+    visibility = visibility.squeeze(-1)
+    return visibility
 
 
 class _RenderingDensity(torch.autograd.Function):
@@ -477,9 +484,6 @@ class _RenderingTransmittanceFromDensity(torch.autograd.Function):
         transmittance_grads = transmittance_grads.contiguous()
         ray_indices, sigmas_dt, transmittance = ctx.saved_tensors
         grad_sigmas = _C.transmittance_from_sigma_backward(
-            ray_indices,
-            sigmas_dt,
-            transmittance,
-            transmittance_grads,
+            ray_indices, sigmas_dt, transmittance, transmittance_grads
         )
         return None, grad_sigmas
