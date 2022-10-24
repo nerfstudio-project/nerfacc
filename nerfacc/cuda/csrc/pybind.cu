@@ -96,6 +96,20 @@ torch::Tensor unpack_data(
     torch::Tensor data,
     int n_samples_per_ray);
 
+torch::Tensor transmittance_from_sigma_forward(
+    torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas);
+
+torch::Tensor transmittance_from_sigma_backward(
+    torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas,
+    torch::Tensor transmittance,    
+    torch::Tensor transmittance_grads);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
@@ -119,6 +133,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("rendering_backward", &rendering_backward);
     m.def("rendering_alphas_forward", &rendering_alphas_forward);
     m.def("rendering_alphas_backward", &rendering_alphas_backward);
+    m.def("transmittance_from_sigma_forward", transmittance_from_sigma_forward);
+    m.def("transmittance_from_sigma_backward", transmittance_from_sigma_backward);
 
     // pack & unpack
     m.def("unpack_data", &unpack_data);

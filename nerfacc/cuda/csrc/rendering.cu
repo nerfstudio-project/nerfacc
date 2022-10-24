@@ -437,3 +437,89 @@ torch::Tensor rendering_alphas_backward(
 
     return grad_alphas;
 }
+
+template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT>
+inline void exclusive_sum_by_key(
+    KeysInputIteratorT keys, ValuesInputIteratorT input, ValuesOutputIteratorT output, int64_t num_items)
+{
+    TORCH_CHECK(num_items <= std::numeric_limits<int>::max(),
+                "cub ExclusiveSumByKey does not support more than INT_MAX elements");
+    CUB_WRAPPER(cub::DeviceScan::ExclusiveSumByKey,
+                keys, input, output, num_items, cub::Equality(), at::cuda::getCurrentCUDAStream());
+}
+
+torch::Tensor transmittance_from_sigma_forward(
+    torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas)
+{
+    DEVICE_GUARD(ray_indices);
+
+    CHECK_INPUT(ray_indices);
+    CHECK_INPUT(starts);
+    CHECK_INPUT(ends);
+    CHECK_INPUT(sigmas);
+
+    TORCH_CHECK(sigmas.ndimension() == 2 & sigmas.size(1) == 1);
+    const uint32_t n_samples = sigmas.size(0);
+
+    TORCH_CHECK(ray_indices.ndimension() == 1 & ray_indices.size(0) == n_samples);
+    TORCH_CHECK(starts.ndimension() == 1 & starts.size(0) == n_samples);
+    TORCH_CHECK(ends.ndimension() == 1 & ends.size(0) == n_samples);
+
+    torch::Tensor sigma_dt = sigmas.squeeze(1) * (ends - starts);
+    torch::Tensor sigma_dt_cumsum = torch::empty({n_samples}, sigmas.options());
+
+    // CUB is supported in CUDA >= 11.0
+    // ExclusiveSumByKey is supported in CUDA >= 11.5
+    exclusive_sum_by_key(
+        ray_indices.data_ptr<int>(),
+        sigma_dt.data_ptr<float>(),
+        sigma_dt_cumsum.data_ptr<float>(),
+        n_samples);
+    torch::Tensor transmittance = (-sigma_dt_cumsum).exp();
+
+    return transmittance;
+}
+
+
+torch::Tensor transmittance_from_sigma_backward(
+    torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas,
+    torch::Tensor transmittance,    
+    torch::Tensor transmittance_grads) // transmittance gradients
+{
+    DEVICE_GUARD(ray_indices);
+
+    CHECK_INPUT(ray_indices);
+    CHECK_INPUT(starts);
+    CHECK_INPUT(ends);
+    CHECK_INPUT(sigmas);
+    CHECK_INPUT(transmittance);
+    CHECK_INPUT(transmittance_grads);
+
+    TORCH_CHECK(sigmas.ndimension() == 2 & sigmas.size(1) == 1);
+    const uint32_t n_samples = sigmas.size(0);
+
+    TORCH_CHECK(ray_indices.ndimension() == 1 & ray_indices.size(0) == n_samples);
+    TORCH_CHECK(starts.ndimension() == 1 & starts.size(0) == n_samples);
+    TORCH_CHECK(ends.ndimension() == 1 & ends.size(0) == n_samples);
+    TORCH_CHECK(transmittance.ndimension() == 1 & transmittance.size(0) == n_samples);
+
+    torch::Tensor sigma_dt_cumsum_grads = - transmittance_grads * transmittance;
+    torch::Tensor sigma_dt_grads = torch::empty_like(sigmas);
+
+    // CUB is supported in CUDA >= 11.0
+    // ExclusiveSumByKey is supported in CUDA >= 11.5
+    exclusive_sum_by_key(
+        thrust::make_reverse_iterator(ray_indices.data_ptr<int>() + n_samples),
+        thrust::make_reverse_iterator(sigma_dt_cumsum_grads.data_ptr<float>() + n_samples),
+        thrust::make_reverse_iterator(sigma_dt_grads.data_ptr<float>() + n_samples),
+        n_samples);
+    torch::Tensor sigma_grads = sigma_dt_grads * (ends - starts).unsqueeze(1);
+
+    return sigma_grads;
+}

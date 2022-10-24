@@ -29,6 +29,12 @@ rendering_forward = _make_lazy_cuda_func("rendering_forward")
 rendering_backward = _make_lazy_cuda_func("rendering_backward")
 rendering_alphas_forward = _make_lazy_cuda_func("rendering_alphas_forward")
 rendering_alphas_backward = _make_lazy_cuda_func("rendering_alphas_backward")
+transmittance_from_sigma_forward = _make_lazy_cuda_func(
+    "transmittance_from_sigma_forward"
+)
+transmittance_from_sigma_backward = _make_lazy_cuda_func(
+    "transmittance_from_sigma_backward"
+)
 
 unpack_data = _make_lazy_cuda_func("unpack_data")
 unpack_info = _make_lazy_cuda_func("unpack_info")

@@ -457,3 +457,55 @@ class _RenderingAlpha(torch.autograd.Function):
             alpha_thre,
         )
         return None, grad_sigmas, None, None
+
+
+class _RenderingTransmittanceFromDensity(torch.autograd.Function):
+    """Rendering transmittance from density."""
+
+    @staticmethod
+    def forward(
+        ctx,
+        ray_indices,
+        t_starts,
+        t_ends,
+        sigmas,
+    ):
+        ray_indices = ray_indices.contiguous()
+        t_starts = t_starts.contiguous()
+        t_ends = t_ends.contiguous()
+        sigmas = sigmas.contiguous()
+        transmittance = _C.transmittance_from_sigma_forward(
+            ray_indices,
+            t_starts,
+            t_ends,
+            sigmas,
+        )
+        if ctx.needs_input_grad[3]:  # sigmas
+            ctx.save_for_backward(
+                ray_indices,
+                t_starts,
+                t_ends,
+                sigmas,
+                transmittance,
+            )
+        return transmittance
+
+    @staticmethod
+    def backward(ctx, grad_transmits):
+        grad_transmits = grad_transmits.contiguous()
+        (
+            ray_indices,
+            t_starts,
+            t_ends,
+            sigmas,
+            transmittance,
+        ) = ctx.saved_tensors
+        grad_sigmas = _C.transmittance_from_sigma_backward(
+            ray_indices,
+            t_starts,
+            t_ends,
+            sigmas,
+            transmittance,
+            grad_transmits,
+        )
+        return None, None, None, grad_sigmas
