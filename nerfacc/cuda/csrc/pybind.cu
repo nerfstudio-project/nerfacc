@@ -98,15 +98,11 @@ torch::Tensor unpack_data(
 
 torch::Tensor transmittance_from_sigma_forward(
     torch::Tensor ray_indices,
-    torch::Tensor starts,
-    torch::Tensor ends,
-    torch::Tensor sigmas);
+    torch::Tensor sigmas_dt);
 
 torch::Tensor transmittance_from_sigma_backward(
     torch::Tensor ray_indices,
-    torch::Tensor starts,
-    torch::Tensor ends,
-    torch::Tensor sigmas,
+    torch::Tensor sigmas_dt,
     torch::Tensor transmittance,    
     torch::Tensor transmittance_grads);
 

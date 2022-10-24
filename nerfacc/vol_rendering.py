@@ -90,7 +90,7 @@ def rendering(
 
     # Rendering: compute weights and ray indices.
     weights = render_weight_from_density(
-        packed_info, t_starts, t_ends, sigmas, early_stop_eps, alpha_thre
+        ray_indices, t_starts, t_ends, sigmas, early_stop_eps, alpha_thre
     )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
@@ -185,7 +185,7 @@ def accumulate_along_rays(
 
 
 def render_weight_from_density(
-    packed_info,
+    ray_indices,
     t_starts,
     t_ends,
     sigmas,
@@ -232,10 +232,13 @@ def render_weight_from_density(
     """
     if not sigmas.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
-    weights = _RenderingDensity.apply(
-        packed_info, t_starts, t_ends, sigmas, early_stop_eps, alpha_thre
+    sigmas_dt = sigmas * (t_ends - t_starts)
+    transmittance = _RenderingTransmittanceFromDensity.apply(
+        ray_indices.int(), sigmas_dt
     )
-    return weights
+    alphas = 1.0 - torch.exp(-sigmas_dt)
+    weights = transmittance * alphas
+    return weights.squeeze(-1)
 
 
 def render_weight_from_alpha(
@@ -443,11 +446,7 @@ class _RenderingAlpha(torch.autograd.Function):
         grad_weights = grad_weights.contiguous()
         early_stop_eps = ctx.early_stop_eps
         alpha_thre = ctx.alpha_thre
-        (
-            packed_info,
-            alphas,
-            weights,
-        ) = ctx.saved_tensors
+        packed_info, alphas, weights = ctx.saved_tensors
         grad_sigmas = _C.rendering_alphas_backward(
             weights,
             grad_weights,
@@ -463,49 +462,24 @@ class _RenderingTransmittanceFromDensity(torch.autograd.Function):
     """Rendering transmittance from density."""
 
     @staticmethod
-    def forward(
-        ctx,
-        ray_indices,
-        t_starts,
-        t_ends,
-        sigmas,
-    ):
+    def forward(ctx, ray_indices, sigmas_dt):
         ray_indices = ray_indices.contiguous()
-        t_starts = t_starts.contiguous()
-        t_ends = t_ends.contiguous()
-        sigmas = sigmas.contiguous()
+        sigmas_dt = sigmas_dt.contiguous()
         transmittance = _C.transmittance_from_sigma_forward(
-            ray_indices,
-            t_starts,
-            t_ends,
-            sigmas,
+            ray_indices, sigmas_dt
         )
-        if ctx.needs_input_grad[3]:  # sigmas
-            ctx.save_for_backward(
-                ray_indices,
-                t_starts,
-                t_ends,
-                sigmas,
-                transmittance,
-            )
+        if ctx.needs_input_grad[1]:  # sigmas
+            ctx.save_for_backward(ray_indices, sigmas_dt, transmittance)
         return transmittance
 
     @staticmethod
-    def backward(ctx, grad_transmits):
-        grad_transmits = grad_transmits.contiguous()
-        (
-            ray_indices,
-            t_starts,
-            t_ends,
-            sigmas,
-            transmittance,
-        ) = ctx.saved_tensors
+    def backward(ctx, transmittance_grads):
+        transmittance_grads = transmittance_grads.contiguous()
+        ray_indices, sigmas_dt, transmittance = ctx.saved_tensors
         grad_sigmas = _C.transmittance_from_sigma_backward(
             ray_indices,
-            t_starts,
-            t_ends,
-            sigmas,
+            sigmas_dt,
             transmittance,
-            grad_transmits,
+            transmittance_grads,
         )
-        return None, None, None, grad_sigmas
+        return None, grad_sigmas
