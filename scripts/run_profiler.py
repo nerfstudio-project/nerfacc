@@ -1,6 +1,7 @@
 from typing import Callable
 
 import torch
+import tqdm
 
 import nerfacc
 
@@ -30,6 +31,7 @@ class Profiler:
 
         # return
         events = prof.key_averages()
+        # print(events.table(sort_by="self_cpu_time_total", row_limit=10))
         self_cpu_time_total = (
             sum([event.self_cpu_time_total for event in events]) / self.repeat
         )
@@ -49,15 +51,61 @@ class Profiler:
 def main():
     device = "cuda:0"
     torch.manual_seed(42)
-    profiler = Profiler(warmup=10, repeat=1000)
+    profiler = Profiler(warmup=10, repeat=100)
 
-    # contract
-    print("* contract")
-    x = torch.rand([1024, 3], device=device)
-    roi = torch.tensor([0, 0, 0, 1, 1, 1], dtype=torch.float32, device=device)
-    fn = lambda: nerfacc.contract(
-        x, roi=roi, type=nerfacc.ContractionType.UN_BOUNDED_TANH
+    # # contract
+    # print("* contract")
+    # x = torch.rand([1024, 3], device=device)
+    # roi = torch.tensor([0, 0, 0, 1, 1, 1], dtype=torch.float32, device=device)
+    # fn = lambda: nerfacc.contract(
+    #     x, roi=roi, type=nerfacc.ContractionType.UN_BOUNDED_TANH
+    # )
+    # cpu_t, cuda_t, cuda_bytes = profiler(fn)
+    # print(f"{cpu_t:.2f} us, {cuda_t:.2f} us, {cuda_bytes / 1024 / 1024:.2f} MB")
+
+    # rendering
+    print("* rendering")
+    batch_size = 81920
+    rays_o = torch.rand((batch_size, 3), device=device)
+    rays_d = torch.randn((batch_size, 3), device=device)
+    rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+
+    packed_info, ray_indices, t_starts, t_ends = nerfacc.ray_marching(
+        rays_o,
+        rays_d,
+        near_plane=0.1,
+        far_plane=1.0,
+        render_step_size=1e-1,
     )
+    sigmas = torch.randn_like(t_starts)
+    fn = (
+        lambda: nerfacc.render_weight_from_density(
+            ray_indices, t_starts, t_ends, sigmas
+        )
+        # .sum()
+        # .backward()
+    )
+    fn()
+    torch.cuda.synchronize()
+    for _ in tqdm.tqdm(range(100)):
+        fn()
+        torch.cuda.synchronize()
+
+    cpu_t, cuda_t, cuda_bytes = profiler(fn)
+    print(f"{cpu_t:.2f} us, {cuda_t:.2f} us, {cuda_bytes / 1024 / 1024:.2f} MB")
+
+    fn = (
+        lambda: nerfacc.vol_rendering._RenderingDensity.apply(
+            packed_info, t_starts, t_ends, sigmas, 0
+        )
+        # .sum()
+        # .backward()
+    )
+    fn()
+    torch.cuda.synchronize()
+    for _ in tqdm.tqdm(range(100)):
+        fn()
+        torch.cuda.synchronize()
     cpu_t, cuda_t, cuda_bytes = profiler(fn)
     print(f"{cpu_t:.2f} us, {cuda_t:.2f} us, {cuda_bytes / 1024 / 1024:.2f} MB")
 
