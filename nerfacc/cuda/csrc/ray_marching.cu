@@ -95,6 +95,7 @@ __global__ void ray_marching_kernel(
     // first round outputs
     int *num_steps,
     // second round outputs
+    int *ray_indices,
     float *t_starts,
     float *t_ends)
 {
@@ -118,6 +119,7 @@ __global__ void ray_marching_kernel(
         int steps = packed_info[i * 2 + 1];
         t_starts += base;
         t_ends += base;
+        ray_indices += base;
     }
 
     const float3 origin = make_float3(rays_o[0], rays_o[1], rays_o[2]);
@@ -148,6 +150,7 @@ __global__ void ray_marching_kernel(
             {
                 t_starts[j] = t0;
                 t_ends[j] = t1;
+                ray_indices[j] = i;
             }
             ++j;
             // march to next sample
@@ -245,6 +248,7 @@ std::vector<torch::Tensor> ray_marching(
         nullptr, /* packed_info */
         // outputs
         num_steps.data_ptr<int>(),
+        nullptr, /* ray_indices */
         nullptr, /* t_starts */
         nullptr /* t_ends */);
 
@@ -255,6 +259,7 @@ std::vector<torch::Tensor> ray_marching(
     int total_steps = cum_steps[cum_steps.size(0) - 1].item<int>();
     torch::Tensor t_starts = torch::empty({total_steps, 1}, rays_o.options());
     torch::Tensor t_ends = torch::empty({total_steps, 1}, rays_o.options());
+    torch::Tensor ray_indices = torch::empty({total_steps}, cum_steps.options());
 
     ray_marching_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         // rays
@@ -274,10 +279,11 @@ std::vector<torch::Tensor> ray_marching(
         packed_info.data_ptr<int>(),
         // outputs
         nullptr, /* num_steps */
+        ray_indices.data_ptr<int>(),
         t_starts.data_ptr<float>(),
         t_ends.data_ptr<float>());
 
-    return {packed_info, t_starts, t_ends};
+    return {ray_indices, t_starts, t_ends};
 }
 
 // ----------------------------------------------------------------------------

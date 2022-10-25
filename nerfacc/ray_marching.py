@@ -168,7 +168,7 @@ def ray_marching(
         contraction_type = ContractionType.AABB.to_cpp_version()
 
     # marching with grid-based skipping
-    packed_info, t_starts, t_ends = _C.ray_marching(
+    ray_indices, t_starts, t_ends = _C.ray_marching(
         # rays
         rays_o.contiguous(),
         rays_d.contiguous(),
@@ -183,7 +183,6 @@ def ray_marching(
         cone_angle,
     )
 
-    ray_indices = unpack_info(packed_info)
     # skip invisible space
     if sigma_fn is not None:
         # Query sigma without gradients
