@@ -189,6 +189,7 @@ def ray_marching(
         cone_angle,
     )
 
+    ray_indices = unpack_info(packed_info)
     # skip invisible space
     if sigma_fn is not None or alpha_fn is not None:
         # Query sigma without gradients
