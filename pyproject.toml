@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nerfacc"
-version = "0.2.1"
+version = "0.3.0"
 description = "A General NeRF Acceleration Toolbox."
 readme = "README.md"
 authors = [{name = "Ruilong", email = "ruilongli94@gmail.com"}]
@@ -14,7 +14,7 @@ dependencies = [
     "importlib_metadata>=5.0.0; python_version<'3.8'",
     "ninja>=1.10.2.3",
     "pybind11>=2.10.0",
-    "torch>=1.12.0",
+    "torch",  # tested with 1.12.0
     "rich>=12"
 ]
 
