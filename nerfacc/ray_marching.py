@@ -22,8 +22,9 @@ def ray_marching(
     scene_aabb: Optional[torch.Tensor] = None,
     # binarized grid for skipping empty space
     grid: Optional[Grid] = None,
-    # sigma function for skipping invisible space
+    # sigma/alpha function for skipping invisible space
     sigma_fn: Optional[Callable] = None,
+    alpha_fn: Optional[Callable] = None,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
     # rendering options
@@ -61,6 +62,12 @@ def ray_marching(
             by evaluating the density along the ray with `sigma_fn`. It should be a 
             function that takes in samples {t_starts (N, 1), t_ends (N, 1),
             ray indices (N,)} and returns the post-activation density values (N, 1).
+            You should only provide either `sigma_fn` or `alpha_fn`.
+        alpha_fn: Optional. If provided, the marching will skip the invisible space
+            by evaluating the density along the ray with `alpha_fn`. It should be a
+            function that takes in samples {t_starts (N, 1), t_ends (N, 1),
+            ray indices (N,)} and returns the post-activation opacity values (N, 1).
+            You should only provide either `sigma_fn` or `alpha_fn`.
         early_stop_eps: Early stop threshold for skipping invisible space. Default: 1e-4.
         alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
         near_plane: Optional. Near plane distance. If provided, it will be used
@@ -128,6 +135,10 @@ def ray_marching(
     """
     if not rays_o.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
+    if alpha_fn is not None and sigma_fn is not None:
+        raise ValueError(
+            "Only one of `alpha_fn` and `sigma_fn` should be provided."
+        )
 
     # logic for t_min and t_max:
     # 1. if t_min and t_max are given, use them with highest priority.
@@ -184,14 +195,20 @@ def ray_marching(
     )
 
     # skip invisible space
-    if sigma_fn is not None:
+    if sigma_fn is not None or alpha_fn is not None:
         # Query sigma without gradients
         ray_indices = unpack_info(packed_info)
-        sigmas = sigma_fn(t_starts, t_ends, ray_indices.long())
-        assert (
-            sigmas.shape == t_starts.shape
-        ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
-        alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+        if sigma_fn is not None:
+            sigmas = sigma_fn(t_starts, t_ends, ray_indices.long())
+            assert (
+                sigmas.shape == t_starts.shape
+            ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
+            alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+        elif alpha_fn is not None:
+            alphas = alpha_fn(t_starts, t_ends, ray_indices.long())
+            assert (
+                alphas.shape == t_starts.shape
+            ), "alphas must have shape of (N, 1)! Got {}".format(alphas.shape)
 
         # Compute visibility of the samples, and filter out invisible samples
         visibility, packed_info_visible = render_visibility(

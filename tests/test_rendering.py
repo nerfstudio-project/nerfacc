@@ -120,7 +120,9 @@ def test_rendering():
     t_starts = torch.rand_like(sigmas)
     t_ends = torch.rand_like(sigmas) + 1.0
 
-    _, _, _ = rendering(rgb_sigma_fn, packed_info, t_starts, t_ends)
+    _, _, _ = rendering(
+        packed_info, t_starts, t_ends, rgb_sigma_fn=rgb_sigma_fn
+    )
 
 
 if __name__ == "__main__":
