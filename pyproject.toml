@@ -9,7 +9,6 @@ description = "A General NeRF Acceleration Toolbox."
 readme = "README.md"
 authors = [{name = "Ruilong", email = "ruilongli94@gmail.com"}]
 license = { text="MIT" }
-url = "https://github.com/KAIR-BAIR/nerfacc"
 requires-python = ">=3.7"
 dependencies = [
     "importlib_metadata>=5.0.0; python_version<'3.8'",
@@ -30,7 +29,9 @@ dependencies = [
 "*" = ["*.cu", "*.cpp", "*.h"]
 
 [project.urls]
-"Documentation" = "https://www.nerfacc.com/en/latest/"
+homepage = "https://www.nerfacc.com/en/latest/"
+documentation = "https://www.nerfacc.com/en/latest/"
+repository = "https://github.com/KAIR-BAIR/nerfacc/"
 
 [project.optional-dependencies]
 # Development packages
