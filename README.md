@@ -134,6 +134,10 @@ python examples/train_mlp_dnerf.py --train_split train --scene lego
 python examples/train_ngp_nerf.py --train_split train --scene garden --auto_aabb --unbounded --cone_angle=0.004
 ```
 
+Used by:
+- [nerfstudio](https://github.com/nerfstudio-project/nerfstudio): A collaboration friendly studio for NeRFs.
+- [instant-nsr-pl](https://github.com/bennyguo/instant-nsr-pl): NeuS in 10 minutes.
+
 
 ## Citation
 
