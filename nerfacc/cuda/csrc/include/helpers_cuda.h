@@ -7,6 +7,7 @@
 #include <torch/extension.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <ATen/cuda/Exceptions.h>
+#include <ATen/cuda/cub_definitions.cuh>
 #include <cub/cub.cuh>
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
