@@ -70,20 +70,20 @@ def main():
     rays_d = torch.randn((batch_size, 3), device=device)
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
-    packed_info, ray_indices, t_starts, t_ends = nerfacc.ray_marching(
+    ray_indices, t_starts, t_ends = nerfacc.ray_marching(
         rays_o,
         rays_d,
         near_plane=0.1,
         far_plane=1.0,
         render_step_size=1e-1,
     )
-    sigmas = torch.randn_like(t_starts)
+    sigmas = torch.randn_like(t_starts, requires_grad=True)
     fn = (
         lambda: nerfacc.render_weight_from_density(
             ray_indices, t_starts, t_ends, sigmas
         )
-        # .sum()
-        # .backward()
+        .sum()
+        .backward()
     )
     fn()
     torch.cuda.synchronize()
@@ -94,12 +94,13 @@ def main():
     cpu_t, cuda_t, cuda_bytes = profiler(fn)
     print(f"{cpu_t:.2f} us, {cuda_t:.2f} us, {cuda_bytes / 1024 / 1024:.2f} MB")
 
+    packed_info = nerfacc.pack_info(ray_indices, n_rays=batch_size).int()
     fn = (
         lambda: nerfacc.vol_rendering._RenderingDensity.apply(
             packed_info, t_starts, t_ends, sigmas, 0
         )
-        # .sum()
-        # .backward()
+        .sum()
+        .backward()
     )
     fn()
     torch.cuda.synchronize()
