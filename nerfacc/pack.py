@@ -44,6 +44,40 @@ def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
 
 
 @torch.no_grad()
+def pack_info(ray_indices: Tensor, n_rays: int = None) -> Tensor:
+    """Pack `ray_indices` to `packed_info`. Useful for converting per sample data to per ray data.
+
+    Note: 
+        this function is not differentiable to any inputs.
+
+    Args:
+        ray_indices: Ray index of each sample. LongTensor with shape (n_sample).
+
+    Returns:
+        packed_info: Stores information on which samples belong to the same ray. \
+            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
+    """
+    assert (
+        ray_indices.dim() == 1
+    ), "ray_indices must be a 1D tensor with shape (n_samples)."
+    if ray_indices.is_cuda:
+        ray_indices = ray_indices.contiguous().long()
+        device = ray_indices.device
+        if n_rays is None:
+            n_rays = int(ray_indices.max()) + 1
+        else:
+            assert n_rays > ray_indices.max()
+        src = torch.ones_like(ray_indices)
+        num_steps = torch.zeros((n_rays,), device=device, dtype=torch.long)
+        num_steps.scatter_add_(0, ray_indices, src)
+        cum_steps = num_steps.cumsum(dim=0, dtype=torch.long)
+        packed_info = torch.stack([cum_steps - num_steps, num_steps], dim=-1)
+    else:
+        raise NotImplementedError("Only support cuda inputs.")
+    return packed_info.long()
+
+
+@torch.no_grad()
 def unpack_info(packed_info: Tensor) -> Tensor:
     """Unpack `packed_info` to `ray_indices`. Useful for converting per ray data to per sample data.
 
