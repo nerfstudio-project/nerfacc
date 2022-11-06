@@ -7,7 +7,6 @@ import nerfacc.cuda as _C
 from .contraction import ContractionType
 from .grid import Grid
 from .intersection import ray_aabb_intersect
-from .pack import unpack_info
 from .vol_rendering import render_visibility
 
 
@@ -195,7 +194,6 @@ def ray_marching(
         # Compute visibility of the samples, and filter out invisible samples
         masks = render_visibility(
             alphas,
-            # packed_info=packed_info,
             ray_indices=ray_indices,
             early_stop_eps=early_stop_eps,
             alpha_thre=alpha_thre,

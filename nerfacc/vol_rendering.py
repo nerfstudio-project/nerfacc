@@ -9,8 +9,6 @@ from torch import Tensor
 
 import nerfacc.cuda as _C
 
-from .pack import pack_info
-
 
 def rendering(
     # radiance field
@@ -35,13 +33,11 @@ def rendering(
     ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
 
     # Rendering: compute weights and ray indices.
-    packed_info = pack_info(ray_indices, n_rays)
     weights = render_weight_from_density(
         t_starts,
         t_ends,
         sigmas,
-        packed_info=packed_info,
-        # ray_indices=ray_indices,
+        ray_indices=ray_indices,
     )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
