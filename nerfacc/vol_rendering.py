@@ -200,7 +200,6 @@ def render_weight_from_density(
         weights = _RenderingWeightFromDensityNaive.apply(
             packed_info, t_starts, t_ends, sigmas
         )
-        weights = weights.unsqueeze(-1)
     else:
         transmittance = render_transmittance_from_density(
             ray_indices,
@@ -354,9 +353,9 @@ class _RenderingWeightFromDensityNaive(torch.autograd.Function):
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
-        weights = _C.rendering_forward(
-            packed_info, t_starts, t_ends, sigmas, -1e10, -1e10, False
-        )[0]
+        weights = _C.weight_from_sigma_forward_naive(
+            packed_info, t_starts, t_ends, sigmas
+        )
         if ctx.needs_input_grad[3]:
             ctx.save_for_backward(
                 packed_info, t_starts, t_ends, sigmas, weights
@@ -367,14 +366,29 @@ class _RenderingWeightFromDensityNaive(torch.autograd.Function):
     def backward(ctx, grad_weights):
         grad_weights = grad_weights.contiguous()
         packed_info, t_starts, t_ends, sigmas, weights = ctx.saved_tensors
-        grad_sigmas = _C.rendering_backward(
-            weights,
-            grad_weights,
-            packed_info,
-            t_starts,
-            t_ends,
-            sigmas,
-            -1e10,
-            -1e10,
+        grad_sigmas = _C.weight_from_sigma_backward_naive(
+            weights, grad_weights, packed_info, t_starts, t_ends, sigmas
         )
         return None, None, None, grad_sigmas
+
+
+class _RenderingWeightFromAlphaNaive(torch.autograd.Function):
+    """Rendering weight from opacity with naive forloop."""
+
+    @staticmethod
+    def forward(ctx, packed_info, alphas):
+        packed_info = packed_info.contiguous()
+        alphas = alphas.contiguous()
+        weights = _C.weight_from_alpha_forward_naive(packed_info, alphas)
+        if ctx.needs_input_grad[1]:
+            ctx.save_for_backward(packed_info, alphas, weights)
+        return weights
+
+    @staticmethod
+    def backward(ctx, grad_weights):
+        grad_weights = grad_weights.contiguous()
+        packed_info, alphas, weights = ctx.saved_tensors
+        grad_alphas = _C.weight_from_alpha_backward_naive(
+            weights, grad_weights, packed_info, alphas
+        )
+        return None, grad_alphas

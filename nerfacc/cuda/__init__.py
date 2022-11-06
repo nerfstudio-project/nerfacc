@@ -55,6 +55,19 @@ transmittance_from_alpha_backward_naive = _make_lazy_cuda_func(
     "transmittance_from_alpha_backward_naive"
 )
 
+weight_from_sigma_forward_naive = _make_lazy_cuda_func(
+    "weight_from_sigma_forward_naive"
+)
+weight_from_sigma_backward_naive = _make_lazy_cuda_func(
+    "weight_from_sigma_backward_naive"
+)
+weight_from_alpha_forward_naive = _make_lazy_cuda_func(
+    "weight_from_alpha_forward_naive"
+)
+weight_from_alpha_backward_naive = _make_lazy_cuda_func(
+    "weight_from_alpha_backward_naive"
+)
+
 unpack_data = _make_lazy_cuda_func("unpack_data")
 unpack_info = _make_lazy_cuda_func("unpack_info")
 unpack_info_to_mask = _make_lazy_cuda_func("unpack_info_to_mask")
