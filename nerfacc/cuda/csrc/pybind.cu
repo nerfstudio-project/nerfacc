@@ -45,7 +45,7 @@ std::vector<torch::Tensor> ray_marching(
     const float cone_angle);
 
 torch::Tensor unpack_info(
-    const torch::Tensor packed_info, const int n_samples);
+    const torch::Tensor packed_info);
 
 torch::Tensor unpack_info_to_mask(
     const torch::Tensor packed_info, const int n_samples);

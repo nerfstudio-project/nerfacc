@@ -128,7 +128,7 @@ def ray_marching(
         )
 
         # Convert t_starts and t_ends to sample locations.
-        ray_indices = unpack_info(packed_info, t_starts.shape[0])
+        ray_indices = unpack_info(packed_info)
         t_mid = (t_starts + t_ends) / 2.0
         sample_locs = rays_o[ray_indices] + t_mid * rays_d[ray_indices]
 
@@ -197,7 +197,7 @@ def ray_marching(
     # skip invisible space
     if sigma_fn is not None or alpha_fn is not None:
         # Query sigma without gradients
-        ray_indices = unpack_info(packed_info, t_starts.shape[0])
+        ray_indices = unpack_info(packed_info)
         if sigma_fn is not None:
             sigmas = sigma_fn(t_starts, t_ends, ray_indices.long())
             assert (
