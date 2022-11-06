@@ -61,12 +61,12 @@ def pack_info(ray_indices: Tensor, n_rays: int = None) -> Tensor:
         ray_indices.dim() == 1
     ), "ray_indices must be a 1D tensor with shape (n_samples)."
     if ray_indices.is_cuda:
-        ray_indices = ray_indices.contiguous()
+        ray_indices = ray_indices.contiguous().int()
         device = ray_indices.device
         if n_rays is None:
             n_rays = int(ray_indices.max()) + 1
-        else:
-            assert n_rays > ray_indices.max()
+        # else:
+        #     assert n_rays > ray_indices.max()
         src = torch.ones_like(ray_indices)
         num_steps = torch.zeros((n_rays,), device=device, dtype=torch.int)
         num_steps.scatter_add_(0, ray_indices.long(), src)

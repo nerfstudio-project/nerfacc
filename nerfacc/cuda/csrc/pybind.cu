@@ -6,24 +6,6 @@
 #include "include/helpers_math.h"
 #include "include/helpers_contraction.h"
 
-std::vector<torch::Tensor> rendering_forward(
-    torch::Tensor packed_info,
-    torch::Tensor starts,
-    torch::Tensor ends,
-    torch::Tensor sigmas,
-    float early_stop_eps,
-    float alpha_thre,
-    bool compression);
-
-torch::Tensor rendering_backward(
-    torch::Tensor weights,
-    torch::Tensor grad_weights,
-    torch::Tensor packed_info,
-    torch::Tensor starts,
-    torch::Tensor ends,
-    torch::Tensor sigmas,
-    float early_stop_eps,
-    float alpha_thre);
 
 std::vector<torch::Tensor> ray_aabb_intersect(
     const torch::Tensor rays_o,
@@ -69,21 +51,6 @@ torch::Tensor contract_inv(
     const torch::Tensor roi,
     const ContractionType type);
 
-torch::Tensor rendering_alphas_backward(
-    torch::Tensor weights,
-    torch::Tensor grad_weights,
-    torch::Tensor packed_info,
-    torch::Tensor alphas,
-    float early_stop_eps,
-    float alpha_thre);
-
-std::vector<torch::Tensor> rendering_alphas_forward(
-    torch::Tensor packed_info,
-    torch::Tensor alphas,
-    float early_stop_eps,
-    float alpha_thre,
-    bool compression);
-
 std::vector<torch::Tensor> ray_resampling(
     torch::Tensor packed_info,
     torch::Tensor starts,
@@ -126,6 +93,27 @@ torch::Tensor transmittance_from_alpha_backward_naive(
     torch::Tensor transmittance,
     torch::Tensor transmittance_grad);
 
+torch::Tensor weight_from_sigma_forward_naive(
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas);
+torch::Tensor weight_from_sigma_backward_naive(
+    torch::Tensor weights,
+    torch::Tensor grad_weights,
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas);
+torch::Tensor weight_from_alpha_forward_naive(
+    torch::Tensor packed_info, 
+    torch::Tensor alphas);
+torch::Tensor weight_from_alpha_backward_naive(
+    torch::Tensor weights,
+    torch::Tensor grad_weights,
+    torch::Tensor packed_info,
+    torch::Tensor alphas);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
@@ -145,19 +133,20 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("ray_resampling", &ray_resampling);
 
     // rendering
-    m.def("rendering_forward", &rendering_forward);
-    m.def("rendering_backward", &rendering_backward);
-    m.def("rendering_alphas_forward", &rendering_alphas_forward);
-    m.def("rendering_alphas_backward", &rendering_alphas_backward);
-
     m.def("transmittance_from_sigma_forward", transmittance_from_sigma_forward);
     m.def("transmittance_from_sigma_backward", transmittance_from_sigma_backward);
     m.def("transmittance_from_alpha_forward", transmittance_from_alpha_forward);
     m.def("transmittance_from_alpha_backward", transmittance_from_alpha_backward);
+    
     m.def("transmittance_from_sigma_forward_naive", transmittance_from_sigma_forward_naive);
     m.def("transmittance_from_sigma_backward_naive", transmittance_from_sigma_backward_naive);
     m.def("transmittance_from_alpha_forward_naive", transmittance_from_alpha_forward_naive);
     m.def("transmittance_from_alpha_backward_naive", transmittance_from_alpha_backward_naive);
+
+    m.def("weight_from_sigma_forward_naive", weight_from_sigma_forward_naive);
+    m.def("weight_from_sigma_backward_naive", weight_from_sigma_backward_naive);
+    m.def("weight_from_alpha_forward_naive", weight_from_alpha_forward_naive);
+    m.def("weight_from_alpha_backward_naive", weight_from_alpha_backward_naive);
 
     // pack & unpack
     m.def("unpack_data", &unpack_data);

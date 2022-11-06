@@ -120,8 +120,8 @@ def accumulate_along_rays(
 
     if n_rays is None:
         n_rays = int(ray_indices.max()) + 1
-    else:
-        assert n_rays > ray_indices.max()
+    # else:
+    #     assert n_rays > ray_indices.max()
 
     ray_indices = ray_indices.int()
     index = ray_indices[:, None].long().expand(-1, src.shape[-1])
@@ -137,6 +137,7 @@ def render_transmittance_from_density(
     sigmas: Tensor,
     *,
     impl_method: Optional[str] = None,
+    packed_info: Optional[Tensor] = None,
 ) -> Tensor:
     """Compute transmittance from density."""
     assert impl_method in [
@@ -150,7 +151,8 @@ def render_transmittance_from_density(
             ray_indices, sigmas_dt
         )
     else:
-        packed_info = pack_info(ray_indices)
+        if packed_info is None:
+            packed_info = pack_info(ray_indices)
         transmittance = _RenderingTransmittanceFromDensityNaive.apply(
             packed_info, sigmas_dt
         )
@@ -162,6 +164,7 @@ def render_transmittance_from_alpha(
     alphas: Tensor,
     *,
     impl_method: Optional[str] = None,
+    packed_info: Optional[Tensor] = None,
 ) -> Tensor:
     """Compute transmittance from density."""
     assert impl_method in [
@@ -174,7 +177,8 @@ def render_transmittance_from_alpha(
             ray_indices, alphas
         )
     else:
-        packed_info = pack_info(ray_indices)
+        if packed_info is None:
+            packed_info = pack_info(ray_indices)
         transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
             packed_info, alphas
         )
@@ -188,13 +192,26 @@ def render_weight_from_density(
     sigmas: Tensor,
     *,
     impl_method: Optional[str] = None,
+    packed_info: Optional[Tensor] = None,
 ) -> torch.Tensor:
     """Compute rendering weights from density."""
-    transmittance = render_transmittance_from_density(
-        ray_indices, t_starts, t_ends, sigmas, impl_method=impl_method
-    )
-    alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
-    weights = transmittance * alphas
+    if impl_method == "legacy":
+        assert packed_info is not None
+        weights = _RenderingWeightFromDensityNaive.apply(
+            packed_info, t_starts, t_ends, sigmas
+        )
+        weights = weights.unsqueeze(-1)
+    else:
+        transmittance = render_transmittance_from_density(
+            ray_indices,
+            t_starts,
+            t_ends,
+            sigmas,
+            impl_method=impl_method,
+            packed_info=packed_info,
+        )
+        alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+        weights = transmittance * alphas
     return weights
 
 
@@ -203,10 +220,11 @@ def render_weight_from_alpha(
     alphas: Tensor,
     *,
     impl_method: Optional[str] = None,
+    packed_info: Optional[Tensor] = None,
 ) -> torch.Tensor:
     """Compute rendering weights from opacity."""
     transmittance = render_transmittance_from_alpha(
-        ray_indices, alphas, impl_method=impl_method
+        ray_indices, alphas, impl_method=impl_method, packed_info=packed_info
     )
     weights = transmittance * alphas
     return weights
@@ -220,10 +238,11 @@ def render_visibility(
     alpha_thre: float = 0.0,
     *,
     impl_method: Optional[str] = None,
+    packed_info: Optional[Tensor] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Filter out invisible samples."""
     transmittance = render_transmittance_from_alpha(
-        ray_indices, alphas, impl_method=impl_method
+        ray_indices, alphas, impl_method=impl_method, packed_info=packed_info
     )
     visibility = transmittance >= early_stop_eps
     if alpha_thre > 0:
@@ -324,3 +343,38 @@ class _RenderingTransmittanceFromAlphaNaive(torch.autograd.Function):
             packed_info, alphas, transmittance, transmittance_grads
         )
         return None, grad_alphas
+
+
+class _RenderingWeightFromDensityNaive(torch.autograd.Function):
+    """Rendering weight from density with naive forloop."""
+
+    @staticmethod
+    def forward(ctx, packed_info, t_starts, t_ends, sigmas):
+        packed_info = packed_info.contiguous()
+        t_starts = t_starts.contiguous()
+        t_ends = t_ends.contiguous()
+        sigmas = sigmas.contiguous()
+        weights = _C.rendering_forward(
+            packed_info, t_starts, t_ends, sigmas, -1e10, -1e10, False
+        )[0]
+        if ctx.needs_input_grad[3]:
+            ctx.save_for_backward(
+                packed_info, t_starts, t_ends, sigmas, weights
+            )
+        return weights
+
+    @staticmethod
+    def backward(ctx, grad_weights):
+        grad_weights = grad_weights.contiguous()
+        packed_info, t_starts, t_ends, sigmas, weights = ctx.saved_tensors
+        grad_sigmas = _C.rendering_backward(
+            weights,
+            grad_weights,
+            packed_info,
+            t_starts,
+            t_ends,
+            sigmas,
+            -1e10,
+            -1e10,
+        )
+        return None, None, None, grad_sigmas

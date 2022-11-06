@@ -83,7 +83,8 @@ for _ in tqdm.tqdm(range(100)):
         t_starts,
         t_ends,
         sigmas,
-        impl_method="naive",
+        impl_method="legacy",
+        packed_info=packed_info,
     )
     (weights * weights_grad[:, None]).sum().backward()
     sigmas.grad.zero_()
@@ -98,7 +99,9 @@ print(weights.sum())
 
 for _ in tqdm.tqdm(range(100)):
     alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
-    weights = render_weight_from_alpha(ray_indices, alphas, impl_method="naive")
+    weights = render_weight_from_alpha(
+        ray_indices, alphas, impl_method="naive", packed_info=packed_info
+    )
     (weights * weights_grad[:, None]).sum().backward()
     sigmas.grad.zero_()
 print(weights.sum())
