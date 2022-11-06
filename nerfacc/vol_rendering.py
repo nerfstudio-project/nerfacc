@@ -222,10 +222,17 @@ def render_weight_from_alpha(
     packed_info: Optional[Tensor] = None,
 ) -> torch.Tensor:
     """Compute rendering weights from opacity."""
-    transmittance = render_transmittance_from_alpha(
-        ray_indices, alphas, impl_method=impl_method, packed_info=packed_info
-    )
-    weights = transmittance * alphas
+    if impl_method == "legacy":
+        assert packed_info is not None
+        weights = _RenderingWeightFromAlphaNaive.apply(packed_info, alphas)
+    else:
+        transmittance = render_transmittance_from_alpha(
+            ray_indices,
+            alphas,
+            impl_method=impl_method,
+            packed_info=packed_info,
+        )
+        weights = transmittance * alphas
     return weights
 
 

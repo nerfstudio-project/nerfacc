@@ -174,8 +174,8 @@ torch::Tensor weight_from_sigma_forward_naive(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    // outputs
-    torch::Tensor weights = torch::empty({n_samples, 1}, sigmas.options());
+    // outputs: we assume the samples are compacted.
+    torch::Tensor weights = torch::empty(sigmas.sizes(), sigmas.options());
 
     weight_from_sigma_forward_kernel<<<
         blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
@@ -219,8 +219,8 @@ torch::Tensor weight_from_sigma_backward_naive(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    // outputs
-    torch::Tensor grad_sigmas = torch::zeros(sigmas.sizes(), sigmas.options());
+    // outputs: we assume the samples are compacted.
+    torch::Tensor grad_sigmas = torch::empty(sigmas.sizes(), sigmas.options());
 
     weight_from_sigma_backward_kernel<<<
         blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
@@ -253,7 +253,8 @@ torch::Tensor weight_from_alpha_forward_naive(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    torch::Tensor weights = torch::zeros({n_samples}, alphas.options());
+    // outputs: we assume the samples are compacted.
+    torch::Tensor weights = torch::empty(alphas.sizes(), alphas.options());
 
     weight_from_alpha_forward_kernel<<<
         blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
@@ -288,8 +289,8 @@ torch::Tensor weight_from_alpha_backward_naive(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    // outputs
-    torch::Tensor grad_alphas = torch::zeros(alphas.sizes(), alphas.options());
+    // outputs: we assume the samples are compacted.
+    torch::Tensor grad_alphas = torch::empty(alphas.sizes(), alphas.options());
 
     weight_from_alpha_backward_kernel<<<
         blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
