@@ -78,7 +78,7 @@ def pack_info(ray_indices: Tensor, n_rays: int = None) -> Tensor:
 
 
 @torch.no_grad()
-def unpack_info(packed_info: Tensor) -> Tensor:
+def unpack_info(packed_info: Tensor, n_samples: int) -> Tensor:
     """Unpack `packed_info` to `ray_indices`. Useful for converting per ray data to per sample data.
 
     Note: 
@@ -87,6 +87,7 @@ def unpack_info(packed_info: Tensor) -> Tensor:
     Args:
         packed_info: Stores information on which samples belong to the same ray. \
             See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
+        n_samples: Total number of samples.
 
     Returns:
         Ray index of each sample. LongTensor with shape (n_sample).
@@ -105,7 +106,7 @@ def unpack_info(packed_info: Tensor) -> Tensor:
         # torch.Size([128, 2]) torch.Size([115200, 1]) torch.Size([115200, 1])
         print(packed_info.shape, t_starts.shape, t_ends.shape)
         # Unpack per-ray info to per-sample info.
-        ray_indices = unpack_info(packed_info)
+        ray_indices = unpack_info(packed_info, t_starts.shape[0])
         # torch.Size([115200]) torch.int64
         print(ray_indices.shape, ray_indices.dtype)
 
@@ -114,7 +115,7 @@ def unpack_info(packed_info: Tensor) -> Tensor:
         packed_info.dim() == 2 and packed_info.shape[-1] == 2
     ), "packed_info must be a 2D tensor with shape (n_rays, 2)."
     if packed_info.is_cuda:
-        ray_indices = _C.unpack_info(packed_info.contiguous().int())
+        ray_indices = _C.unpack_info(packed_info.contiguous().int(), n_samples)
     else:
         raise NotImplementedError("Only support cuda inputs.")
     return ray_indices.long()
