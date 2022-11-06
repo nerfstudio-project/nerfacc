@@ -242,7 +242,7 @@ class _RenderingTransmittanceFromDensity(torch.autograd.Function):
         transmittance = _C.transmittance_from_sigma_forward(
             ray_indices, sigmas_dt
         )
-        if ctx.needs_input_grad[1]:  # sigmas_dt
+        if ctx.needs_input_grad[1]:
             ctx.save_for_backward(ray_indices, transmittance)
         return transmittance
 
@@ -266,7 +266,7 @@ class _RenderingTransmittanceFromDensityNaive(torch.autograd.Function):
         transmittance = _C.transmittance_from_sigma_forward_naive(
             packed_info, sigmas_dt
         )
-        if ctx.needs_input_grad[1]:  # sigmas_dt
+        if ctx.needs_input_grad[1]:
             ctx.save_for_backward(packed_info, transmittance)
         return transmittance
 
@@ -288,7 +288,7 @@ class _RenderingTransmittanceFromAlpha(torch.autograd.Function):
         ray_indices = ray_indices.contiguous()
         alphas = alphas.contiguous()
         transmittance = _C.transmittance_from_alpha_forward(ray_indices, alphas)
-        if ctx.needs_input_grad[1]:  # alphas
+        if ctx.needs_input_grad[1]:
             ctx.save_for_backward(ray_indices, transmittance, alphas)
         return transmittance
 
@@ -303,6 +303,8 @@ class _RenderingTransmittanceFromAlpha(torch.autograd.Function):
 
 
 class _RenderingTransmittanceFromAlphaNaive(torch.autograd.Function):
+    """Rendering transmittance from alpha with naive forloop."""
+
     @staticmethod
     def forward(ctx, packed_info, alphas):
         packed_info = packed_info.contiguous()
@@ -310,7 +312,7 @@ class _RenderingTransmittanceFromAlphaNaive(torch.autograd.Function):
         transmittance = _C.transmittance_from_alpha_forward_naive(
             packed_info, alphas
         )
-        if ctx.needs_input_grad[1]:  # alphas
+        if ctx.needs_input_grad[1]:
             ctx.save_for_backward(packed_info, transmittance, alphas)
         return transmittance
 
