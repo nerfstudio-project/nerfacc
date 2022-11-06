@@ -103,16 +103,16 @@ def accumulate_along_rays(
         print(colors.shape, opacities.shape, depths.shape)
 
     """
-    assert ray_indices.dim() == 1 and weights.dim() == 1
+    assert ray_indices.dim() == 1 and weights.dim() == 2
     if not weights.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
     if values is not None:
         assert (
             values.dim() == 2 and values.shape[0] == weights.shape[0]
         ), "Invalid shapes: {} vs {}".format(values.shape, weights.shape)
-        src = weights[:, None] * values
+        src = weights * values
     else:
-        src = weights[:, None]
+        src = weights
 
     if ray_indices.numel() == 0:
         assert n_rays is not None
