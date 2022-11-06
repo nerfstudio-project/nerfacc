@@ -9,6 +9,8 @@ from torch import Tensor
 
 import nerfacc.cuda as _C
 
+from .pack import pack_info
+
 
 def rendering(
     # radiance field
@@ -136,18 +138,22 @@ def render_transmittance_from_density(
     *,
     packed_info: Optional[torch.Tensor] = None,
     ray_indices: Optional[torch.Tensor] = None,
+    n_rays: Optional[int] = None,
 ) -> Tensor:
     """Compute transmittance from density."""
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if packed_info is not None:
+    if ray_indices is not None:
+        if _C.is_cub_available():
+            transmittance = _RenderingTransmittanceFromDensityCUB.apply(
+                ray_indices, t_starts, t_ends, sigmas
+            )
+        elif packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
+    else:
         transmittance = _RenderingTransmittanceFromDensityNaive.apply(
             packed_info, t_starts, t_ends, sigmas
-        )
-    else:
-        transmittance = _RenderingTransmittanceFromDensityCUB.apply(
-            ray_indices, t_starts, t_ends, sigmas
         )
     return transmittance
 
@@ -157,18 +163,22 @@ def render_transmittance_from_alpha(
     *,
     packed_info: Optional[torch.Tensor] = None,
     ray_indices: Optional[torch.Tensor] = None,
+    n_rays: Optional[int] = None,
 ) -> Tensor:
     """Compute transmittance from alpha."""
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if packed_info is not None:
+    if ray_indices is not None:
+        if _C.is_cub_available():
+            transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+                ray_indices, alphas
+            )
+        elif packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
+    else:
         transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
             packed_info, alphas
-        )
-    else:
-        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
-            ray_indices, alphas
         )
     return transmittance
 
@@ -180,21 +190,25 @@ def render_weight_from_density(
     *,
     packed_info: Optional[torch.Tensor] = None,
     ray_indices: Optional[torch.Tensor] = None,
+    n_rays: Optional[int] = None,
 ) -> torch.Tensor:
     """Compute rendering weights from density."""
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if packed_info is not None:
+    if ray_indices is not None:
+        if _C.is_cub_available():
+            transmittance = _RenderingTransmittanceFromDensityCUB.apply(
+                ray_indices, t_starts, t_ends, sigmas
+            )
+            alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+            weights = transmittance * alphas
+        elif packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
+    else:
         weights = _RenderingWeightFromDensityNaive.apply(
             packed_info, t_starts, t_ends, sigmas
         )
-    else:
-        transmittance = _RenderingTransmittanceFromDensityCUB.apply(
-            ray_indices, t_starts, t_ends, sigmas
-        )
-        alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
-        weights = transmittance * alphas
     return weights
 
 
@@ -203,18 +217,22 @@ def render_weight_from_alpha(
     *,
     packed_info: Optional[torch.Tensor] = None,
     ray_indices: Optional[torch.Tensor] = None,
+    n_rays: Optional[int] = None,
 ) -> torch.Tensor:
     """Compute rendering weights from opacity."""
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if packed_info is not None:
-        weights = _RenderingWeightFromAlphaNaive.apply(packed_info, alphas)
+    if ray_indices is not None:
+        if _C.is_cub_available():
+            transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+                ray_indices, alphas
+            )
+            weights = transmittance * alphas
+        elif packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
     else:
-        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
-            ray_indices, alphas
-        )
-        weights = transmittance * alphas
+        weights = _RenderingWeightFromAlphaNaive.apply(packed_info, alphas)
     return weights
 
 
@@ -224,6 +242,7 @@ def render_visibility(
     *,
     packed_info: Optional[torch.Tensor] = None,
     ray_indices: Optional[torch.Tensor] = None,
+    n_rays: Optional[int] = None,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
 ) -> torch.Tensor:
@@ -231,13 +250,16 @@ def render_visibility(
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if packed_info is not None:
+    if ray_indices is not None:
+        if _C.is_cub_available():
+            transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+                ray_indices, alphas
+            )
+        elif packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
+    else:
         transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
             packed_info, alphas
-        )
-    else:
-        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
-            ray_indices, alphas
         )
     visibility = transmittance >= early_stop_eps
     if alpha_thre > 0:

@@ -64,6 +64,9 @@ torch::Tensor unpack_data(
     int n_samples_per_ray);
 
 // cub implementations: parallel across samples
+bool is_cub_available() {
+    return (bool) CUB_SUPPORTS_SCAN_BY_KEY();
+}
 torch::Tensor transmittance_from_sigma_forward_cub(
     torch::Tensor ray_indices,
     torch::Tensor starts,
@@ -144,6 +147,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("ray_resampling", &ray_resampling);
 
     // rendering
+    m.def("is_cub_available", is_cub_available);
     m.def("transmittance_from_sigma_forward_cub", transmittance_from_sigma_forward_cub);
     m.def("transmittance_from_sigma_backward_cub", transmittance_from_sigma_backward_cub);
     m.def("transmittance_from_alpha_forward_cub", transmittance_from_alpha_forward_cub);
