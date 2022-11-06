@@ -8,7 +8,9 @@ __global__ void transmittance_from_sigma_forward_kernel(
     const uint32_t n_rays,
     // inputs
     const int *packed_info, // ray & point indices.
-    const float *sigmas_dt, // density * dt
+    const float *starts,    // input start t
+    const float *ends,      // input end t
+    const float *sigmas,    // input density after activation
     // outputs
     float *transmittance)
 {
@@ -20,7 +22,9 @@ __global__ void transmittance_from_sigma_forward_kernel(
     if (steps == 0)
         return;
 
-    sigmas_dt += base;
+    starts += base;
+    ends += base;
+    sigmas += base;
     transmittance += base;
 
     // accumulation
@@ -28,8 +32,18 @@ __global__ void transmittance_from_sigma_forward_kernel(
     for (int j = 0; j < steps; ++j)
     {
         transmittance[j] = __expf(-cumsum);
-        cumsum += sigmas_dt[j];
+        cumsum += sigmas[j] * (ends[j] - starts[j]);
     }
+
+    // // another way to impl:
+    // float T = 1.f;
+    // for (int j = 0; j < steps; ++j)
+    // {
+    //     const float delta = ends[j] - starts[j];
+    //     const float alpha = 1.f - __expf(-sigmas[j] * delta);
+    //     transmittance[j] = T;
+    //     T *= (1.f - alpha);
+    // }
     return;
 }
 
@@ -37,10 +51,12 @@ __global__ void transmittance_from_sigma_backward_kernel(
     const uint32_t n_rays,
     // inputs
     const int *packed_info, // ray & point indices.
+    const float *starts,       // input start t
+    const float *ends,         // input end t
     const float *transmittance,
     const float *transmittance_grad,
     // outputs
-    float *sigmas_dt_grad)
+    float *sigmas_grad)
 {
     CUDA_GET_THREAD_ID(i, n_rays);
 
@@ -52,13 +68,15 @@ __global__ void transmittance_from_sigma_backward_kernel(
 
     transmittance += base;
     transmittance_grad += base;
-    sigmas_dt_grad += base;
+    starts += base;
+    ends += base;
+    sigmas_grad += base;
 
     // accumulation
     float cumsum = 0.0f;
     for (int j = steps - 1; j >= 0; --j)
     {
-        sigmas_dt_grad[j] = cumsum;
+        sigmas_grad[j] = cumsum * (ends[j] - starts[j]);
         cumsum += -transmittance_grad[j] * transmittance[j];
     }
     return;
@@ -127,25 +145,32 @@ __global__ void transmittance_from_alpha_backward_kernel(
 }
 
 torch::Tensor transmittance_from_sigma_forward_naive(
-    torch::Tensor packed_info, torch::Tensor sigmas_dt)
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas)
 {
     // Equivalent to:
     // torch::Tensor alphas = 1.0f - torch::exp(-sigmas_dt);
     // torch::Tensor transmittance = transmittance_from_alpha_forward_naive(packed_info, alphas);
     DEVICE_GUARD(packed_info);
     CHECK_INPUT(packed_info);
-    CHECK_INPUT(sigmas_dt);
-    TORCH_CHECK(sigmas_dt.ndimension() == 2 & sigmas_dt.size(1) == 1);
+    CHECK_INPUT(starts);
+    CHECK_INPUT(ends);
+    CHECK_INPUT(sigmas);
     TORCH_CHECK(packed_info.ndimension() == 2);
+    TORCH_CHECK(starts.ndimension() == 2 & starts.size(1) == 1);
+    TORCH_CHECK(ends.ndimension() == 2 & ends.size(1) == 1);
+    TORCH_CHECK(sigmas.ndimension() == 2 & sigmas.size(1) == 1);
 
-    const uint32_t n_samples = sigmas_dt.size(0);
+    const uint32_t n_samples = sigmas.size(0);
     const uint32_t n_rays = packed_info.size(0);
 
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
     // outputs
-    torch::Tensor transmittance = torch::empty({n_samples, 1}, sigmas_dt.options());
+    torch::Tensor transmittance = torch::empty_like(sigmas);
 
     // parallel across rays
     transmittance_from_sigma_forward_kernel<<<
@@ -153,7 +178,9 @@ torch::Tensor transmittance_from_sigma_forward_naive(
         n_rays,
         // inputs
         packed_info.data_ptr<int>(),
-        sigmas_dt.data_ptr<float>(),
+        starts.data_ptr<float>(),
+        ends.data_ptr<float>(),
+        sigmas.data_ptr<float>(),
         // outputs
         transmittance.data_ptr<float>());
     return transmittance;
@@ -161,15 +188,21 @@ torch::Tensor transmittance_from_sigma_forward_naive(
 
 torch::Tensor transmittance_from_sigma_backward_naive(
     torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
     torch::Tensor transmittance,
     torch::Tensor transmittance_grad)
 {
     DEVICE_GUARD(packed_info);
 
     CHECK_INPUT(packed_info);
+    CHECK_INPUT(starts);
+    CHECK_INPUT(ends);
     CHECK_INPUT(transmittance);
     CHECK_INPUT(transmittance_grad);
     TORCH_CHECK(packed_info.ndimension() == 2);
+    TORCH_CHECK(starts.ndimension() == 2 & starts.size(1) == 1);
+    TORCH_CHECK(ends.ndimension() == 2 & ends.size(1) == 1);
     TORCH_CHECK(transmittance.ndimension() == 2 & transmittance.size(1) == 1);
     TORCH_CHECK(transmittance_grad.ndimension() == 2 & transmittance_grad.size(1) == 1);
 
@@ -180,7 +213,7 @@ torch::Tensor transmittance_from_sigma_backward_naive(
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
     // outputs
-    torch::Tensor sigmas_dt_grad = torch::empty_like(transmittance_grad);
+    torch::Tensor sigmas_grad = torch::empty_like(transmittance_grad);
 
     // parallel across rays
     transmittance_from_sigma_backward_kernel<<<
@@ -188,11 +221,13 @@ torch::Tensor transmittance_from_sigma_backward_naive(
         n_rays,
         // inputs
         packed_info.data_ptr<int>(),
+        starts.data_ptr<float>(),
+        ends.data_ptr<float>(),
         transmittance.data_ptr<float>(),
         transmittance_grad.data_ptr<float>(),
         // outputs
-        sigmas_dt_grad.data_ptr<float>());
-    return sigmas_dt_grad;
+        sigmas_grad.data_ptr<float>());
+    return sigmas_grad;
 }
 
 torch::Tensor transmittance_from_alpha_forward_naive(

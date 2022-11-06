@@ -80,13 +80,19 @@ torch::Tensor transmittance_from_alpha_backward(
 
 // naive implementations: parallel across rays
 torch::Tensor transmittance_from_sigma_forward_naive(
-    torch::Tensor packed_info, torch::Tensor sigmas_dt);
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas);
 torch::Tensor transmittance_from_sigma_backward_naive(
     torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
     torch::Tensor transmittance,
     torch::Tensor transmittance_grad);
 torch::Tensor transmittance_from_alpha_forward_naive(
-    torch::Tensor packed_info, torch::Tensor alphas);
+    torch::Tensor packed_info, 
+    torch::Tensor alphas);
 torch::Tensor transmittance_from_alpha_backward_naive(
     torch::Tensor packed_info,
     torch::Tensor alphas,

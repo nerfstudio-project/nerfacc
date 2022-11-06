@@ -145,16 +145,15 @@ def render_transmittance_from_density(
         "cub",
         "naive",
     ], "Invalid impl_method: {}".format(impl_method)
-    sigmas_dt = sigmas * (t_ends - t_starts)
     if impl_method in [None, "cub"]:
         transmittance = _RenderingTransmittanceFromDensity.apply(
-            ray_indices, sigmas_dt
+            ray_indices, t_starts, t_ends, sigmas
         )
     else:
         if packed_info is None:
             packed_info = pack_info(ray_indices)
         transmittance = _RenderingTransmittanceFromDensityNaive.apply(
-            packed_info, sigmas_dt
+            packed_info, t_starts, t_ends, sigmas
         )
     return transmittance
 
@@ -261,13 +260,15 @@ class _RenderingTransmittanceFromDensity(torch.autograd.Function):
     """Rendering transmittance from density."""
 
     @staticmethod
-    def forward(ctx, ray_indices, sigmas_dt):
+    def forward(ctx, ray_indices, t_starts, t_ends, sigmas):
         ray_indices = ray_indices.contiguous()
-        sigmas_dt = sigmas_dt.contiguous()
+        t_starts = t_starts.contiguous()
+        t_ends = t_ends.contiguous()
+        sigmas = sigmas.contiguous()
         transmittance = _C.transmittance_from_sigma_forward(
-            ray_indices, sigmas_dt
+            ray_indices, sigmas * (t_ends - t_starts)
         )
-        if ctx.needs_input_grad[1]:
+        if ctx.needs_input_grad[3]:
             ctx.save_for_backward(ray_indices, transmittance)
         return transmittance
 
@@ -278,31 +279,33 @@ class _RenderingTransmittanceFromDensity(torch.autograd.Function):
         grad_sigmas = _C.transmittance_from_sigma_backward(
             ray_indices, transmittance, transmittance_grads
         )
-        return None, grad_sigmas
+        return None, None, None, grad_sigmas
 
 
 class _RenderingTransmittanceFromDensityNaive(torch.autograd.Function):
     """Rendering transmittance from density with naive forloop."""
 
     @staticmethod
-    def forward(ctx, packed_info, sigmas_dt):
+    def forward(ctx, packed_info, t_starts, t_ends, sigmas):
         packed_info = packed_info.contiguous()
-        sigmas_dt = sigmas_dt.contiguous()
+        t_starts = t_starts.contiguous()
+        t_ends = t_ends.contiguous()
+        sigmas = sigmas.contiguous()
         transmittance = _C.transmittance_from_sigma_forward_naive(
-            packed_info, sigmas_dt
+            packed_info, t_starts, t_ends, sigmas
         )
-        if ctx.needs_input_grad[1]:
-            ctx.save_for_backward(packed_info, transmittance)
+        if ctx.needs_input_grad[3]:
+            ctx.save_for_backward(packed_info, t_starts, t_ends, transmittance)
         return transmittance
 
     @staticmethod
     def backward(ctx, transmittance_grads):
         transmittance_grads = transmittance_grads.contiguous()
-        packed_info, transmittance = ctx.saved_tensors
+        packed_info, t_starts, t_ends, transmittance = ctx.saved_tensors
         grad_sigmas = _C.transmittance_from_sigma_backward_naive(
-            packed_info, transmittance, transmittance_grads
+            packed_info, t_starts, t_ends, transmittance, transmittance_grads
         )
-        return None, grad_sigmas
+        return None, None, None, grad_sigmas
 
 
 class _RenderingTransmittanceFromAlpha(torch.autograd.Function):
