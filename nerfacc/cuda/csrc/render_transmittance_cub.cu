@@ -37,102 +37,130 @@ inline void exclusive_prod_by_key(
 }
 #endif
 
-torch::Tensor transmittance_from_sigma_forward(
-    torch::Tensor ray_indices, torch::Tensor sigmas_dt)
+torch::Tensor transmittance_from_sigma_forward_cub(
+    torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas)
 {
-#if CUB_SUPPORTS_SCAN_BY_KEY()
     DEVICE_GUARD(ray_indices);
     CHECK_INPUT(ray_indices);
-    CHECK_INPUT(sigmas_dt);
-
-    TORCH_CHECK(sigmas_dt.ndimension() == 2 & sigmas_dt.size(1) == 1);
+    CHECK_INPUT(starts);
+    CHECK_INPUT(ends);
+    CHECK_INPUT(sigmas);
     TORCH_CHECK(ray_indices.ndimension() == 1);
-    TORCH_CHECK(ray_indices.size(0) == sigmas_dt.size(0));
+    TORCH_CHECK(starts.ndimension() == 2 & starts.size(1) == 1);
+    TORCH_CHECK(ends.ndimension() == 2 & ends.size(1) == 1);
+    TORCH_CHECK(sigmas.ndimension() == 2 & sigmas.size(1) == 1);
 
-    const uint32_t n_samples = sigmas_dt.size(0);
-    torch::Tensor sigmas_dt_cumsum = torch::empty_like(sigmas_dt);
+    const uint32_t n_samples = sigmas.size(0);
 
+    // parallel across samples
+    torch::Tensor sigmas_dt = sigmas * (ends - starts);
+    torch::Tensor sigmas_dt_cumsum = torch::empty_like(sigmas);
+#if CUB_SUPPORTS_SCAN_BY_KEY()
     exclusive_sum_by_key(
         ray_indices.data_ptr<int>(),
         sigmas_dt.data_ptr<float>(),
         sigmas_dt_cumsum.data_ptr<float>(),
         n_samples);
+#else
+    std::runtime_error("CUB functions are only supported in CUDA >= 11.6.");
+#endif
     torch::Tensor transmittance = (-sigmas_dt_cumsum).exp();
     return transmittance;
-#else
-    std::runtime_error("CUB functions are only supported in CUDA >= 11.5.");
-#endif
 }
 
-torch::Tensor transmittance_from_sigma_backward(
+torch::Tensor transmittance_from_sigma_backward_cub(
     torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
     torch::Tensor transmittance,
     torch::Tensor transmittance_grad)
 {
-#if CUB_SUPPORTS_SCAN_BY_KEY()
     DEVICE_GUARD(ray_indices);
     CHECK_INPUT(ray_indices);
+    CHECK_INPUT(starts);
+    CHECK_INPUT(ends);
     CHECK_INPUT(transmittance);
     CHECK_INPUT(transmittance_grad);
+    TORCH_CHECK(ray_indices.ndimension() == 1);
+    TORCH_CHECK(starts.ndimension() == 2 & starts.size(1) == 1);
+    TORCH_CHECK(ends.ndimension() == 2 & ends.size(1) == 1);
+    TORCH_CHECK(transmittance.ndimension() == 2 & transmittance.size(1) == 1);
+    TORCH_CHECK(transmittance_grad.ndimension() == 2 & transmittance_grad.size(1) == 1);
 
-    const uint32_t n_samples = ray_indices.size(0);
+    const uint32_t n_samples = transmittance.size(0);
 
-    TORCH_CHECK(ray_indices.ndimension() == 1 & ray_indices.size(0) == n_samples);
-    TORCH_CHECK(transmittance.ndimension() == 2 & transmittance.size(0) == n_samples);
-    TORCH_CHECK(transmittance_grad.ndimension() == 2 & transmittance_grad.size(0) == n_samples);
-
-    torch::Tensor sigmas_dt_grad = torch::empty_like(transmittance_grad);
-
+    // parallel across samples
     torch::Tensor sigmas_dt_cumsum_grad = -transmittance_grad * transmittance;
+    torch::Tensor sigmas_dt_grad = torch::empty_like(transmittance_grad);
+#if CUB_SUPPORTS_SCAN_BY_KEY()
     exclusive_sum_by_key(
         thrust::make_reverse_iterator(ray_indices.data_ptr<int>() + n_samples),
         thrust::make_reverse_iterator(sigmas_dt_cumsum_grad.data_ptr<float>() + n_samples),
         thrust::make_reverse_iterator(sigmas_dt_grad.data_ptr<float>() + n_samples),
         n_samples);
-    return sigmas_dt_grad;
 #else
-    std::runtime_error("CUB functions are only supported in CUDA >= 11.5.");
+    std::runtime_error("CUB functions are only supported in CUDA >= 11.6.");
 #endif
+    torch::Tensor sigmas_grad = sigmas_dt_grad * (ends - starts);
+    return sigmas_grad;
 }
 
-torch::Tensor transmittance_from_alpha_forward(
+torch::Tensor transmittance_from_alpha_forward_cub(
     torch::Tensor ray_indices, torch::Tensor alphas)
 {
-#if CUB_SUPPORTS_SCAN_BY_KEY()
     DEVICE_GUARD(ray_indices);
     CHECK_INPUT(ray_indices);
     CHECK_INPUT(alphas);
-
     TORCH_CHECK(alphas.ndimension() == 2 & alphas.size(1) == 1);
     TORCH_CHECK(ray_indices.ndimension() == 1);
-    TORCH_CHECK(ray_indices.size(0) == alphas.size(0));
 
     const uint32_t n_samples = alphas.size(0);
-    torch::Tensor transmittance = torch::empty_like(alphas);
 
+    // parallel across samples
+    torch::Tensor transmittance = torch::empty_like(alphas);
+#if CUB_SUPPORTS_SCAN_BY_KEY()
     exclusive_prod_by_key(
         ray_indices.data_ptr<int>(),
         (1.0f - alphas).data_ptr<float>(),
         transmittance.data_ptr<float>(),
         n_samples);
-    return transmittance;
 #else
-    std::runtime_error("CUB functions are only supported in CUDA >= 11.5.");
+    std::runtime_error("CUB functions are only supported in CUDA >= 11.6.");
 #endif
+    return transmittance;
 }
 
-torch::Tensor transmittance_from_alpha_backward(
+torch::Tensor transmittance_from_alpha_backward_cub(
     torch::Tensor ray_indices,
     torch::Tensor alphas,
     torch::Tensor transmittance,
     torch::Tensor transmittance_grad)
 {
+    DEVICE_GUARD(ray_indices);
+    CHECK_INPUT(ray_indices);
+    CHECK_INPUT(transmittance);
+    CHECK_INPUT(transmittance_grad);
+    TORCH_CHECK(ray_indices.ndimension() == 1);
+    TORCH_CHECK(transmittance.ndimension() == 2 & transmittance.size(1) == 1);
+    TORCH_CHECK(transmittance_grad.ndimension() == 2 & transmittance_grad.size(1) == 1);
+
+    const uint32_t n_samples = transmittance.size(0);
+
+    // parallel across samples
+    torch::Tensor sigmas_dt_cumsum_grad = -transmittance_grad * transmittance;
+    torch::Tensor sigmas_dt_grad = torch::empty_like(transmittance_grad);
 #if CUB_SUPPORTS_SCAN_BY_KEY()
-    torch::Tensor sigmas_dt_grad = transmittance_from_sigma_backward(
-        ray_indices, transmittance, transmittance_grad);
+    exclusive_sum_by_key(
+        thrust::make_reverse_iterator(ray_indices.data_ptr<int>() + n_samples),
+        thrust::make_reverse_iterator(sigmas_dt_cumsum_grad.data_ptr<float>() + n_samples),
+        thrust::make_reverse_iterator(sigmas_dt_grad.data_ptr<float>() + n_samples),
+        n_samples);
+#else
+    std::runtime_error("CUB functions are only supported in CUDA >= 11.6.");
+#endif
     torch::Tensor alphas_grad = sigmas_dt_grad / (1.0f - alphas).clamp_min(1e-10f);
     return alphas_grad;
-#else
-    std::runtime_error("CUB functions are only supported in CUDA >= 11.5.");
-#endif
 }

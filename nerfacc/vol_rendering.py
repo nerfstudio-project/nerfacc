@@ -23,7 +23,6 @@ def rendering(
     *,
     # rendering options
     render_bkgd: Optional[torch.Tensor] = None,
-    impl_method: Optional[str] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Render the rays through the radience field defined by `rgb_sigma_fn`."""
     # Query sigma and color with gradients
@@ -38,12 +37,11 @@ def rendering(
     # Rendering: compute weights and ray indices.
     packed_info = pack_info(ray_indices, n_rays)
     weights = render_weight_from_density(
-        ray_indices,
         t_starts,
         t_ends,
         sigmas,
-        impl_method="legacy",
         packed_info=packed_info,
+        # ray_indices=ray_indices,
     )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
@@ -126,8 +124,7 @@ def accumulate_along_rays(
 
     if n_rays is None:
         n_rays = int(ray_indices.max()) + 1
-    # else:
-    #     assert n_rays > ray_indices.max()
+    # assert n_rays > ray_indices.max()
 
     ray_indices = ray_indices.int()
     index = ray_indices[:, None].long().expand(-1, src.shape[-1])
@@ -137,82 +134,68 @@ def accumulate_along_rays(
 
 
 def render_transmittance_from_density(
-    ray_indices: Tensor,
     t_starts: Tensor,
     t_ends: Tensor,
     sigmas: Tensor,
     *,
-    impl_method: Optional[str] = None,
-    packed_info: Optional[Tensor] = None,
+    packed_info: Optional[torch.Tensor] = None,
+    ray_indices: Optional[torch.Tensor] = None,
 ) -> Tensor:
     """Compute transmittance from density."""
-    assert impl_method in [
-        None,
-        "cub",
-        "naive",
-    ], "Invalid impl_method: {}".format(impl_method)
-    if impl_method in [None, "cub"]:
-        transmittance = _RenderingTransmittanceFromDensity.apply(
-            ray_indices, t_starts, t_ends, sigmas
-        )
-    else:
-        if packed_info is None:
-            packed_info = pack_info(ray_indices)
+    assert (
+        ray_indices is not None or packed_info is not None
+    ), "Either ray_indices or packed_info should be provided."
+    if packed_info is not None:
         transmittance = _RenderingTransmittanceFromDensityNaive.apply(
             packed_info, t_starts, t_ends, sigmas
+        )
+    else:
+        transmittance = _RenderingTransmittanceFromDensityCUB.apply(
+            ray_indices, t_starts, t_ends, sigmas
         )
     return transmittance
 
 
 def render_transmittance_from_alpha(
-    ray_indices: Tensor,
     alphas: Tensor,
     *,
-    impl_method: Optional[str] = None,
-    packed_info: Optional[Tensor] = None,
+    packed_info: Optional[torch.Tensor] = None,
+    ray_indices: Optional[torch.Tensor] = None,
 ) -> Tensor:
-    """Compute transmittance from density."""
-    assert impl_method in [
-        None,
-        "cub",
-        "naive",
-    ], "Invalid impl_method: {}".format(impl_method)
-    if impl_method in [None, "cub"]:
-        transmittance = _RenderingTransmittanceFromAlpha.apply(
-            ray_indices, alphas
-        )
-    else:
-        if packed_info is None:
-            packed_info = pack_info(ray_indices)
+    """Compute transmittance from alpha."""
+    assert (
+        ray_indices is not None or packed_info is not None
+    ), "Either ray_indices or packed_info should be provided."
+    if packed_info is not None:
         transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
             packed_info, alphas
+        )
+    else:
+        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+            ray_indices, alphas
         )
     return transmittance
 
 
 def render_weight_from_density(
-    ray_indices: Tensor,
     t_starts: Tensor,
     t_ends: Tensor,
     sigmas: Tensor,
     *,
-    impl_method: Optional[str] = None,
-    packed_info: Optional[Tensor] = None,
+    packed_info: Optional[torch.Tensor] = None,
+    ray_indices: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Compute rendering weights from density."""
-    if impl_method == "legacy":
-        assert packed_info is not None
+    assert (
+        ray_indices is not None or packed_info is not None
+    ), "Either ray_indices or packed_info should be provided."
+    if packed_info is not None:
         weights = _RenderingWeightFromDensityNaive.apply(
             packed_info, t_starts, t_ends, sigmas
         )
     else:
-        transmittance = render_transmittance_from_density(
-            ray_indices,
-            t_starts,
-            t_ends,
-            sigmas,
-            impl_method=impl_method,
-            packed_info=packed_info,
+        transmittance = _RenderingTransmittanceFromDensityCUB.apply(
+            ray_indices, t_starts, t_ends, sigmas
         )
         alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
         weights = transmittance * alphas
@@ -220,22 +203,20 @@ def render_weight_from_density(
 
 
 def render_weight_from_alpha(
-    ray_indices: Tensor,
     alphas: Tensor,
     *,
-    impl_method: Optional[str] = None,
-    packed_info: Optional[Tensor] = None,
+    packed_info: Optional[torch.Tensor] = None,
+    ray_indices: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Compute rendering weights from opacity."""
-    if impl_method == "legacy":
-        assert packed_info is not None
+    assert (
+        ray_indices is not None or packed_info is not None
+    ), "Either ray_indices or packed_info should be provided."
+    if packed_info is not None:
         weights = _RenderingWeightFromAlphaNaive.apply(packed_info, alphas)
     else:
-        transmittance = render_transmittance_from_alpha(
-            ray_indices,
-            alphas,
-            impl_method=impl_method,
-            packed_info=packed_info,
+        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+            ray_indices, alphas
         )
         weights = transmittance * alphas
     return weights
@@ -243,18 +224,25 @@ def render_weight_from_alpha(
 
 @torch.no_grad()
 def render_visibility(
-    ray_indices: torch.Tensor,
     alphas: torch.Tensor,
+    *,
+    packed_info: Optional[torch.Tensor] = None,
+    ray_indices: Optional[torch.Tensor] = None,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
-    *,
-    impl_method: Optional[str] = None,
-    packed_info: Optional[Tensor] = None,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> torch.Tensor:
     """Filter out invisible samples."""
-    transmittance = render_transmittance_from_alpha(
-        ray_indices, alphas, impl_method=impl_method, packed_info=packed_info
-    )
+    assert (
+        ray_indices is not None or packed_info is not None
+    ), "Either ray_indices or packed_info should be provided."
+    if packed_info is not None:
+        transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
+            packed_info, alphas
+        )
+    else:
+        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+            ray_indices, alphas
+        )
     visibility = transmittance >= early_stop_eps
     if alpha_thre > 0:
         visibility = visibility & (alphas >= alpha_thre)
@@ -262,7 +250,7 @@ def render_visibility(
     return visibility
 
 
-class _RenderingTransmittanceFromDensity(torch.autograd.Function):
+class _RenderingTransmittanceFromDensityCUB(torch.autograd.Function):
     """Rendering transmittance from density."""
 
     @staticmethod
@@ -271,19 +259,19 @@ class _RenderingTransmittanceFromDensity(torch.autograd.Function):
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
-        transmittance = _C.transmittance_from_sigma_forward(
-            ray_indices, sigmas * (t_ends - t_starts)
+        transmittance = _C.transmittance_from_sigma_forward_cub(
+            ray_indices, t_starts, t_ends, sigmas
         )
         if ctx.needs_input_grad[3]:
-            ctx.save_for_backward(ray_indices, transmittance)
+            ctx.save_for_backward(ray_indices, t_starts, t_ends, transmittance)
         return transmittance
 
     @staticmethod
     def backward(ctx, transmittance_grads):
         transmittance_grads = transmittance_grads.contiguous()
-        ray_indices, transmittance = ctx.saved_tensors
-        grad_sigmas = _C.transmittance_from_sigma_backward(
-            ray_indices, transmittance, transmittance_grads
+        ray_indices, t_starts, t_ends, transmittance = ctx.saved_tensors
+        grad_sigmas = _C.transmittance_from_sigma_backward_cub(
+            ray_indices, t_starts, t_ends, transmittance, transmittance_grads
         )
         return None, None, None, grad_sigmas
 
@@ -314,14 +302,16 @@ class _RenderingTransmittanceFromDensityNaive(torch.autograd.Function):
         return None, None, None, grad_sigmas
 
 
-class _RenderingTransmittanceFromAlpha(torch.autograd.Function):
+class _RenderingTransmittanceFromAlphaCUB(torch.autograd.Function):
     """Rendering transmittance from alpha."""
 
     @staticmethod
     def forward(ctx, ray_indices, alphas):
         ray_indices = ray_indices.contiguous()
         alphas = alphas.contiguous()
-        transmittance = _C.transmittance_from_alpha_forward(ray_indices, alphas)
+        transmittance = _C.transmittance_from_alpha_forward_cub(
+            ray_indices, alphas
+        )
         if ctx.needs_input_grad[1]:
             ctx.save_for_backward(ray_indices, transmittance, alphas)
         return transmittance
@@ -330,7 +320,7 @@ class _RenderingTransmittanceFromAlpha(torch.autograd.Function):
     def backward(ctx, transmittance_grads):
         transmittance_grads = transmittance_grads.contiguous()
         ray_indices, transmittance, alphas = ctx.saved_tensors
-        grad_alphas = _C.transmittance_from_alpha_backward(
+        grad_alphas = _C.transmittance_from_alpha_backward_cub(
             ray_indices, alphas, transmittance, transmittance_grads
         )
         return None, grad_alphas

@@ -64,15 +64,20 @@ torch::Tensor unpack_data(
     int n_samples_per_ray);
 
 // cub implementations: parallel across samples
-torch::Tensor transmittance_from_sigma_forward(
-    torch::Tensor ray_indices, torch::Tensor sigmas_dt);
-torch::Tensor transmittance_from_sigma_backward(
+torch::Tensor transmittance_from_sigma_forward_cub(
     torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas);
+torch::Tensor transmittance_from_sigma_backward_cub(
+    torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
     torch::Tensor transmittance,
-    torch::Tensor transmittance_grads);
-torch::Tensor transmittance_from_alpha_forward(
+    torch::Tensor transmittance_grad);
+torch::Tensor transmittance_from_alpha_forward_cub(
     torch::Tensor ray_indices, torch::Tensor alphas);
-torch::Tensor transmittance_from_alpha_backward(
+torch::Tensor transmittance_from_alpha_backward_cub(
     torch::Tensor ray_indices,
     torch::Tensor alphas,
     torch::Tensor transmittance,
@@ -139,10 +144,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("ray_resampling", &ray_resampling);
 
     // rendering
-    m.def("transmittance_from_sigma_forward", transmittance_from_sigma_forward);
-    m.def("transmittance_from_sigma_backward", transmittance_from_sigma_backward);
-    m.def("transmittance_from_alpha_forward", transmittance_from_alpha_forward);
-    m.def("transmittance_from_alpha_backward", transmittance_from_alpha_backward);
+    m.def("transmittance_from_sigma_forward_cub", transmittance_from_sigma_forward_cub);
+    m.def("transmittance_from_sigma_backward_cub", transmittance_from_sigma_backward_cub);
+    m.def("transmittance_from_alpha_forward_cub", transmittance_from_alpha_forward_cub);
+    m.def("transmittance_from_alpha_backward_cub", transmittance_from_alpha_backward_cub);
     
     m.def("transmittance_from_sigma_forward_naive", transmittance_from_sigma_forward_naive);
     m.def("transmittance_from_sigma_backward_naive", transmittance_from_sigma_backward_naive);

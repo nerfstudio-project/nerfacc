@@ -283,7 +283,7 @@ std::vector<torch::Tensor> ray_marching(
         t_starts.data_ptr<float>(),
         t_ends.data_ptr<float>());
 
-    return {ray_indices, t_starts, t_ends};
+    return {packed_info, ray_indices, t_starts, t_ends};
 }
 
 // ----------------------------------------------------------------------------

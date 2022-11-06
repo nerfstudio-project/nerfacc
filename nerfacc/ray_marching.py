@@ -168,7 +168,7 @@ def ray_marching(
         contraction_type = ContractionType.AABB.to_cpp_version()
 
     # marching with grid-based skipping
-    ray_indices, t_starts, t_ends = _C.ray_marching(
+    packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
         # rays
         rays_o.contiguous(),
         rays_d.contiguous(),
@@ -194,10 +194,11 @@ def ray_marching(
 
         # Compute visibility of the samples, and filter out invisible samples
         masks = render_visibility(
-            ray_indices.int(),
             alphas,
-            early_stop_eps,
-            alpha_thre,
+            # packed_info=packed_info,
+            ray_indices=ray_indices,
+            early_stop_eps=early_stop_eps,
+            alpha_thre=alpha_thre,
         )
         ray_indices, t_starts, t_ends = (
             ray_indices[masks],

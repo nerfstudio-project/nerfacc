@@ -6,18 +6,18 @@
 
 __global__ void weight_from_sigma_forward_kernel(
     const uint32_t n_rays,
-    const int *packed_info, // input ray & point indices.
-    const float *starts,    // input start t
-    const float *ends,      // input end t
-    const float *sigmas,    // input density after activation
+    const int *packed_info,
+    const float *starts,
+    const float *ends,
+    const float *sigmas,
     // outputs
     float *weights)
 {
     CUDA_GET_THREAD_ID(i, n_rays);
 
     // locate
-    const int base = packed_info[i * 2 + 0];  // point idx start.
-    const int steps = packed_info[i * 2 + 1]; // point idx shift.
+    const int base = packed_info[i * 2 + 0]; 
+    const int steps = packed_info[i * 2 + 1];
     if (steps == 0)
         return;
 
@@ -40,20 +40,20 @@ __global__ void weight_from_sigma_forward_kernel(
 
 __global__ void weight_from_sigma_backward_kernel(
     const uint32_t n_rays,
-    const int *packed_info,    // input ray & point indices.
-    const float *starts,       // input start t
-    const float *ends,         // input end t
-    const float *sigmas,       // input density after activation
-    const float *weights,      // forward output
-    const float *grad_weights, // input gradients
+    const int *packed_info, 
+    const float *starts, 
+    const float *ends,   
+    const float *sigmas, 
+    const float *weights, 
+    const float *grad_weights, 
     // outputs
     float *grad_sigmas)
 {
     CUDA_GET_THREAD_ID(i, n_rays);
 
     // locate
-    const int base = packed_info[i * 2 + 0];  // point idx start.
-    const int steps = packed_info[i * 2 + 1]; // point idx shift.
+    const int base = packed_info[i * 2 + 0]; 
+    const int steps = packed_info[i * 2 + 1]; 
     if (steps == 0)
         return;
 
@@ -85,16 +85,16 @@ __global__ void weight_from_sigma_backward_kernel(
 
 __global__ void weight_from_alpha_forward_kernel(
     const uint32_t n_rays,
-    const int *packed_info, // input ray & point indices.
-    const float *alphas,    // input opacity
+    const int *packed_info,
+    const float *alphas,   
     // outputs
     float *weights)
 {
     CUDA_GET_THREAD_ID(i, n_rays);
 
     // locate
-    const int base = packed_info[i * 2 + 0];  // point idx start.
-    const int steps = packed_info[i * 2 + 1]; // point idx shift.
+    const int base = packed_info[i * 2 + 0];  
+    const int steps = packed_info[i * 2 + 1]; 
     if (steps == 0)
         return;
 
@@ -113,18 +113,18 @@ __global__ void weight_from_alpha_forward_kernel(
 
 __global__ void weight_from_alpha_backward_kernel(
     const uint32_t n_rays,
-    const int *packed_info,    // input ray & point indices.
-    const float *alphas,       // input opacity
-    const float *weights,      // forward output
-    const float *grad_weights, // input gradients
+    const int *packed_info,  
+    const float *alphas,     
+    const float *weights,    
+    const float *grad_weights,
     // outputs
     float *grad_alphas)
 {
     CUDA_GET_THREAD_ID(i, n_rays);
 
     // locate
-    const int base = packed_info[i * 2 + 0];  // point idx start.
-    const int steps = packed_info[i * 2 + 1]; // point idx shift.
+    const int base = packed_info[i * 2 + 0]; 
+    const int steps = packed_info[i * 2 + 1];
     if (steps == 0)
         return;
 
@@ -174,8 +174,8 @@ torch::Tensor weight_from_sigma_forward_naive(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    // outputs: we assume the samples are compacted.
-    torch::Tensor weights = torch::empty(sigmas.sizes(), sigmas.options());
+    // outputs
+    torch::Tensor weights = torch::empty_like(sigmas);
 
     weight_from_sigma_forward_kernel<<<
         blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
@@ -219,8 +219,8 @@ torch::Tensor weight_from_sigma_backward_naive(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    // outputs: we assume the samples are compacted.
-    torch::Tensor grad_sigmas = torch::empty(sigmas.sizes(), sigmas.options());
+    // outputs
+    torch::Tensor grad_sigmas = torch::empty_like(sigmas);
 
     weight_from_sigma_backward_kernel<<<
         blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
@@ -253,8 +253,8 @@ torch::Tensor weight_from_alpha_forward_naive(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    // outputs: we assume the samples are compacted.
-    torch::Tensor weights = torch::empty(alphas.sizes(), alphas.options());
+    // outputs
+    torch::Tensor weights = torch::empty_like(alphas);
 
     weight_from_alpha_forward_kernel<<<
         blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
@@ -289,8 +289,8 @@ torch::Tensor weight_from_alpha_backward_naive(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    // outputs: we assume the samples are compacted.
-    torch::Tensor grad_alphas = torch::empty(alphas.sizes(), alphas.options());
+    // outputs
+    torch::Tensor grad_alphas = torch::empty_like(alphas);
 
     weight_from_alpha_backward_kernel<<<
         blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
