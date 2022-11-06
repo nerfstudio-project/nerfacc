@@ -39,7 +39,7 @@ def test_marching_with_grid():
         far_plane=1.0,
         render_step_size=1e-2,
     )
-    ray_indices = unpack_info(packed_info).long()
+    ray_indices = unpack_info(packed_info, t_starts.shape[0]).long()
     samples = (
         rays_o[ray_indices] + rays_d[ray_indices] * (t_starts + t_ends) / 2.0
     )

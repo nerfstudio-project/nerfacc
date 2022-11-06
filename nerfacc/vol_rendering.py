@@ -96,7 +96,7 @@ def rendering(
         )
 
     n_rays = packed_info.shape[0]
-    ray_indices = unpack_info(packed_info)
+    ray_indices = unpack_info(packed_info, t_starts.shape[0])
 
     # Query sigma/alpha and color with gradients
     if rgb_sigma_fn is not None:
@@ -160,7 +160,7 @@ def accumulate_along_rays(
         weights: Volumetric rendering weights for those samples. Tensor with shape \
             (n_samples,).
         ray_indices: Ray index of each sample. IntTensor with shape (n_samples). \
-            It can be obtained from `unpack_info(packed_info)`.
+            It can be obtained from `unpack_info(packed_info, n_samples)`.
         values: The values to be accmulated. Tensor with shape (n_samples, D). If \
             None, the accumulated values are just weights. Default is None.
         n_rays: Total number of rays. This will decide the shape of the ouputs. If \

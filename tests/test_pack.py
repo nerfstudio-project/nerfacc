@@ -31,7 +31,7 @@ def test_unpack_info():
     ray_indices_tgt = torch.tensor(
         [0, 2, 2, 2, 2], dtype=torch.int64, device=device
     )
-    ray_indices = unpack_info(packed_info)
+    ray_indices = unpack_info(packed_info, 5)
     assert torch.allclose(ray_indices, ray_indices_tgt)
 
 
