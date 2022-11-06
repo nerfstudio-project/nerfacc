@@ -106,7 +106,7 @@ def unpack_info(packed_info: Tensor, n_samples: int) -> Tensor:
         # torch.Size([128, 2]) torch.Size([115200, 1]) torch.Size([115200, 1])
         print(packed_info.shape, t_starts.shape, t_ends.shape)
         # Unpack per-ray info to per-sample info.
-        ray_indices = unpack_info(packed_info)
+        ray_indices = unpack_info(packed_info, t_starts.shape[0])
         # torch.Size([115200]) torch.int64
         print(ray_indices.shape, ray_indices.dtype)
 
