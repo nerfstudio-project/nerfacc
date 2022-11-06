@@ -61,20 +61,20 @@ def pack_info(ray_indices: Tensor, n_rays: int = None) -> Tensor:
         ray_indices.dim() == 1
     ), "ray_indices must be a 1D tensor with shape (n_samples)."
     if ray_indices.is_cuda:
-        ray_indices = ray_indices.contiguous().long()
+        ray_indices = ray_indices.contiguous()
         device = ray_indices.device
         if n_rays is None:
             n_rays = int(ray_indices.max()) + 1
         else:
             assert n_rays > ray_indices.max()
         src = torch.ones_like(ray_indices)
-        num_steps = torch.zeros((n_rays,), device=device, dtype=torch.long)
-        num_steps.scatter_add_(0, ray_indices, src)
-        cum_steps = num_steps.cumsum(dim=0, dtype=torch.long)
+        num_steps = torch.zeros((n_rays,), device=device, dtype=torch.int)
+        num_steps.scatter_add_(0, ray_indices.long(), src)
+        cum_steps = num_steps.cumsum(dim=0, dtype=torch.int)
         packed_info = torch.stack([cum_steps - num_steps, num_steps], dim=-1)
     else:
         raise NotImplementedError("Only support cuda inputs.")
-    return packed_info.long()
+    return packed_info.int()
 
 
 @torch.no_grad()

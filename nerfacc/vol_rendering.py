@@ -9,6 +9,8 @@ from torch import Tensor
 
 import nerfacc.cuda as _C
 
+from .pack import pack_info
+
 
 def rendering(
     # radiance field
@@ -18,63 +20,12 @@ def rendering(
     ray_indices: torch.Tensor,
     t_starts: torch.Tensor,
     t_ends: torch.Tensor,
+    *,
     # rendering options
-    early_stop_eps: float = 1e-4,
-    alpha_thre: float = 0.0,
     render_bkgd: Optional[torch.Tensor] = None,
+    impl_method: Optional[str] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Render the rays through the radience field defined by `rgb_sigma_fn`.
-
-    This function is differentiable to the outputs of `rgb_sigma_fn` so it can be used for
-    gradient-based optimization.
-
-    Warning:
-        This function is not differentiable to `t_starts`, `t_ends`.
-
-    Args:
-        rgb_sigma_fn: A function that takes in samples {t_starts (N, 1), t_ends (N, 1), \
-            ray indices (N,)} and returns the post-activation rgb (N, 3) and density \
-            values (N, 1).
-        packed_info: Packed ray marching info. See :func:`ray_marching` for details.
-        t_starts: Per-sample start distance. Tensor with shape (n_samples, 1).
-        t_ends: Per-sample end distance. Tensor with shape (n_samples, 1).
-        early_stop_eps: Early stop threshold during trasmittance accumulation. Default: 1e-4.
-        alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
-        render_bkgd: Optional. Background color. Tensor with shape (3,).
-
-    Returns:
-        Ray colors (n_rays, 3), opacities (n_rays, 1) and depths (n_rays, 1).
-
-    Examples:
-
-    .. code-block:: python
-
-        import torch
-        from nerfacc import OccupancyGrid, ray_marching, rendering
-
-        device = "cuda:0"
-        batch_size = 128
-        rays_o = torch.rand((batch_size, 3), device=device)
-        rays_d = torch.randn((batch_size, 3), device=device)
-        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
-
-        # Ray marching.
-        packed_info, t_starts, t_ends = ray_marching(
-            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
-        )
-
-        # Rendering.
-        def rgb_sigma_fn(t_starts, t_ends, ray_indices):
-            # This is a dummy function that returns random values.
-            rgbs = torch.rand((t_starts.shape[0], 3), device=device)
-            sigmas = torch.rand((t_starts.shape[0], 1), device=device)
-            return rgbs, sigmas
-        colors, opacities, depths = rendering(rgb_sigma_fn, packed_info, t_starts, t_ends)
-
-        # torch.Size([128, 3]) torch.Size([128, 1]) torch.Size([128, 1])
-        print(colors.shape, opacities.shape, depths.shape)
-
-    """
+    """Render the rays through the radience field defined by `rgb_sigma_fn`."""
     # Query sigma and color with gradients
     rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices.long())
     assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
@@ -86,7 +37,7 @@ def rendering(
 
     # Rendering: compute weights and ray indices.
     weights = render_weight_from_density(
-        ray_indices, t_starts, t_ends, sigmas, early_stop_eps, alpha_thre
+        ray_indices, t_starts, t_ends, sigmas, impl_method=impl_method
     )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
@@ -124,8 +75,7 @@ def accumulate_along_rays(
     Args:
         weights: Volumetric rendering weights for those samples. Tensor with shape \
             (n_samples,).
-        ray_indices: Ray index of each sample. IntTensor with shape (n_samples). \
-            It can be obtained from `unpack_info(packed_info)`.
+        ray_indices: Ray index of each sample. IntTensor with shape (n_samples).
         values: The values to be accmulated. Tensor with shape (n_samples, D). If \
             None, the accumulated values are just weights. Default is None.
         n_rays: Total number of rays. This will decide the shape of the ouputs. If \
@@ -180,289 +130,106 @@ def accumulate_along_rays(
     return outputs
 
 
-def render_weight_from_density(
-    ray_indices,
-    t_starts,
-    t_ends,
-    sigmas,
-    early_stop_eps: float = 1e-4,
-    alpha_thre: float = 0.0,
-) -> torch.Tensor:
-    """Compute transmittance weights from density.
-
-    Args:
-        packed_info: Stores information on which samples belong to the same ray. \
-            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
-        t_starts: Where the frustum-shape sample starts along a ray. Tensor with \
-            shape (n_samples, 1).
-        t_ends: Where the frustum-shape sample ends along a ray. Tensor with \
-            shape (n_samples, 1).
-        sigmas: The density values of the samples. Tensor with shape (n_samples, 1).
-        early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
-        alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
-    
-    Returns:
-        transmittance weights with shape (n_samples,).
-
-    Examples:
-
-    .. code-block:: python
-
-        rays_o = torch.rand((128, 3), device="cuda:0")
-        rays_d = torch.randn((128, 3), device="cuda:0")
-        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
-
-        # Ray marching with near far plane.
-        packed_info, t_starts, t_ends = ray_marching(
-            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
-        )
-        # pesudo density
-        sigmas = torch.rand((t_starts.shape[0], 1), device="cuda:0")
-        # Rendering: compute weights and ray indices.
-        weights = render_weight_from_density(
-            packed_info, t_starts, t_ends, sigmas, early_stop_eps=1e-4
-        )
-        # torch.Size([115200, 1]) torch.Size([115200])
-        print(sigmas.shape, weights.shape)
-
-    """
-    if not sigmas.is_cuda:
-        raise NotImplementedError("Only support cuda inputs.")
+def render_transmittance_from_density(
+    ray_indices: Tensor,
+    t_starts: Tensor,
+    t_ends: Tensor,
+    sigmas: Tensor,
+    *,
+    impl_method: Optional[str] = None,
+) -> Tensor:
+    """Compute transmittance from density."""
+    assert impl_method in [
+        None,
+        "cub",
+        "naive",
+    ], "Invalid impl_method: {}".format(impl_method)
     sigmas_dt = sigmas * (t_ends - t_starts)
-    transmittance = _RenderingTransmittanceFromDensity.apply(
-        ray_indices.int(), sigmas_dt
+    if impl_method in [None, "cub"]:
+        transmittance = _RenderingTransmittanceFromDensity.apply(
+            ray_indices, sigmas_dt
+        )
+    else:
+        packed_info = pack_info(ray_indices)
+        transmittance = _RenderingTransmittanceFromDensityNaive.apply(
+            packed_info, sigmas_dt
+        )
+    return transmittance
+
+
+def render_transmittance_from_alpha(
+    ray_indices: Tensor,
+    alphas: Tensor,
+    *,
+    impl_method: Optional[str] = None,
+) -> Tensor:
+    """Compute transmittance from density."""
+    assert impl_method in [
+        None,
+        "cub",
+        "naive",
+    ], "Invalid impl_method: {}".format(impl_method)
+    if impl_method in [None, "cub"]:
+        transmittance = _RenderingTransmittanceFromAlpha.apply(
+            ray_indices, alphas
+        )
+    else:
+        packed_info = pack_info(ray_indices)
+        transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
+            packed_info, alphas
+        )
+    return transmittance
+
+
+def render_weight_from_density(
+    ray_indices: Tensor,
+    t_starts: Tensor,
+    t_ends: Tensor,
+    sigmas: Tensor,
+    *,
+    impl_method: Optional[str] = None,
+) -> torch.Tensor:
+    """Compute rendering weights from density."""
+    transmittance = render_transmittance_from_density(
+        ray_indices, t_starts, t_ends, sigmas, impl_method=impl_method
     )
-    alphas = 1.0 - torch.exp(-sigmas_dt)
+    alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
     weights = transmittance * alphas
-    return weights.squeeze(-1)
+    return weights
 
 
 def render_weight_from_alpha(
-    packed_info,
-    alphas,
-    early_stop_eps: float = 1e-4,
-    alpha_thre: float = 0.0,
+    ray_indices: Tensor,
+    alphas: Tensor,
+    *,
+    impl_method: Optional[str] = None,
 ) -> torch.Tensor:
-    """Compute transmittance weights from density.
-
-    Args:
-        packed_info: Stores information on which samples belong to the same ray. \
-            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
-        alphas: The opacity values of the samples. Tensor with shape (n_samples, 1).
-        early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
-        alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
-
-    Returns:
-        transmittance weights with shape (n_samples,).
-
-    Examples:
-
-    .. code-block:: python
-
-        rays_o = torch.rand((128, 3), device="cuda:0")
-        rays_d = torch.randn((128, 3), device="cuda:0")
-        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
-
-        # Ray marching with near far plane.
-        packed_info, t_starts, t_ends = ray_marching(
-            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
-        )
-        # pesudo opacity
-        alphas = torch.rand((t_starts.shape[0], 1), device="cuda:0")
-        # Rendering: compute weights and ray indices.
-        weights = render_weight_from_alpha(
-            packed_info, alphas, early_stop_eps=1e-4
-        )
-        # torch.Size([115200, 1]) torch.Size([115200])
-        print(alphas.shape, weights.shape)
-
-    """
-    if not alphas.is_cuda:
-        raise NotImplementedError("Only support cuda inputs.")
-    weights = _RenderingAlpha.apply(
-        packed_info, alphas, early_stop_eps, alpha_thre
+    """Compute rendering weights from opacity."""
+    transmittance = render_transmittance_from_alpha(
+        ray_indices, alphas, impl_method=impl_method
     )
+    weights = transmittance * alphas
     return weights
 
 
 @torch.no_grad()
 def render_visibility(
     ray_indices: torch.Tensor,
-    t_starts: torch.Tensor,
-    t_ends: torch.Tensor,
-    sigmas: torch.Tensor,
+    alphas: torch.Tensor,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
+    *,
+    impl_method: Optional[str] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Filter out invisible samples given alpha (opacity).
-
-    Args:
-        packed_info: Stores information on which samples belong to the same ray. \
-            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
-        alphas: The opacity values of the samples. Tensor with shape (n_samples, 1).
-        early_stop_eps: The epsilon value for early stopping. Default is 1e-4.
-        alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
-    
-    Returns:
-        A tuple of tensors.
-
-            - **visibility**: The visibility mask for samples. Boolen tensor of shape \
-                (n_samples,).
-            - **packed_info_visible**: The new packed_info for visible samples. \
-                Tensor shape (n_rays, 2). It should be used if you use the visiblity \
-                mask to filter out invisible samples.
-
-    Examples:
-
-    .. code-block:: python
-
-        rays_o = torch.rand((128, 3), device="cuda:0")
-        rays_d = torch.randn((128, 3), device="cuda:0")
-        rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
-
-        # Ray marching with near far plane.
-        packed_info, t_starts, t_ends = ray_marching(
-            rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
-        )
-        # pesudo opacity
-        alphas = torch.rand((t_starts.shape[0], 1), device="cuda:0")
-        # Rendering but only for computing visibility of each samples.
-        visibility, packed_info_visible = render_visibility(
-            packed_info, alphas, early_stop_eps=1e-4
-        )
-        t_starts_visible = t_starts[visibility]
-        t_ends_visible = t_ends[visibility]
-        # torch.Size([115200, 1]) torch.Size([1283, 1])
-        print(t_starts.shape, t_starts_visible.shape)
-
-    """
-    # visibility, packed_info_visible = _C.rendering_alphas_forward(
-    #     packed_info.contiguous(),
-    #     alphas.contiguous(),
-    #     early_stop_eps,
-    #     alpha_thre,
-    #     True,  # compute visibility instead of weights
-    # )
-    # return visibility, packed_info_visible
-
-    sigmas_dt = sigmas * (t_ends - t_starts)
-    transmittance = _C.transmittance_from_sigma_forward(ray_indices, sigmas_dt)
+    """Filter out invisible samples."""
+    transmittance = render_transmittance_from_alpha(
+        ray_indices, alphas, impl_method=impl_method
+    )
     visibility = transmittance >= early_stop_eps
     if alpha_thre > 0:
-        alphas = 1.0 - torch.exp(-sigmas_dt)
         visibility = visibility & (alphas >= alpha_thre)
     visibility = visibility.squeeze(-1)
     return visibility
-
-
-class _RenderingDensity(torch.autograd.Function):
-    """Rendering transmittance weights from density."""
-
-    @staticmethod
-    def forward(
-        ctx,
-        packed_info,
-        t_starts,
-        t_ends,
-        sigmas,
-        early_stop_eps: float = 1e-4,
-        alpha_thre: float = 0.0,
-    ):
-        packed_info = packed_info.contiguous()
-        t_starts = t_starts.contiguous()
-        t_ends = t_ends.contiguous()
-        sigmas = sigmas.contiguous()
-        weights = _C.rendering_forward(
-            packed_info,
-            t_starts,
-            t_ends,
-            sigmas,
-            early_stop_eps,
-            alpha_thre,
-            False,  # not doing filtering
-        )[0]
-        if ctx.needs_input_grad[3]:  # sigmas
-            ctx.save_for_backward(
-                packed_info,
-                t_starts,
-                t_ends,
-                sigmas,
-                weights,
-            )
-            ctx.early_stop_eps = early_stop_eps
-            ctx.alpha_thre = alpha_thre
-        return weights
-
-    @staticmethod
-    def backward(ctx, grad_weights):
-        grad_weights = grad_weights.contiguous()
-        early_stop_eps = ctx.early_stop_eps
-        alpha_thre = ctx.alpha_thre
-        (
-            packed_info,
-            t_starts,
-            t_ends,
-            sigmas,
-            weights,
-        ) = ctx.saved_tensors
-        grad_sigmas = _C.rendering_backward(
-            weights,
-            grad_weights,
-            packed_info,
-            t_starts,
-            t_ends,
-            sigmas,
-            early_stop_eps,
-            alpha_thre,
-        )
-        return None, None, None, grad_sigmas, None, None
-
-
-class _RenderingAlpha(torch.autograd.Function):
-    """Rendering transmittance weights from alpha."""
-
-    @staticmethod
-    def forward(
-        ctx,
-        packed_info,
-        alphas,
-        early_stop_eps: float = 1e-4,
-        alpha_thre: float = 0.0,
-    ):
-        packed_info = packed_info.contiguous()
-        alphas = alphas.contiguous()
-        weights = _C.rendering_alphas_forward(
-            packed_info,
-            alphas,
-            early_stop_eps,
-            alpha_thre,
-            False,  # not doing filtering
-        )[0]
-        if ctx.needs_input_grad[1]:  # alphas
-            ctx.save_for_backward(
-                packed_info,
-                alphas,
-                weights,
-            )
-            ctx.early_stop_eps = early_stop_eps
-            ctx.alpha_thre = alpha_thre
-        return weights
-
-    @staticmethod
-    def backward(ctx, grad_weights):
-        grad_weights = grad_weights.contiguous()
-        early_stop_eps = ctx.early_stop_eps
-        alpha_thre = ctx.alpha_thre
-        packed_info, alphas, weights = ctx.saved_tensors
-        grad_sigmas = _C.rendering_alphas_backward(
-            weights,
-            grad_weights,
-            packed_info,
-            alphas,
-            early_stop_eps,
-            alpha_thre,
-        )
-        return None, grad_sigmas, None, None
 
 
 class _RenderingTransmittanceFromDensity(torch.autograd.Function):
@@ -475,15 +242,83 @@ class _RenderingTransmittanceFromDensity(torch.autograd.Function):
         transmittance = _C.transmittance_from_sigma_forward(
             ray_indices, sigmas_dt
         )
-        if ctx.needs_input_grad[1]:  # sigmas
-            ctx.save_for_backward(ray_indices, sigmas_dt, transmittance)
+        if ctx.needs_input_grad[1]:  # sigmas_dt
+            ctx.save_for_backward(ray_indices, transmittance)
         return transmittance
 
     @staticmethod
     def backward(ctx, transmittance_grads):
         transmittance_grads = transmittance_grads.contiguous()
-        ray_indices, sigmas_dt, transmittance = ctx.saved_tensors
+        ray_indices, transmittance = ctx.saved_tensors
         grad_sigmas = _C.transmittance_from_sigma_backward(
-            ray_indices, sigmas_dt, transmittance, transmittance_grads
+            ray_indices, transmittance, transmittance_grads
         )
         return None, grad_sigmas
+
+
+class _RenderingTransmittanceFromDensityNaive(torch.autograd.Function):
+    """Rendering transmittance from density with naive forloop."""
+
+    @staticmethod
+    def forward(ctx, packed_info, sigmas_dt):
+        packed_info = packed_info.contiguous()
+        sigmas_dt = sigmas_dt.contiguous()
+        transmittance = _C.transmittance_from_sigma_forward_naive(
+            packed_info, sigmas_dt
+        )
+        if ctx.needs_input_grad[1]:  # sigmas_dt
+            ctx.save_for_backward(packed_info, transmittance)
+        return transmittance
+
+    @staticmethod
+    def backward(ctx, transmittance_grads):
+        transmittance_grads = transmittance_grads.contiguous()
+        packed_info, transmittance = ctx.saved_tensors
+        grad_sigmas = _C.transmittance_from_sigma_backward_naive(
+            packed_info, transmittance, transmittance_grads
+        )
+        return None, grad_sigmas
+
+
+class _RenderingTransmittanceFromAlpha(torch.autograd.Function):
+    """Rendering transmittance from alpha."""
+
+    @staticmethod
+    def forward(ctx, ray_indices, alphas):
+        ray_indices = ray_indices.contiguous()
+        alphas = alphas.contiguous()
+        transmittance = _C.transmittance_from_alpha_forward(ray_indices, alphas)
+        if ctx.needs_input_grad[1]:  # alphas
+            ctx.save_for_backward(ray_indices, transmittance, alphas)
+        return transmittance
+
+    @staticmethod
+    def backward(ctx, transmittance_grads):
+        transmittance_grads = transmittance_grads.contiguous()
+        ray_indices, transmittance, alphas = ctx.saved_tensors
+        grad_alphas = _C.transmittance_from_alpha_backward(
+            ray_indices, alphas, transmittance, transmittance_grads
+        )
+        return None, grad_alphas
+
+
+class _RenderingTransmittanceFromAlphaNaive(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, packed_info, alphas):
+        packed_info = packed_info.contiguous()
+        alphas = alphas.contiguous()
+        transmittance = _C.transmittance_from_alpha_forward_naive(
+            packed_info, alphas
+        )
+        if ctx.needs_input_grad[1]:  # alphas
+            ctx.save_for_backward(packed_info, transmittance, alphas)
+        return transmittance
+
+    @staticmethod
+    def backward(ctx, transmittance_grads):
+        transmittance_grads = transmittance_grads.contiguous()
+        packed_info, transmittance, alphas = ctx.saved_tensors
+        grad_alphas = _C.transmittance_from_alpha_backward_naive(
+            packed_info, alphas, transmittance, transmittance_grads
+        )
+        return None, grad_alphas

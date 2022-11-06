@@ -5,6 +5,9 @@ import tqdm
 
 import nerfacc
 
+# timing
+# https://github.com/pytorch/pytorch/commit/d2784c233bfc57a1d836d961694bcc8ec4ed45e4
+
 
 class Profiler:
     def __init__(self, warmup=10, repeat=1000):

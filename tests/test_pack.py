@@ -33,7 +33,7 @@ def test_unpack_info():
     )
     ray_indices = unpack_info(packed_info)
     packed_info_2 = pack_info(ray_indices, n_rays=packed_info.shape[0])
-    assert torch.allclose(packed_info, packed_info_2)
+    assert torch.allclose(packed_info.int(), packed_info_2.int())
     assert torch.allclose(ray_indices, ray_indices_tgt)
 
 
