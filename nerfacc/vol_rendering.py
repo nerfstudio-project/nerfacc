@@ -36,8 +36,14 @@ def rendering(
     ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
 
     # Rendering: compute weights and ray indices.
+    packed_info = pack_info(ray_indices, n_rays)
     weights = render_weight_from_density(
-        ray_indices, t_starts, t_ends, sigmas, impl_method=impl_method
+        ray_indices,
+        t_starts,
+        t_ends,
+        sigmas,
+        impl_method="legacy",
+        packed_info=packed_info,
     )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
