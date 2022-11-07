@@ -48,21 +48,21 @@ extra_cuda_cflags = ["-O3"]
 
 _C = None
 if cuda_toolkit_available():
-    # we need cub >= 1.15.0 which is shipped with cuda >= 11.6, so download if
-    # necessary. (TODO: didn't test it for cuda < 11.6)
-    if version.parse(cuda_toolkit_version()) < version.parse("11.6"):
-        target_path = os.path.join(build_dir, "cub-1.17.0")
-        if not os.path.exists(target_path):
-            zip_path, _ = urllib.request.urlretrieve(
-                "https://github.com/NVIDIA/cub/archive/1.17.0.tar.gz",
-                os.path.join(build_dir, "cub-1.17.0.tar.gz"),
-            )
-            shutil.unpack_archive(zip_path, build_dir)
-        extra_include_paths.append(target_path)
-        extra_cuda_cflags.append("-DTHRUST_IGNORE_CUB_VERSION_CHECK")
-        print(
-            f"download cub because the cuda version is {cuda_toolkit_version()}"
-        )
+    # # we need cub >= 1.15.0 which is shipped with cuda >= 11.6, so download if
+    # # necessary. (compling does not garentee to success)
+    # if version.parse(cuda_toolkit_version()) < version.parse("11.6"):
+    #     target_path = os.path.join(build_dir, "cub-1.17.0")
+    #     if not os.path.exists(target_path):
+    #         zip_path, _ = urllib.request.urlretrieve(
+    #             "https://github.com/NVIDIA/cub/archive/1.17.0.tar.gz",
+    #             os.path.join(build_dir, "cub-1.17.0.tar.gz"),
+    #         )
+    #         shutil.unpack_archive(zip_path, build_dir)
+    #     extra_include_paths.append(target_path)
+    #     extra_cuda_cflags.append("-DTHRUST_IGNORE_CUB_VERSION_CHECK")
+    #     print(
+    #         f"download cub because the cuda version is {cuda_toolkit_version()}"
+    #     )
 
     if os.path.exists(os.path.join(build_dir, f"{name}.so")):
         # If the build exists, we assume the extension has been built
