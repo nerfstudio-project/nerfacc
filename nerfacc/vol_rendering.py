@@ -54,12 +54,12 @@ def rendering(
     Examples:
 
     .. code-block:: python
+    
         >>> rays_o = torch.rand((128, 3), device="cuda:0")
         >>> rays_d = torch.randn((128, 3), device="cuda:0")
         >>> rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
         >>> ray_indices, t_starts, t_ends = ray_marching(
-        >>>     rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
-        >>> )
+        >>>     rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3)
         >>> def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         >>>     # This is a dummy function that returns random values.
         >>>     rgbs = torch.rand((t_starts.shape[0], 3), device="cuda:0")
