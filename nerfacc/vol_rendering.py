@@ -190,7 +190,49 @@ def render_weight_from_density(
     ray_indices: Optional[torch.Tensor] = None,
     n_rays: Optional[int] = None,
 ) -> torch.Tensor:
-    """Compute rendering weights from density."""
+    """Compute rendering weights :math:`w_i` from density :math:`\\sigma_i` and interval :math:`\\delta_i`.
+    
+    .. math::
+        w_i = T_i(1 - exp(-\\sigma_i\delta_i)), \\quad\\textrm{where}\\quad T_i = exp(-\\sum_{j=1}^{i-1}\\sigma_j\delta_j)
+
+    Note:
+        Either `ray_indices` or `packed_info` should be provided. If `ray_indices` is 
+        provided, CUB acceleration will be used if available (CUDA >= 11.6). Otherwise,
+        we will use the naive implementation with `packed_info`.
+
+    Args:
+        t_starts: Where the frustum-shape sample starts along a ray. Tensor with \
+            shape (n_samples, 1).
+        t_ends: Where the frustum-shape sample ends along a ray. Tensor with \
+            shape (n_samples, 1).
+        sigmas: The density values of the samples. Tensor with shape (n_samples, 1).
+        packed_info: Optional. Stores information on which samples belong to the same ray. \
+            See :func:`nerfacc.ray_marching` for details. LongTensor with shape (n_rays, 2).
+        ray_indices: Optional. Ray index of each sample. LongTensor with shape (n_sample).
+        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided yet \
+            CUB acceleration is not available. We will implicitly convert `ray_indices` to \
+            `packed_info` and use the naive implementation. If not provided, we will infer \
+            it from `ray_indices` but it will be slower.
+
+    Returns:
+        The rendering weights. Tensor with shape (n_sample, 1).
+
+    Examples:
+
+    .. code-block:: python
+
+        >>> t_starts = torch.tensor(
+        >>>     [[0.0], [1.0], [2.0], [3.0], [4.0], [5.0], [6.0]], device="cuda")
+        >>> t_ends = torch.tensor(
+        >>>     [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0]], device="cuda")
+        >>> sigmas = torch.tensor(
+        >>>     [[0.4], [0.8], [0.1], [0.8], [0.1], [0.0], [0.9]], device="cuda")
+        >>> ray_indices = torch.tensor([0, 0, 0, 1, 1, 2, 2], device="cuda")
+        >>> weights = render_weight_from_density(
+        >>>     t_starts, t_ends, sigmas, ray_indices=ray_indices)
+        [[0.33], [0.37], [0.03], [0.55], [0.04], [0.00], [0.59]]
+    
+    """
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
@@ -244,8 +286,7 @@ def render_weight_from_alpha(
     .. code-block:: python
 
         >>> alphas = torch.tensor( 
-        >>>     [[0.4], [0.8], [0.1], [0.8], [0.1], [0.0], [0.9]], device="cuda"
-        >>> )
+        >>>     [[0.4], [0.8], [0.1], [0.8], [0.1], [0.0], [0.9]], device="cuda"))
         >>> ray_indices = torch.tensor([0, 0, 0, 1, 1, 2, 2], device="cuda")
         >>> weights = render_weight_from_alpha(alphas, ray_indices=ray_indices)
         tensor([[0.4], [0.48], [0.012], [0.8], [0.02], [0.0], [0.9]])
@@ -308,14 +349,12 @@ def render_visibility(
     .. code-block:: python
 
         >>> alphas = torch.tensor( 
-        >>>     [[0.4], [0.8], [0.1], [0.8], [0.1], [0.0], [0.9]], device="cuda"
-        >>> )
+        >>>     [[0.4], [0.8], [0.1], [0.8], [0.1], [0.0], [0.9]], device="cuda")
         >>> ray_indices = torch.tensor([0, 0, 0, 1, 1, 2, 2], device="cuda")
         >>> transmittance = render_transmittance_from_alpha(alphas, ray_indices=ray_indices)
         tensor([[1.0], [0.6], [0.12], [1.0], [0.2], [1.0], [1.0]])
         >>> visibility = render_visibility(
-        >>>     alphas, ray_indices=ray_indices, early_stop_eps=0.3, alpha_thre=0.2
-        >>> )
+        >>>     alphas, ray_indices=ray_indices, early_stop_eps=0.3, alpha_thre=0.2)
         tensor([True,  True, False,  True, False, False,  True])
 
     """
