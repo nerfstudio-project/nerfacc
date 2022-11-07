@@ -113,6 +113,9 @@ Before running those example scripts, please check the script about which datase
 the dataset first.
 
 ``` bash
+# clone the repo with submodules.
+git clone --recursive git://github.com/KAIR-BAIR/nerfacc/
+
 # Instant-NGP NeRF in 4.5 minutes with reproduced performance!
 # See results at here: https://www.nerfacc.com/en/latest/examples/ngp.html
 python examples/train_ngp_nerf.py --train_split train --scene lego
