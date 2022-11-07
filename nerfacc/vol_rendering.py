@@ -216,7 +216,41 @@ def render_weight_from_alpha(
     ray_indices: Optional[torch.Tensor] = None,
     n_rays: Optional[int] = None,
 ) -> torch.Tensor:
-    """Compute rendering weights from opacity."""
+    """Compute rendering weights :math:`w_i` from opacity :math:`\\alpha_i`.
+    
+    .. math::
+        w_i = T_i\\alpha_i, \\quad\\textrm{where}\\quad T_i = \\prod_{j=1}^{i-1}(1-\\alpha_j)
+
+    Note:
+        Either `ray_indices` or `packed_info` should be provided. If `ray_indices` is 
+        provided, CUB acceleration will be used if available (CUDA >= 11.6). Otherwise,
+        we will use the naive implementation with `packed_info`.
+
+    Args:
+        alphas: The opacity values of the samples. Tensor with shape (n_samples, 1).
+        packed_info: Optional. Stores information on which samples belong to the same ray. \
+            See :func:`nerfacc.ray_marching` for details. LongTensor with shape (n_rays, 2).
+        ray_indices: Optional. Ray index of each sample. LongTensor with shape (n_sample).
+        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided yet \
+            CUB acceleration is not available. We will implicitly convert `ray_indices` to \
+            `packed_info` and use the naive implementation. If not provided, we will infer \
+            it from `ray_indices` but it will be slower.
+
+    Returns:
+        The rendering weights. Tensor with shape (n_sample, 1).
+
+    Examples:
+
+    .. code-block:: python
+
+        >>> alphas = torch.tensor( 
+        >>>     [[0.4], [0.8], [0.1], [0.8], [0.1], [0.0], [0.9]], device="cuda"
+        >>> )
+        >>> ray_indices = torch.tensor([0, 0, 0, 1, 1, 2, 2], device="cuda")
+        >>> weights = render_weight_from_alpha(alphas, ray_indices=ray_indices)
+        tensor([[0.4], [0.48], [0.012], [0.8], [0.02], [0.0], [0.9]])
+
+    """
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."

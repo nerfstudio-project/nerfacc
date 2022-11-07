@@ -13,6 +13,8 @@ from .ray_marching import ray_marching
 from .version import __version__
 from .vol_rendering import (
     accumulate_along_rays,
+    render_transmittance_from_alpha,
+    render_transmittance_from_density,
     render_visibility,
     render_weight_from_alpha,
     render_weight_from_density,
@@ -52,4 +54,6 @@ __all__ = [
     "ray_resampling",
     "loss_distortion",
     "unpack_to_ray_indices",
+    "render_transmittance_from_density",
+    "render_transmittance_from_alpha",
 ]
