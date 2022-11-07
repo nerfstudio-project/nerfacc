@@ -144,14 +144,13 @@ def render_transmittance_from_density(
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if ray_indices is not None:
-        if _C.is_cub_available():
-            transmittance = _RenderingTransmittanceFromDensityCUB.apply(
-                ray_indices, t_starts, t_ends, sigmas
-            )
-        elif packed_info is None:
-            packed_info = pack_info(ray_indices, n_rays=n_rays)
+    if ray_indices is not None and _C.is_cub_available():
+        transmittance = _RenderingTransmittanceFromDensityCUB.apply(
+            ray_indices, t_starts, t_ends, sigmas
+        )
     else:
+        if packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
         transmittance = _RenderingTransmittanceFromDensityNaive.apply(
             packed_info, t_starts, t_ends, sigmas
         )
@@ -169,14 +168,13 @@ def render_transmittance_from_alpha(
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if ray_indices is not None:
-        if _C.is_cub_available():
-            transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
-                ray_indices, alphas
-            )
-        elif packed_info is None:
-            packed_info = pack_info(ray_indices, n_rays=n_rays)
+    if ray_indices is not None and _C.is_cub_available():
+        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+            ray_indices, alphas
+        )
     else:
+        if packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
         transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
             packed_info, alphas
         )
@@ -196,16 +194,15 @@ def render_weight_from_density(
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if ray_indices is not None:
-        if _C.is_cub_available():
-            transmittance = _RenderingTransmittanceFromDensityCUB.apply(
-                ray_indices, t_starts, t_ends, sigmas
-            )
-            alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
-            weights = transmittance * alphas
-        elif packed_info is None:
-            packed_info = pack_info(ray_indices, n_rays=n_rays)
+    if ray_indices is not None and _C.is_cub_available():
+        transmittance = _RenderingTransmittanceFromDensityCUB.apply(
+            ray_indices, t_starts, t_ends, sigmas
+        )
+        alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+        weights = transmittance * alphas
     else:
+        if packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
         weights = _RenderingWeightFromDensityNaive.apply(
             packed_info, t_starts, t_ends, sigmas
         )
@@ -223,15 +220,14 @@ def render_weight_from_alpha(
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if ray_indices is not None:
-        if _C.is_cub_available():
-            transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
-                ray_indices, alphas
-            )
-            weights = transmittance * alphas
-        elif packed_info is None:
-            packed_info = pack_info(ray_indices, n_rays=n_rays)
+    if ray_indices is not None and _C.is_cub_available():
+        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+            ray_indices, alphas
+        )
+        weights = transmittance * alphas
     else:
+        if packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
         weights = _RenderingWeightFromAlphaNaive.apply(packed_info, alphas)
     return weights
 
@@ -240,24 +236,65 @@ def render_weight_from_alpha(
 def render_visibility(
     alphas: torch.Tensor,
     *,
-    packed_info: Optional[torch.Tensor] = None,
     ray_indices: Optional[torch.Tensor] = None,
+    packed_info: Optional[torch.Tensor] = None,
     n_rays: Optional[int] = None,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
 ) -> torch.Tensor:
-    """Filter out invisible samples."""
+    """Filter out transparent and occluded samples.
+
+    In this function, we first compute the transmittance from the sample opacity. The
+    transmittance is then used to filter out occluded samples. And opacity is used to
+    filter out transparent samples. The function returns a boolean tensor indicating
+    which samples are visible (`transmittance > early_stop_eps` and `opacity > alpha_thre`).
+
+    Note:
+        Either `ray_indices` or `packed_info` should be provided. If `ray_indices` is 
+        provided, CUB acceleration will be used if available (CUDA >= 11.6). Otherwise,
+        we will use the naive implementation with `packed_info`.
+
+    Args:
+        alphas: The opacity values of the samples. Tensor with shape (n_samples, 1).
+        packed_info: Optional. Stores information on which samples belong to the same ray. \
+            See :func:`nerfacc.ray_marching` for details. LongTensor with shape (n_rays, 2).
+        ray_indices: Optional. Ray index of each sample. LongTensor with shape (n_sample).
+        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided yet \
+            CUB acceleration is not available. We will implicitly convert `ray_indices` to \
+            `packed_info` and use the naive implementation. If not provided, we will infer \
+            it from `ray_indices` but it will be slower.
+        early_stop_eps: The early stopping threshold on transmittance.
+        alpha_thre: The threshold on opacity.
+    
+    Returns:
+        The visibility of each sample. Tensor with shape (n_samples, 1).
+
+    Examples:
+
+    .. code-block:: python
+
+        >>> alphas = torch.tensor( 
+        >>>     [[0.4], [0.8], [0.1], [0.8], [0.1], [0.0], [0.9]], device="cuda"
+        >>> )
+        >>> ray_indices = torch.tensor([0, 0, 0, 1, 1, 2, 2], device="cuda")
+        >>> transmittance = render_transmittance_from_alpha(alphas, ray_indices=ray_indices)
+        tensor([[1.0], [0.6], [0.12], [1.0], [0.2], [1.0], [1.0]])
+        >>> visibility = render_visibility(
+        >>>     alphas, ray_indices=ray_indices, early_stop_eps=0.3, alpha_thre=0.2
+        >>> )
+        tensor([True,  True, False,  True, False, False,  True])
+
+    """
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
-    if ray_indices is not None:
-        if _C.is_cub_available():
-            transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
-                ray_indices, alphas
-            )
-        elif packed_info is None:
-            packed_info = pack_info(ray_indices, n_rays=n_rays)
+    if ray_indices is not None and _C.is_cub_available():
+        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+            ray_indices, alphas
+        )
     else:
+        if packed_info is None:
+            packed_info = pack_info(ray_indices, n_rays=n_rays)
         transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
             packed_info, alphas
         )
@@ -269,11 +306,11 @@ def render_visibility(
 
 
 class _RenderingTransmittanceFromDensityCUB(torch.autograd.Function):
-    """Rendering transmittance from density."""
+    """Rendering transmittance from density with CUB implementation."""
 
     @staticmethod
     def forward(ctx, ray_indices, t_starts, t_ends, sigmas):
-        ray_indices = ray_indices.contiguous()
+        ray_indices = ray_indices.contiguous().int()
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
@@ -299,7 +336,7 @@ class _RenderingTransmittanceFromDensityNaive(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, packed_info, t_starts, t_ends, sigmas):
-        packed_info = packed_info.contiguous()
+        packed_info = packed_info.contiguous().int()
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
@@ -321,11 +358,11 @@ class _RenderingTransmittanceFromDensityNaive(torch.autograd.Function):
 
 
 class _RenderingTransmittanceFromAlphaCUB(torch.autograd.Function):
-    """Rendering transmittance from alpha."""
+    """Rendering transmittance from opacity with CUB implementation."""
 
     @staticmethod
     def forward(ctx, ray_indices, alphas):
-        ray_indices = ray_indices.contiguous()
+        ray_indices = ray_indices.contiguous().int()
         alphas = alphas.contiguous()
         transmittance = _C.transmittance_from_alpha_forward_cub(
             ray_indices, alphas
@@ -345,11 +382,11 @@ class _RenderingTransmittanceFromAlphaCUB(torch.autograd.Function):
 
 
 class _RenderingTransmittanceFromAlphaNaive(torch.autograd.Function):
-    """Rendering transmittance from alpha with naive forloop."""
+    """Rendering transmittance from opacity with naive forloop."""
 
     @staticmethod
     def forward(ctx, packed_info, alphas):
-        packed_info = packed_info.contiguous()
+        packed_info = packed_info.contiguous().int()
         alphas = alphas.contiguous()
         transmittance = _C.transmittance_from_alpha_forward_naive(
             packed_info, alphas
@@ -373,7 +410,7 @@ class _RenderingWeightFromDensityNaive(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, packed_info, t_starts, t_ends, sigmas):
-        packed_info = packed_info.contiguous()
+        packed_info = packed_info.contiguous().int()
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
@@ -401,7 +438,7 @@ class _RenderingWeightFromAlphaNaive(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, packed_info, alphas):
-        packed_info = packed_info.contiguous()
+        packed_info = packed_info.contiguous().int()
         alphas = alphas.contiguous()
         weights = _C.weight_from_alpha_forward_naive(packed_info, alphas)
         if ctx.needs_input_grad[1]:
