@@ -87,6 +87,7 @@ def unpack_info(packed_info: Tensor, n_samples: int) -> Tensor:
     Args:
         packed_info: Stores information on which samples belong to the same ray. \
             See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
+        n_samples: Total number of samples.
 
     Returns:
         Ray index of each sample. LongTensor with shape (n_sample).
@@ -114,7 +115,7 @@ def unpack_info(packed_info: Tensor, n_samples: int) -> Tensor:
         packed_info.dim() == 2 and packed_info.shape[-1] == 2
     ), "packed_info must be a 2D tensor with shape (n_rays, 2)."
     if packed_info.is_cuda:
-        ray_indices = _C.unpack_info(packed_info.contiguous().int())
+        ray_indices = _C.unpack_info(packed_info.contiguous().int(), n_samples)
     else:
         raise NotImplementedError("Only support cuda inputs.")
     return ray_indices.long()
