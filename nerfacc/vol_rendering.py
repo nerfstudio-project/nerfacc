@@ -13,34 +13,100 @@ from .pack import pack_info
 
 
 def rendering(
-    # radiance field
-    rgb_sigma_fn: Callable,
     # ray marching results
-    n_rays: int,
-    ray_indices: torch.Tensor,
     t_starts: torch.Tensor,
     t_ends: torch.Tensor,
-    *,
+    ray_indices: torch.Tensor,
+    n_rays: int,
+    # radiance field
+    rgb_sigma_fn: Optional[Callable] = None,
+    rgb_alpha_fn: Optional[Callable] = None,
     # rendering options
     render_bkgd: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Render the rays through the radience field defined by `rgb_sigma_fn`."""
-    # Query sigma and color with gradients
-    rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices.long())
-    assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
-        rgbs.shape
-    )
-    assert (
-        sigmas.shape == t_starts.shape
-    ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
+    """Render the rays through the radience field defined by `rgb_sigma_fn`.
 
-    # Rendering: compute weights and ray indices.
-    weights = render_weight_from_density(
-        t_starts,
-        t_ends,
-        sigmas,
-        ray_indices=ray_indices,
-    )
+    This function is differentiable to the outputs of `rgb_sigma_fn` so it can 
+    be used for gradient-based optimization.
+
+    Note:
+        Either `rgb_sigma_fn` or `rgb_alpha_fn` should be provided. 
+
+    Warning:
+        This function is not differentiable to `t_starts`, `t_ends` and `ray_indices`.
+
+    Args:
+        t_starts: Per-sample start distance. Tensor with shape (n_samples, 1).
+        t_ends: Per-sample end distance. Tensor with shape (n_samples, 1).
+        ray_indices: Ray index of each sample. IntTensor with shape (n_samples).
+        n_rays: Total number of rays. This will decide the shape of the ouputs.
+        rgb_sigma_fn: A function that takes in samples {t_starts (N, 1), t_ends (N, 1), \
+            ray indices (N,)} and returns the post-activation rgb (N, 3) and density \
+            values (N, 1). 
+        rgb_alpha_fn: A function that takes in samples {t_starts (N, 1), t_ends (N, 1), \
+            ray indices (N,)} and returns the post-activation rgb (N, 3) and opacity \
+            values (N, 1).
+        render_bkgd: Optional. Background color. Tensor with shape (3,).
+
+    Returns:
+        Ray colors (n_rays, 3), opacities (n_rays, 1) and depths (n_rays, 1).
+
+    Examples:
+
+    .. code-block:: python
+        >>> rays_o = torch.rand((128, 3), device="cuda:0")
+        >>> rays_d = torch.randn((128, 3), device="cuda:0")
+        >>> rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+        >>> ray_indices, t_starts, t_ends = ray_marching(
+        >>>     rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3
+        >>> )
+        >>> def rgb_sigma_fn(t_starts, t_ends, ray_indices):
+        >>>     # This is a dummy function that returns random values.
+        >>>     rgbs = torch.rand((t_starts.shape[0], 3), device="cuda:0")
+        >>>     sigmas = torch.rand((t_starts.shape[0], 1), device="cuda:0")
+        >>>     return rgbs, sigmas
+        >>> colors, opacities, depths = rendering(
+        >>>     t_starts, t_ends, ray_indices, n_rays=128, rgb_sigma_fn=rgb_sigma_fn)
+        >>> print(colors.shape, opacities.shape, depths.shape)
+        torch.Size([128, 3]) torch.Size([128, 1]) torch.Size([128, 1])
+
+    """
+    if rgb_sigma_fn is None and rgb_alpha_fn is None:
+        raise ValueError(
+            "At least one of `rgb_sigma_fn` and `rgb_alpha_fn` should be specified."
+        )
+
+    # Query sigma/alpha and color with gradients
+    if rgb_sigma_fn is not None:
+        rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices.long())
+        assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
+            rgbs.shape
+        )
+        assert (
+            sigmas.shape == t_starts.shape
+        ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
+        # Rendering: compute weights.
+        weights = render_weight_from_density(
+            t_starts,
+            t_ends,
+            sigmas,
+            ray_indices=ray_indices,
+            n_rays=n_rays,
+        )
+    elif rgb_alpha_fn is not None:
+        rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices.long())
+        assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
+            rgbs.shape
+        )
+        assert (
+            alphas.shape == t_starts.shape
+        ), "alphas must have shape of (N, 1)! Got {}".format(alphas.shape)
+        # Rendering: compute weights.
+        weights = render_weight_from_alpha(
+            alphas,
+            ray_indices=ray_indices,
+            n_rays=n_rays,
+        )
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
     colors = accumulate_along_rays(
@@ -140,7 +206,49 @@ def render_transmittance_from_density(
     ray_indices: Optional[torch.Tensor] = None,
     n_rays: Optional[int] = None,
 ) -> Tensor:
-    """Compute transmittance from density."""
+    """Compute transmittance :math:`T_i` from density :math:`\\sigma_i`.
+    
+    .. math::
+        T_i = exp(-\\sum_{j=1}^{i-1}\\sigma_j\delta_j)
+
+    Note:
+        Either `ray_indices` or `packed_info` should be provided. If `ray_indices` is 
+        provided, CUB acceleration will be used if available (CUDA >= 11.6). Otherwise,
+        we will use the naive implementation with `packed_info`.
+
+    Args:
+        t_starts: Where the frustum-shape sample starts along a ray. Tensor with \
+            shape (n_samples, 1).
+        t_ends: Where the frustum-shape sample ends along a ray. Tensor with \
+            shape (n_samples, 1).
+        sigmas: The density values of the samples. Tensor with shape (n_samples, 1).
+        packed_info: Optional. Stores information on which samples belong to the same ray. \
+            See :func:`nerfacc.ray_marching` for details. LongTensor with shape (n_rays, 2).
+        ray_indices: Optional. Ray index of each sample. LongTensor with shape (n_sample).
+        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided yet \
+            CUB acceleration is not available. We will implicitly convert `ray_indices` to \
+            `packed_info` and use the naive implementation. If not provided, we will infer \
+            it from `ray_indices` but it will be slower.
+
+    Returns:
+        The rendering transmittance. Tensor with shape (n_sample, 1).
+
+    Examples:
+
+    .. code-block:: python
+
+        >>> t_starts = torch.tensor(
+        >>>     [[0.0], [1.0], [2.0], [3.0], [4.0], [5.0], [6.0]], device="cuda")
+        >>> t_ends = torch.tensor(
+        >>>     [[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0]], device="cuda")
+        >>> sigmas = torch.tensor(
+        >>>     [[0.4], [0.8], [0.1], [0.8], [0.1], [0.0], [0.9]], device="cuda")
+        >>> ray_indices = torch.tensor([0, 0, 0, 1, 1, 2, 2], device="cuda")
+        >>> transmittance = render_transmittance_from_density(
+        >>>     t_starts, t_ends, sigmas, ray_indices=ray_indices)
+        [[1.00], [0.67], [0.30], [1.00], [0.45], [1.00], [1.00]]
+    
+    """
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
@@ -164,7 +272,40 @@ def render_transmittance_from_alpha(
     ray_indices: Optional[torch.Tensor] = None,
     n_rays: Optional[int] = None,
 ) -> Tensor:
-    """Compute transmittance from alpha."""
+    """Compute transmittance :math:`T_i` from alpha :math:`\\alpha_i`.
+    
+    .. math::
+        T_i = \\prod_{j=1}^{i-1}(1-\\alpha_j)
+
+    Note:
+        Either `ray_indices` or `packed_info` should be provided. If `ray_indices` is 
+        provided, CUB acceleration will be used if available (CUDA >= 11.6). Otherwise,
+        we will use the naive implementation with `packed_info`.
+
+    Args:
+        alphas: The opacity values of the samples. Tensor with shape (n_samples, 1).
+        packed_info: Optional. Stores information on which samples belong to the same ray. \
+            See :func:`nerfacc.ray_marching` for details. LongTensor with shape (n_rays, 2).
+        ray_indices: Optional. Ray index of each sample. LongTensor with shape (n_sample).
+        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided yet \
+            CUB acceleration is not available. We will implicitly convert `ray_indices` to \
+            `packed_info` and use the naive implementation. If not provided, we will infer \
+            it from `ray_indices` but it will be slower.
+
+    Returns:
+        The rendering transmittance. Tensor with shape (n_sample, 1).
+
+    Examples:
+
+    .. code-block:: python
+
+        >>> alphas = torch.tensor( 
+        >>>     [[0.4], [0.8], [0.1], [0.8], [0.1], [0.0], [0.9]], device="cuda"))
+        >>> ray_indices = torch.tensor([0, 0, 0, 1, 1, 2, 2], device="cuda")
+        >>> transmittance = render_transmittance_from_alpha(alphas, ray_indices=ray_indices)
+        tensor([[1.0], [0.6], [0.12], [1.0], [0.2], [1.0], [1.0]])
+
+    """
     assert (
         ray_indices is not None or packed_info is not None
     ), "Either ray_indices or packed_info should be provided."
