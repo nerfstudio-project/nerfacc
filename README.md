@@ -87,16 +87,18 @@ def rgb_sigma_fn(
     return rgbs, sigmas  # (n_samples, 3), (n_samples, 1)
 
 # Efficient Raymarching: Skip empty and occluded space, pack samples from all rays.
-# packed_info: (n_rays, 2). t_starts: (n_samples, 1). t_ends: (n_samples, 1).
+# ray_indices: (n_samples,). t_starts: (n_samples, 1). t_ends: (n_samples, 1).
 with torch.no_grad():
-    packed_info, t_starts, t_ends = nerfacc.ray_marching(
+    ray_indices, t_starts, t_ends = nerfacc.ray_marching(
         rays_o, rays_d, sigma_fn=sigma_fn, near_plane=0.2, far_plane=1.0, 
         early_stop_eps=1e-4, alpha_thre=1e-2, 
     )
 
 # Differentiable Volumetric Rendering.
 # colors: (n_rays, 3). opaicity: (n_rays, 1). depth: (n_rays, 1).
-color, opacity, depth = nerfacc.rendering(rgb_sigma_fn, packed_info, t_starts, t_ends)
+color, opacity, depth = nerfacc.rendering(
+    t_starts, t_ends, ray_indices, n_rays=rays_o.shape[0], rgb_sigma_fn=rgb_sigma_fn
+)
 
 # Optimize: Both the network and rays will receive gradients
 optimizer.zero_grad()

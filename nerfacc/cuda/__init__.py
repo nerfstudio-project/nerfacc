@@ -25,10 +25,45 @@ ray_aabb_intersect = _make_lazy_cuda_func("ray_aabb_intersect")
 ray_marching = _make_lazy_cuda_func("ray_marching")
 ray_resampling = _make_lazy_cuda_func("ray_resampling")
 
-rendering_forward = _make_lazy_cuda_func("rendering_forward")
-rendering_backward = _make_lazy_cuda_func("rendering_backward")
-rendering_alphas_forward = _make_lazy_cuda_func("rendering_alphas_forward")
-rendering_alphas_backward = _make_lazy_cuda_func("rendering_alphas_backward")
+is_cub_available = _make_lazy_cuda_func("is_cub_available")
+transmittance_from_sigma_forward_cub = _make_lazy_cuda_func(
+    "transmittance_from_sigma_forward_cub"
+)
+transmittance_from_sigma_backward_cub = _make_lazy_cuda_func(
+    "transmittance_from_sigma_backward_cub"
+)
+transmittance_from_alpha_forward_cub = _make_lazy_cuda_func(
+    "transmittance_from_alpha_forward_cub"
+)
+transmittance_from_alpha_backward_cub = _make_lazy_cuda_func(
+    "transmittance_from_alpha_backward_cub"
+)
+
+transmittance_from_sigma_forward_naive = _make_lazy_cuda_func(
+    "transmittance_from_sigma_forward_naive"
+)
+transmittance_from_sigma_backward_naive = _make_lazy_cuda_func(
+    "transmittance_from_sigma_backward_naive"
+)
+transmittance_from_alpha_forward_naive = _make_lazy_cuda_func(
+    "transmittance_from_alpha_forward_naive"
+)
+transmittance_from_alpha_backward_naive = _make_lazy_cuda_func(
+    "transmittance_from_alpha_backward_naive"
+)
+
+weight_from_sigma_forward_naive = _make_lazy_cuda_func(
+    "weight_from_sigma_forward_naive"
+)
+weight_from_sigma_backward_naive = _make_lazy_cuda_func(
+    "weight_from_sigma_backward_naive"
+)
+weight_from_alpha_forward_naive = _make_lazy_cuda_func(
+    "weight_from_alpha_forward_naive"
+)
+weight_from_alpha_backward_naive = _make_lazy_cuda_func(
+    "weight_from_alpha_backward_naive"
+)
 
 unpack_data = _make_lazy_cuda_func("unpack_data")
 unpack_info = _make_lazy_cuda_func("unpack_info")

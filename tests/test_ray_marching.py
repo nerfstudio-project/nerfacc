@@ -13,7 +13,7 @@ def test_marching_with_near_far():
     rays_d = torch.randn((batch_size, 3), device=device)
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
-    packed_info, t_starts, t_ends = ray_marching(
+    ray_indices, t_starts, t_ends = ray_marching(
         rays_o,
         rays_d,
         near_plane=0.1,
@@ -31,7 +31,7 @@ def test_marching_with_grid():
     grid = OccupancyGrid(roi_aabb=[0, 0, 0, 1, 1, 1]).to(device)
     grid._binary[:] = True
 
-    packed_info, t_starts, t_ends = ray_marching(
+    ray_indices, t_starts, t_ends = ray_marching(
         rays_o,
         rays_d,
         grid=grid,
@@ -39,7 +39,7 @@ def test_marching_with_grid():
         far_plane=1.0,
         render_step_size=1e-2,
     )
-    ray_indices = unpack_info(packed_info).long()
+    ray_indices = ray_indices.long()
     samples = (
         rays_o[ray_indices] + rays_d[ray_indices] * (t_starts + t_ends) / 2.0
     )
