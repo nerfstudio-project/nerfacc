@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from nerfacc import pack_data, unpack_data, unpack_info
+from nerfacc import pack_data, pack_info, unpack_data, unpack_info
 
 device = "cuda:0"
 batch_size = 32
@@ -31,7 +31,9 @@ def test_unpack_info():
     ray_indices_tgt = torch.tensor(
         [0, 2, 2, 2, 2], dtype=torch.int64, device=device
     )
-    ray_indices = unpack_info(packed_info)
+    ray_indices = unpack_info(packed_info, n_samples=5)
+    packed_info_2 = pack_info(ray_indices, n_rays=packed_info.shape[0])
+    assert torch.allclose(packed_info.int(), packed_info_2.int())
     assert torch.allclose(ray_indices, ray_indices_tgt)
 
 

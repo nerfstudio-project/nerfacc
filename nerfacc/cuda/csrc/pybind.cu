@@ -6,24 +6,6 @@
 #include "include/helpers_math.h"
 #include "include/helpers_contraction.h"
 
-std::vector<torch::Tensor> rendering_forward(
-    torch::Tensor packed_info,
-    torch::Tensor starts,
-    torch::Tensor ends,
-    torch::Tensor sigmas,
-    float early_stop_eps,
-    float alpha_thre,
-    bool compression);
-
-torch::Tensor rendering_backward(
-    torch::Tensor weights,
-    torch::Tensor grad_weights,
-    torch::Tensor packed_info,
-    torch::Tensor starts,
-    torch::Tensor ends,
-    torch::Tensor sigmas,
-    float early_stop_eps,
-    float alpha_thre);
 
 std::vector<torch::Tensor> ray_aabb_intersect(
     const torch::Tensor rays_o,
@@ -45,7 +27,7 @@ std::vector<torch::Tensor> ray_marching(
     const float cone_angle);
 
 torch::Tensor unpack_info(
-    const torch::Tensor packed_info);
+    const torch::Tensor packed_info, const int n_samples);
 
 torch::Tensor unpack_info_to_mask(
     const torch::Tensor packed_info, const int n_samples);
@@ -69,21 +51,6 @@ torch::Tensor contract_inv(
     const torch::Tensor roi,
     const ContractionType type);
 
-torch::Tensor rendering_alphas_backward(
-    torch::Tensor weights,
-    torch::Tensor grad_weights,
-    torch::Tensor packed_info,
-    torch::Tensor alphas,
-    float early_stop_eps,
-    float alpha_thre);
-
-std::vector<torch::Tensor> rendering_alphas_forward(
-    torch::Tensor packed_info,
-    torch::Tensor alphas,
-    float early_stop_eps,
-    float alpha_thre,
-    bool compression);
-
 std::vector<torch::Tensor> ray_resampling(
     torch::Tensor packed_info,
     torch::Tensor starts,
@@ -95,6 +62,71 @@ torch::Tensor unpack_data(
     torch::Tensor packed_info,
     torch::Tensor data,
     int n_samples_per_ray);
+
+// cub implementations: parallel across samples
+bool is_cub_available() {
+    return (bool) CUB_SUPPORTS_SCAN_BY_KEY();
+}
+torch::Tensor transmittance_from_sigma_forward_cub(
+    torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas);
+torch::Tensor transmittance_from_sigma_backward_cub(
+    torch::Tensor ray_indices,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor transmittance,
+    torch::Tensor transmittance_grad);
+torch::Tensor transmittance_from_alpha_forward_cub(
+    torch::Tensor ray_indices, torch::Tensor alphas);
+torch::Tensor transmittance_from_alpha_backward_cub(
+    torch::Tensor ray_indices,
+    torch::Tensor alphas,
+    torch::Tensor transmittance,
+    torch::Tensor transmittance_grad);
+
+// naive implementations: parallel across rays
+torch::Tensor transmittance_from_sigma_forward_naive(
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas);
+torch::Tensor transmittance_from_sigma_backward_naive(
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor transmittance,
+    torch::Tensor transmittance_grad);
+torch::Tensor transmittance_from_alpha_forward_naive(
+    torch::Tensor packed_info, 
+    torch::Tensor alphas);
+torch::Tensor transmittance_from_alpha_backward_naive(
+    torch::Tensor packed_info,
+    torch::Tensor alphas,
+    torch::Tensor transmittance,
+    torch::Tensor transmittance_grad);
+
+torch::Tensor weight_from_sigma_forward_naive(
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas);
+torch::Tensor weight_from_sigma_backward_naive(
+    torch::Tensor weights,
+    torch::Tensor grad_weights,
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor sigmas);
+torch::Tensor weight_from_alpha_forward_naive(
+    torch::Tensor packed_info, 
+    torch::Tensor alphas);
+torch::Tensor weight_from_alpha_backward_naive(
+    torch::Tensor weights,
+    torch::Tensor grad_weights,
+    torch::Tensor packed_info,
+    torch::Tensor alphas);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
@@ -115,10 +147,21 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("ray_resampling", &ray_resampling);
 
     // rendering
-    m.def("rendering_forward", &rendering_forward);
-    m.def("rendering_backward", &rendering_backward);
-    m.def("rendering_alphas_forward", &rendering_alphas_forward);
-    m.def("rendering_alphas_backward", &rendering_alphas_backward);
+    m.def("is_cub_available", is_cub_available);
+    m.def("transmittance_from_sigma_forward_cub", transmittance_from_sigma_forward_cub);
+    m.def("transmittance_from_sigma_backward_cub", transmittance_from_sigma_backward_cub);
+    m.def("transmittance_from_alpha_forward_cub", transmittance_from_alpha_forward_cub);
+    m.def("transmittance_from_alpha_backward_cub", transmittance_from_alpha_backward_cub);
+    
+    m.def("transmittance_from_sigma_forward_naive", transmittance_from_sigma_forward_naive);
+    m.def("transmittance_from_sigma_backward_naive", transmittance_from_sigma_backward_naive);
+    m.def("transmittance_from_alpha_forward_naive", transmittance_from_alpha_forward_naive);
+    m.def("transmittance_from_alpha_backward_naive", transmittance_from_alpha_backward_naive);
+
+    m.def("weight_from_sigma_forward_naive", weight_from_sigma_forward_naive);
+    m.def("weight_from_sigma_backward_naive", weight_from_sigma_backward_naive);
+    m.def("weight_from_alpha_forward_naive", weight_from_alpha_forward_naive);
+    m.def("weight_from_alpha_backward_naive", weight_from_alpha_backward_naive);
 
     // pack & unpack
     m.def("unpack_data", &unpack_data);

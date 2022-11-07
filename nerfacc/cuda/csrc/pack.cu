@@ -81,7 +81,7 @@ __global__ void unpack_data_kernel(
     return;
 }
 
-torch::Tensor unpack_info(const torch::Tensor packed_info)
+torch::Tensor unpack_info(const torch::Tensor packed_info, const int n_samples)
 {
     DEVICE_GUARD(packed_info);
     CHECK_INPUT(packed_info);
@@ -90,7 +90,7 @@ torch::Tensor unpack_info(const torch::Tensor packed_info)
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    int n_samples = packed_info[n_rays - 1].sum(0).item<int>();
+    // int n_samples = packed_info[n_rays - 1].sum(0).item<int>();
     torch::Tensor ray_indices = torch::empty(
         {n_samples}, packed_info.options().dtype(torch::kInt32));
 

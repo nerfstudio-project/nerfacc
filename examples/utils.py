@@ -85,7 +85,7 @@ def render_image(
     )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        packed_info, t_starts, t_ends = ray_marching(
+        ray_indices, t_starts, t_ends = ray_marching(
             chunk_rays.origins,
             chunk_rays.viewdirs,
             scene_aabb=scene_aabb,
@@ -99,9 +99,10 @@ def render_image(
             alpha_thre=alpha_thre,
         )
         rgb, opacity, depth = rendering(
-            packed_info,
             t_starts,
             t_ends,
+            ray_indices,
+            n_rays=chunk_rays.origins.shape[0],
             rgb_sigma_fn=rgb_sigma_fn,
             render_bkgd=render_bkgd,
         )
