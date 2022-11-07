@@ -5,10 +5,9 @@
 // ExclusiveScanByKey is supported in CUB >= 1.15.0 (CUDA >= 11.6)
 // See: https://github.com/NVIDIA/cub/tree/main#releases
 #include "include/helpers_cuda.h"
-
 #if CUB_SUPPORTS_SCAN_BY_KEY()
-
 #include <cub/cub.cuh>
+#endif
 
 struct Product
 {
@@ -16,6 +15,7 @@ struct Product
     __host__ __device__ __forceinline__ T operator()(const T &a, const T &b) const { return a * b; }
 };
 
+#if CUB_SUPPORTS_SCAN_BY_KEY()
 template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT>
 inline void exclusive_sum_by_key(
     KeysInputIteratorT keys, ValuesInputIteratorT input, ValuesOutputIteratorT output, int64_t num_items)
