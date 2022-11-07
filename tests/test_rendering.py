@@ -3,7 +3,6 @@ import torch
 
 from nerfacc import (
     accumulate_along_rays,
-    pack_info,
     render_transmittance_from_density,
     render_visibility,
     render_weight_from_alpha,
@@ -69,6 +68,7 @@ def test_render_weight_from_alpha():
     assert torch.allclose(weights, weights_tgt)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_render_weight_from_density():
     ray_indices = torch.tensor(
         [0, 2, 2, 2, 2], dtype=torch.int32, device=device
@@ -89,6 +89,7 @@ def test_render_weight_from_density():
     assert torch.allclose(weights, weights_tgt)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_accumulate_along_rays():
     ray_indices = torch.tensor(
         [0, 2, 2, 2, 2], dtype=torch.int32, device=device
@@ -109,6 +110,7 @@ def test_accumulate_along_rays():
     )
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_rendering():
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         return torch.hstack([t_starts] * 3), t_starts
@@ -131,6 +133,7 @@ def test_rendering():
     )
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_grads():
     ray_indices = torch.tensor(
         [0, 2, 2, 2, 2], dtype=torch.int32, device=device
@@ -212,9 +215,9 @@ def test_grads():
 
 
 if __name__ == "__main__":
-    # test_render_visibility()
-    # test_render_weight_from_alpha()
-    # test_render_weight_from_density()
-    # test_accumulate_along_rays()
-    # test_rendering()
+    test_render_visibility()
+    test_render_weight_from_alpha()
+    test_render_weight_from_density()
+    test_accumulate_along_rays()
+    test_rendering()
     test_grads()
