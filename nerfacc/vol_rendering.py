@@ -54,7 +54,7 @@ def rendering(
     Examples:
 
     .. code-block:: python
-    
+
         >>> rays_o = torch.rand((128, 3), device="cuda:0")
         >>> rays_d = torch.randn((128, 3), device="cuda:0")
         >>> rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)

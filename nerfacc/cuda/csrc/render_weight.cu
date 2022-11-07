@@ -99,6 +99,7 @@ __global__ void weight_from_alpha_forward_kernel(
         return;
 
     alphas += base;
+    weights += base;
 
     // accumulation
     float T = 1.f;

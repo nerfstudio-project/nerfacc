@@ -3,6 +3,8 @@ import torch
 
 from nerfacc import (
     accumulate_along_rays,
+    pack_info,
+    render_transmittance_from_density,
     render_visibility,
     render_weight_from_alpha,
     render_weight_from_density,
@@ -129,9 +131,90 @@ def test_rendering():
     )
 
 
+def test_grads():
+    ray_indices = torch.tensor(
+        [0, 2, 2, 2, 2], dtype=torch.int32, device=device
+    )  # (samples,)
+    packed_info = torch.tensor(
+        [[0, 1], [1, 0], [1, 4]], dtype=torch.int32, device=device
+    )
+    sigmas = torch.tensor([[0.4], [0.8], [0.1], [0.8], [0.1]], device="cuda")
+    sigmas.requires_grad = True
+    t_starts = torch.rand_like(sigmas)
+    t_ends = t_starts + 1.0
+
+    weights_ref = torch.tensor(
+        [[0.3297], [0.5507], [0.0428], [0.2239], [0.0174]], device="cuda"
+    )
+    sigmas_grad_ref = torch.tensor(
+        [[0.6703], [0.1653], [0.1653], [0.1653], [0.1653]], device="cuda"
+    )
+
+    # naive impl. trans from sigma
+    trans = render_transmittance_from_density(
+        t_starts, t_ends, sigmas, ray_indices=ray_indices, n_rays=3
+    )
+    weights = trans * (1.0 - torch.exp(-sigmas * (t_ends - t_starts)))
+    weights.sum().backward()
+    sigmas_grad = sigmas.grad.clone()
+    sigmas.grad.zero_()
+    assert torch.allclose(weights_ref, weights, atol=1e-4)
+    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
+
+    # naive impl. trans from alpha
+    trans = render_transmittance_from_density(
+        t_starts, t_ends, sigmas, packed_info=packed_info, n_rays=3
+    )
+    weights = trans * (1.0 - torch.exp(-sigmas * (t_ends - t_starts)))
+    weights.sum().backward()
+    sigmas_grad = sigmas.grad.clone()
+    sigmas.grad.zero_()
+    assert torch.allclose(weights_ref, weights, atol=1e-4)
+    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
+
+    weights = render_weight_from_density(
+        t_starts, t_ends, sigmas, ray_indices=ray_indices, n_rays=3
+    )
+    weights.sum().backward()
+    sigmas_grad = sigmas.grad.clone()
+    sigmas.grad.zero_()
+    assert torch.allclose(weights_ref, weights, atol=1e-4)
+    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
+
+    weights = render_weight_from_density(
+        t_starts, t_ends, sigmas, packed_info=packed_info, n_rays=3
+    )
+    weights.sum().backward()
+    sigmas_grad = sigmas.grad.clone()
+    sigmas.grad.zero_()
+    assert torch.allclose(weights_ref, weights, atol=1e-4)
+    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
+
+    alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+    weights = render_weight_from_alpha(
+        alphas, ray_indices=ray_indices, n_rays=3
+    )
+    weights.sum().backward()
+    sigmas_grad = sigmas.grad.clone()
+    sigmas.grad.zero_()
+    assert torch.allclose(weights_ref, weights, atol=1e-4)
+    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
+
+    alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+    weights = render_weight_from_alpha(
+        alphas, packed_info=packed_info, n_rays=3
+    )
+    weights.sum().backward()
+    sigmas_grad = sigmas.grad.clone()
+    sigmas.grad.zero_()
+    assert torch.allclose(weights_ref, weights, atol=1e-4)
+    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
+
+
 if __name__ == "__main__":
-    test_render_visibility()
-    test_render_weight_from_alpha()
-    test_render_weight_from_density()
-    test_accumulate_along_rays()
-    test_rendering()
+    # test_render_visibility()
+    # test_render_weight_from_alpha()
+    # test_render_weight_from_density()
+    # test_accumulate_along_rays()
+    # test_rendering()
+    test_grads()
