@@ -99,11 +99,11 @@ def render_image(
             alpha_thre=alpha_thre,
         )
         rgb, opacity, depth = rendering(
-            rgb_sigma_fn,
-            chunk_rays.origins.shape[0],
-            ray_indices,
             t_starts,
             t_ends,
+            ray_indices,
+            n_rays=chunk_rays.origins.shape[0],
+            rgb_sigma_fn=rgb_sigma_fn,
             render_bkgd=render_bkgd,
         )
         chunk_results = [rgb, opacity, depth, len(t_starts)]
