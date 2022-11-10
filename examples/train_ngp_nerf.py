@@ -42,10 +42,12 @@ if __name__ == "__main__":
 
     if args.ev_data == True:
         from datasets.nerf_synthetic import SubjectLoader
+        from datasets.generateTestPoses import SubjectTestPoseLoader
         data_root_fp = "/home/ubuntu/data/"
         train_dataset_kwargs = {"color_bkgd_aug": "random"}
         target_sample_batch_size = 1 << 20
         grid_resolution = 256
+
     elif args.unbounded:
         from datasets.nerf_360_v2 import SubjectLoader
         data_root_fp = "/home/ubuntu/data/360_v2/"
@@ -53,6 +55,7 @@ if __name__ == "__main__":
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
         grid_resolution = 256
+
     else:
         from datasets.nerf_synthetic import SubjectLoader
         data_root_fp = "/home/ubuntu/data/nerf_synthetic/"
@@ -70,6 +73,12 @@ if __name__ == "__main__":
     test_dataset.images = test_dataset.images.to(device)
     test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
     test_dataset.K = test_dataset.K.to(device)
+
+    #test poses
+    numOfFrames = 30
+    test_poses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp, numberOfFrames=numOfFrames)
+    test_poses.camtoworlds = test_poses.camtoworlds.to(device)
+    test_poses.K = test_poses.K.to(device)
 
     if args.auto_aabb:
         #camera_locs = torch.cat([train_dataset.camtoworlds, test_dataset.camtoworlds])[:, :3, -1]
@@ -205,11 +214,11 @@ if __name__ == "__main__":
 
                 psnrs = []
                 with torch.no_grad():
-                    for i in tqdm.tqdm(range(15,16)):
-                        data = test_dataset[i]
+                    for i in tqdm.tqdm(range(numOfFrames)):
+                        data = test_poses[i]
                         render_bkgd = data["color_bkgd"]
                         rays = data["rays"]
-                        pixels = data["pixels"]
+                        # pixels = data["pixels"]
 
                         # rendering
                         rgb, acc, depth, _ = render_image(
@@ -227,14 +236,14 @@ if __name__ == "__main__":
                             # test options
                             test_chunk_size=args.test_chunk_size,
                         )
-                        mse = F.mse_loss(rgb, pixels)
-                        psnr = -10.0 * torch.log(mse) / np.log(10.0)
-                        psnrs.append(psnr.item())
+                        # mse = F.mse_loss(rgb, pixels)
+                        # psnr = -10.0 * torch.log(mse) / np.log(10.0)
+                        # psnrs.append(psnr.item())
                         imageio.imwrite("/home/ubuntu/data/rgb_test_"+str(i)+".png",(rgb.cpu().numpy() * 255).astype(np.uint8))
-                        imageio.imwrite("/home/ubuntu/data/depth_test_"+str(i)+".png",(depth.cpu().numpy() * 255).astype(np.uint8))
+                        # imageio.imwrite("/home/ubuntu/data/depth_test_"+str(i)+".png",(depth.cpu().numpy() * 255).astype(np.uint8))
 
-                psnr_avg = sum(psnrs) / len(psnrs)
-                print(f"evaluation: psnr_avg={psnr_avg}")
+                # psnr_avg = sum(psnrs) / len(psnrs)
+                # print(f"evaluation: psnr_avg={psnr_avg}")
                 train_dataset.training = True
 
             if step == max_steps:
