@@ -58,6 +58,15 @@ std::vector<torch::Tensor> ray_resampling(
     torch::Tensor weights,
     const int steps);
 
+torch::Tensor ray_pdf_query(
+    torch::Tensor packed_info,
+    torch::Tensor starts,
+    torch::Tensor ends,
+    torch::Tensor pdfs,
+    torch::Tensor resample_packed_info,
+    torch::Tensor resample_starts,
+    torch::Tensor resample_ends);
+
 torch::Tensor unpack_data(
     torch::Tensor packed_info,
     torch::Tensor data,
@@ -145,6 +154,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
     m.def("ray_marching", &ray_marching);
     m.def("ray_resampling", &ray_resampling);
+    m.def("ray_pdf_query", &ray_pdf_query);
 
     // rendering
     m.def("is_cub_available", is_cub_available);

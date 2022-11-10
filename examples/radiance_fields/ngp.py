@@ -2,6 +2,7 @@
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
 
+import math
 from typing import Callable, List, Union
 
 import torch
@@ -73,8 +74,11 @@ class NGPradianceField(torch.nn.Module):
         use_viewdirs: bool = True,
         density_activation: Callable = lambda x: trunc_exp(x - 1),
         unbounded: bool = False,
+        hidden_dim: int = 64,
         geo_feat_dim: int = 15,
         n_levels: int = 16,
+        max_res: int = 1024,
+        base_res: int = 16,
         log2_hashmap_size: int = 19,
     ) -> None:
         super().__init__()
@@ -87,7 +91,9 @@ class NGPradianceField(torch.nn.Module):
         self.unbounded = unbounded
 
         self.geo_feat_dim = geo_feat_dim
-        per_level_scale = 1.4472692012786865
+        per_level_scale = math.exp(
+            (math.log(max_res) - math.log(base_res)) / (n_levels - 1)
+        )
 
         if self.use_viewdirs:
             self.direction_encoding = tcnn.Encoding(
@@ -113,14 +119,14 @@ class NGPradianceField(torch.nn.Module):
                 "n_levels": n_levels,
                 "n_features_per_level": 2,
                 "log2_hashmap_size": log2_hashmap_size,
-                "base_resolution": 16,
+                "base_resolution": base_res,
                 "per_level_scale": per_level_scale,
             },
             network_config={
                 "otype": "FullyFusedMLP",
                 "activation": "ReLU",
                 "output_activation": "None",
-                "n_neurons": 64,
+                "n_neurons": hidden_dim,
                 "n_hidden_layers": 1,
             },
         )

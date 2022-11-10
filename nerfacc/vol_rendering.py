@@ -126,7 +126,7 @@ def rendering(
     if render_bkgd is not None:
         colors = colors + render_bkgd * (1.0 - opacities)
 
-    return colors, opacities, depths
+    return colors, opacities, depths, weights
 
 
 def accumulate_along_rays(
