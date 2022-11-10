@@ -210,6 +210,7 @@ def ray_marching(
             ray_indices=ray_indices,
             early_stop_eps=early_stop_eps,
             alpha_thre=alpha_thre,
+            n_rays=rays_o.shape[0],
         )
         ray_indices, t_starts, t_ends = (
             ray_indices[masks],
