@@ -23,48 +23,11 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--train_split",
-        type=str,
-        default="trainval",
-        choices=["train", "trainval"],
-        help="which train split to use",
-    )
-    parser.add_argument(
-        "--scene",
-        type=str,
-        default="lego",
-        choices=[
-            # nerf synthetic
-            "chair",
-            "drums",
-            "ficus",
-            "hotdog",
-            "lego",
-            "materials",
-            "mic",
-            "ship",
-            # mipnerf360 unbounded
-            "garden",
-        ],
-        help="which scene to use",
-    )
-    parser.add_argument(
-        "--aabb",
-        type=lambda s: [float(item) for item in s.split(",")],
-        default="-1.5,-1.5,-1.5,1.5,1.5,1.5",
-        help="delimited list input",
-    )
-    parser.add_argument(
-        "--test_chunk_size",
-        type=int,
-        default=8192,
-    )
-    parser.add_argument(
-        "--unbounded",
-        action="store_true",
-        help="whether to use unbounded rendering",
-    )
+    parser.add_argument("--train_split",type=str,default="trainval",choices=["train", "trainval"],help="which train split to use")
+    parser.add_argument("--scene",type=str,default="lego",help="which scene to use")
+    parser.add_argument("--aabb",type=lambda s: [float(item) for item in s.split(",")],default="-1.5,-1.5,-1.5,1.5,1.5,1.5",help="delimited list input")
+    parser.add_argument("--test_chunk_size",type=int,default=8192)
+    parser.add_argument("--unbounded",action="store_true",help="whether to use unbounded rendering")
     parser.add_argument("--cone_angle", type=float, default=0.0)
     args = parser.parse_args()
 
@@ -84,11 +47,7 @@ if __name__ == "__main__":
         scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
         near_plane = None
         far_plane = None
-        render_step_size = (
-            (scene_aabb[3:] - scene_aabb[:3]).max()
-            * math.sqrt(3)
-            / render_n_samples
-        ).item()
+        render_step_size = ((scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples).item()
 
     # setup the radiance field we want to train.
     max_steps = 50000
@@ -112,7 +71,7 @@ if __name__ == "__main__":
     if args.scene == "garden":
         from datasets.nerf_360_v2 import SubjectLoader
 
-        data_root_fp = "/home/ruilongli/data/360_v2/"
+        data_root_fp = "/home/ubuntu/data/360_v2/"
         target_sample_batch_size = 1 << 16
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
@@ -120,8 +79,8 @@ if __name__ == "__main__":
     else:
         from datasets.nerf_synthetic import SubjectLoader
 
-        data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
-        target_sample_batch_size = 1 << 16
+        data_root_fp = "/home/ubuntu/data/nerf_synthetic/"
+        target_sample_batch_size = 1 << 16 #65536 samples in a batch
         grid_resolution = 128
 
     train_dataset = SubjectLoader(
@@ -207,7 +166,7 @@ if __name__ == "__main__":
             optimizer.step()
             scheduler.step()
 
-            if step % 5000 == 0:
+            if step % 500 == 0:
                 elapsed_time = time.time() - tic
                 loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
                 print(
@@ -217,7 +176,7 @@ if __name__ == "__main__":
                     f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
                 )
 
-            if step >= 0 and step % max_steps == 0 and step > 0:
+            if step >= 0 and step % 500 == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
 
@@ -251,11 +210,8 @@ if __name__ == "__main__":
                         #     "acc_binary_test.png",
                         #     ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
                         # )
-                        # imageio.imwrite(
-                        #     "rgb_test.png",
-                        #     (rgb.cpu().numpy() * 255).astype(np.uint8),
-                        # )
-                        # break
+                        imageio.imwrite("/home/ubuntu/data/rgb_test_"+str(i)+".png",(rgb.cpu().numpy() * 255).astype(np.uint8))
+
                 psnr_avg = sum(psnrs) / len(psnrs)
                 print(f"evaluation: psnr_avg={psnr_avg}")
                 train_dataset.training = True

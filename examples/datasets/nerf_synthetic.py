@@ -17,109 +17,82 @@ from .utils import Rays
 def _load_renderings(root_fp: str, subject_id: str, split: str):
     """Load images from disk."""
     if not root_fp.startswith("/"):
-        # allow relative path. e.g., "./data/nerf_synthetic/"
-        root_fp = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "..",
-            "..",
-            root_fp,
-        )
+        root_fp = os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","..",root_fp) # e.g., "./data/nerf_synthetic/"
 
     data_dir = os.path.join(root_fp, subject_id)
-    with open(
-        os.path.join(data_dir, "transforms_{}.json".format(split)), "r"
-    ) as fp:
-        meta = json.load(fp)
+    
+    if split == "None":
+        with open(os.path.join(data_dir, 'transforms.json'), 'r') as fp:
+            meta = json.load(fp)
+    else:
+        with open(os.path.join(data_dir, "transforms_{}.json".format(split)), "r") as fp:
+            meta = json.load(fp)
+
     images = []
     camtoworlds = []
-
+    intrinsics = []
     for i in range(len(meta["frames"])):
         frame = meta["frames"][i]
-        fname = os.path.join(data_dir, frame["file_path"] + ".png")
+        # fname = os.path.join(data_dir, frame["file_path"] + ".png")
+        fname = os.path.join(data_dir, frame['file_path'][2:])
         rgba = imageio.imread(fname)
         camtoworlds.append(frame["transform_matrix"])
         images.append(rgba)
+        
+        #per image intrinsics
+        focal, cx, cy = frame['fl_x'], frame['cx'], frame['cy']
+        K = np.array([[focal, 0, cx], [0, focal, cy], [0, 0, 1]])
+        intrinsics.append(K)
 
-    images = np.stack(images, axis=0)
+    images = np.stack(images, axis=0) #assume all images have same size
     camtoworlds = np.stack(camtoworlds, axis=0)
+    intrinsics = np.stack(intrinsics, axis=0)
+        
+    # h, w = images.shape[1:3]
+    # camera_angle_x = float(meta["camera_angle_x"])
+    # focal = 0.5 * w / np.tan(0.5 * camera_angle_x)
 
-    h, w = images.shape[1:3]
-    camera_angle_x = float(meta["camera_angle_x"])
-    focal = 0.5 * w / np.tan(0.5 * camera_angle_x)
-
-    return images, camtoworlds, focal
+    return images, camtoworlds, focal, intrinsics
 
 
 class SubjectLoader(torch.utils.data.Dataset):
     """Single subject data loader for training and evaluation."""
 
-    SPLITS = ["train", "val", "trainval", "test"]
-    SUBJECT_IDS = [
-        "chair",
-        "drums",
-        "ficus",
-        "hotdog",
-        "lego",
-        "materials",
-        "mic",
-        "ship",
-    ]
-
-    WIDTH, HEIGHT = 800, 800
+    SPLITS = ["train", "val", "trainval", "test", "None"]
     NEAR, FAR = 2.0, 6.0
     OPENGL_CAMERA = True
 
-    def __init__(
-        self,
-        subject_id: str,
-        root_fp: str,
-        split: str,
-        color_bkgd_aug: str = "white",
-        num_rays: int = None,
-        near: float = None,
-        far: float = None,
-        batch_over_images: bool = True,
-    ):
+    def __init__(   self,subject_id: str,root_fp: str,split: str,color_bkgd_aug: str = "white",
+                    num_rays: int = None,near: float = None,far: float = None,batch_over_images: bool = True):
+
         super().__init__()
         assert split in self.SPLITS, "%s" % split
-        assert subject_id in self.SUBJECT_IDS, "%s" % subject_id
         assert color_bkgd_aug in ["white", "black", "random"]
+        
         self.split = split
         self.num_rays = num_rays
+        
         self.near = self.NEAR if near is None else near
         self.far = self.FAR if far is None else far
-        self.training = (num_rays is not None) and (
-            split in ["train", "trainval"]
-        )
+        
+        self.training = (num_rays is not None) and (split in ["train", "trainval", "None"])
         self.color_bkgd_aug = color_bkgd_aug
         self.batch_over_images = batch_over_images
+        
         if split == "trainval":
-            _images_train, _camtoworlds_train, _focal_train = _load_renderings(
-                root_fp, subject_id, "train"
-            )
-            _images_val, _camtoworlds_val, _focal_val = _load_renderings(
-                root_fp, subject_id, "val"
-            )
+            _images_train, _camtoworlds_train, _focal_train = _load_renderings(root_fp, subject_id, "train")
+            _images_val, _camtoworlds_val, _focal_val = _load_renderings(root_fp, subject_id, "val")
             self.images = np.concatenate([_images_train, _images_val])
-            self.camtoworlds = np.concatenate(
-                [_camtoworlds_train, _camtoworlds_val]
-            )
+            self.camtoworlds = np.concatenate([_camtoworlds_train, _camtoworlds_val])
             self.focal = _focal_train
         else:
-            self.images, self.camtoworlds, self.focal = _load_renderings(
-                root_fp, subject_id, split
-            )
+            self.images, self.camtoworlds, self.focal, self.K = _load_renderings(root_fp, subject_id, split)
+
         self.images = torch.from_numpy(self.images).to(torch.uint8)
         self.camtoworlds = torch.from_numpy(self.camtoworlds).to(torch.float32)
-        self.K = torch.tensor(
-            [
-                [self.focal, 0, self.WIDTH / 2.0],
-                [0, self.focal, self.HEIGHT / 2.0],
-                [0, 0, 1],
-            ],
-            dtype=torch.float32,
-        )  # (3, 3)
-        assert self.images.shape[1:3] == (self.HEIGHT, self.WIDTH)
+        self.K = torch.from_numpy(self.K).to(torch.float32)
+
+        self.HEIGHT, self.WIDTH = self.images.shape[1:3]
 
     def __len__(self):
         return len(self.images)
@@ -133,8 +106,7 @@ class SubjectLoader(torch.utils.data.Dataset):
     def preprocess(self, data):
         """Process the fetched / cached data with randomness."""
         rgba, rays = data["rgba"], data["rays"]
-        pixels, alpha = torch.split(rgba, [3, 1], dim=-1)
-
+        
         if self.training:
             if self.color_bkgd_aug == "random":
                 color_bkgd = torch.rand(3, device=self.images.device)
@@ -146,7 +118,12 @@ class SubjectLoader(torch.utils.data.Dataset):
             # just use white during inference
             color_bkgd = torch.ones(3, device=self.images.device)
 
-        pixels = pixels * alpha + color_bkgd * (1.0 - alpha)
+        if rgba.shape[1] == 4:
+            pixels, alpha = torch.split(rgba, [3, 1], dim=-1)
+            pixels = pixels * alpha + color_bkgd * (1.0 - alpha)
+        else:
+            pixels = rgba
+
         return {
             "pixels": pixels,  # [n_rays, 3] or [h, w, 3]
             "rays": rays,  # [n_rays,] or [h, w]
@@ -163,20 +140,12 @@ class SubjectLoader(torch.utils.data.Dataset):
 
         if self.training:
             if self.batch_over_images:
-                image_id = torch.randint(
-                    0,
-                    len(self.images),
-                    size=(num_rays,),
-                    device=self.images.device,
-                )
+                image_id = torch.randint(0,len(self.images),size=(num_rays,),device=self.images.device)
             else:
                 image_id = [index]
-            x = torch.randint(
-                0, self.WIDTH, size=(num_rays,), device=self.images.device
-            )
-            y = torch.randint(
-                0, self.HEIGHT, size=(num_rays,), device=self.images.device
-            )
+
+            x = torch.randint(0, self.WIDTH, size=(num_rays,), device=self.images.device)
+            y = torch.randint(0, self.HEIGHT, size=(num_rays,), device=self.images.device)
         else:
             image_id = [index]
             x, y = torch.meshgrid(
@@ -190,13 +159,12 @@ class SubjectLoader(torch.utils.data.Dataset):
         # generate rays
         rgba = self.images[image_id, y, x] / 255.0  # (num_rays, 4)
         c2w = self.camtoworlds[image_id]  # (num_rays, 3, 4)
+        K = self.K[image_id]
         camera_dirs = F.pad(
             torch.stack(
                 [
-                    (x - self.K[0, 2] + 0.5) / self.K[0, 0],
-                    (y - self.K[1, 2] + 0.5)
-                    / self.K[1, 1]
-                    * (-1.0 if self.OPENGL_CAMERA else 1.0),
+                    (x - K[:,0, 2] + 0.5) / K[:,0, 0],
+                    (y - K[:,1, 2] + 0.5) / K[:,1, 1] * (-1.0 if self.OPENGL_CAMERA else 1.0),
                 ],
                 dim=-1,
             ),
@@ -214,11 +182,11 @@ class SubjectLoader(torch.utils.data.Dataset):
         if self.training:
             origins = torch.reshape(origins, (num_rays, 3))
             viewdirs = torch.reshape(viewdirs, (num_rays, 3))
-            rgba = torch.reshape(rgba, (num_rays, 4))
+            rgba = torch.reshape(rgba, (num_rays, rgba.shape[1]))
         else:
             origins = torch.reshape(origins, (self.HEIGHT, self.WIDTH, 3))
             viewdirs = torch.reshape(viewdirs, (self.HEIGHT, self.WIDTH, 3))
-            rgba = torch.reshape(rgba, (self.HEIGHT, self.WIDTH, 4))
+            rgba = torch.reshape(rgba, (self.HEIGHT, self.WIDTH, rgba.shape[1]))
 
         rays = Rays(origins=origins, viewdirs=viewdirs)
 
