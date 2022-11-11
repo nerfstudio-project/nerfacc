@@ -7,31 +7,25 @@ import torch.nn.functional as F
 
 from .utils import Rays
 
-trans_t = lambda t : torch.Tensor([
-    [1,0,0,0],
-    [0,1,0,0],
-    [0,0,1,t],
-    [0,0,0,1]]).float()
+from scipy.spatial.transform import Rotation as SR
 
-rot_phi = lambda phi : torch.Tensor([
-    [1,0,0,0],
-    [0,np.cos(phi),-np.sin(phi),0],
-    [0,np.sin(phi), np.cos(phi),0],
-    [0,0,0,1]]).float()
+#generates "numberOfFrames" poses in spherical position
+#each pose is looking at 0,0,0 and rotates around Z axis
+def sphericalPoses(p0,numberOfFrames):
+   # transMat = np.array([[1,0,0,t[0]],[0,1,0,t[1]],[0,0,1,t[2]],[0,0,0,1]]).astype(float)
+   # rotMatX = np.identity(4)
+   # rotMatX[0:3,0:3] = SR.from_euler('X',-np.pi/4).as_matrix()
+   poses = []
+   for angle in np.linspace(0,np.pi/2,numberOfFrames):
 
-rot_theta = lambda th : torch.Tensor([
-    [np.cos(th),0,-np.sin(th),0],
-    [0,1,0,0],
-    [np.sin(th),0, np.cos(th),0],
-    [0,0,0,1]]).float()
+      rotMatZ = np.identity(4)
+      rotMatZ[0:3,0:3] = SR.from_euler('Z',angle).as_matrix()
 
+      myPose = rotMatZ @ p0
+      poses.append(myPose)
 
-def pose_spherical(theta, phi, radius, mat):
-    c2w = trans_t(radius)
-    c2w = rot_phi(phi/180.*np.pi) @ c2w
-    c2w = rot_theta(theta/180.*np.pi) @ c2w
-    c2w = torch.Tensor(np.array([[-1,0,0,0],[0,0,1,0],[0,1,0,0],[0,0,0,1]])) @ c2w
-    return torch.Tensor(mat) @ c2w
+   poses = np.stack(poses, axis=0)
+   return poses
 
 def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: int = 30):
 
@@ -43,7 +37,7 @@ def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: in
    with open(os.path.join(data_dir, 'transforms.json'), 'r') as fp:
       meta = json.load(fp)
 
-   frame = meta["frames"][0]
+   frame = meta["frames"][15]
    fname = os.path.join(data_dir, frame['file_path'][2:])
 
    #image intrinsics
@@ -53,9 +47,8 @@ def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: in
    w, h = frame['w'], frame['h']
 
    c2w = np.array(frame["transform_matrix"])
-   # camtoworlds = torch.stack([pose_spherical(angle, -45.0, 2.0) for angle in np.linspace(-180,180,40+1)[:-1]], 0)
-   camtoworlds = torch.stack([pose_spherical(angle, 0, 0, c2w) for angle in np.linspace(-180,180,numberOfFrames+1)[:-1]], 0)
-
+   camtoworlds = sphericalPoses(c2w, numberOfFrames)
+   
    return camtoworlds, K, int(w), int(h)
 
 
@@ -69,7 +62,7 @@ class SubjectTestPoseLoader(torch.utils.data.Dataset):
       self.color_bkgd_aug = color_bkgd_aug
       self.camtoworlds, self.K, self.WIDTH, self.HEIGHT = generateSphericalTestPoses(root_fp, subject_id, numberOfFrames)
 
-      self.camtoworlds = (self.camtoworlds).to(torch.float32)
+      self.camtoworlds = torch.from_numpy(self.camtoworlds).to(torch.float32)
       self.K = torch.from_numpy(self.K).to(torch.float32)
 
    def __len__(self):
