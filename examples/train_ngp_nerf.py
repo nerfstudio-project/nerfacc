@@ -76,9 +76,16 @@ if __name__ == "__main__":
 
     #test poses
     numOfFrames = 30
-    test_poses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp, numberOfFrames=numOfFrames)
+    test_poses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp, numberOfFrames=numOfFrames, **train_dataset_kwargs)
     test_poses.camtoworlds = test_poses.camtoworlds.to(device)
     test_poses.K = test_poses.K.to(device)
+
+    savepath = os.path.join(data_root_fp,args.scene+"_test")
+    if not os.path.exists(savepath):
+        os.makedirs(savepath)
+        print('Test results folder not found, creating new dir: ' + savepath)
+    else:
+        print('Test images will be saved in ' +savepath)
 
     if args.auto_aabb:
         #camera_locs = torch.cat([train_dataset.camtoworlds, test_dataset.camtoworlds])[:, :3, -1]
@@ -98,8 +105,8 @@ if __name__ == "__main__":
         alpha_thre = 1e-2
     else:
         contraction_type = ContractionType.AABB
-        args.aabb = [-1.5, -1.5, -1.5, 1.5, 1.5, 1.5]
-        # args.aabb = [-2000, -500, -10, 2000, 500, 100]
+        # args.aabb = [-1.5, -1.5, -1.5, 1.5, 1.5, 1.5]
+        args.aabb = [-1500, -1500, -50, 1500, 1500, 250]
         scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
         near_plane = None
         far_plane = None
@@ -113,17 +120,14 @@ if __name__ == "__main__":
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPradianceField(aabb=args.aabb,unbounded=args.unbounded,).to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
+    
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer,
         milestones=[max_steps // 2, max_steps * 3 // 4, max_steps * 9 // 10],
         gamma=0.33,
     )
 
-    occupancy_grid = OccupancyGrid(
-        roi_aabb=args.aabb,
-        resolution=grid_resolution,
-        contraction_type=contraction_type,
-    ).to(device)
+    occupancy_grid = OccupancyGrid(roi_aabb=args.aabb,resolution=grid_resolution,contraction_type=contraction_type).to(device)
 
     # training
     step = 0
@@ -214,8 +218,9 @@ if __name__ == "__main__":
 
                 psnrs = []
                 with torch.no_grad():
-                    for i in tqdm.tqdm(range(numOfFrames)):
-                        data = test_poses[i]
+                    for i in tqdm.tqdm(range(10)):
+                        data = test_dataset[i]
+                        # data = test_poses[i]
                         render_bkgd = data["color_bkgd"]
                         rays = data["rays"]
                         # pixels = data["pixels"]
@@ -239,7 +244,8 @@ if __name__ == "__main__":
                         # mse = F.mse_loss(rgb, pixels)
                         # psnr = -10.0 * torch.log(mse) / np.log(10.0)
                         # psnrs.append(psnr.item())
-                        imageio.imwrite("/home/ubuntu/data/rgb_test_"+str(i)+".png",(rgb.cpu().numpy() * 255).astype(np.uint8))
+                        saveImg = os.path.join(savepath,"rgb_test_"+str(i)+".png")
+                        imageio.imwrite(saveImg,(rgb.cpu().numpy() * 255).astype(np.uint8))
                         # imageio.imwrite("/home/ubuntu/data/depth_test_"+str(i)+".png",(depth.cpu().numpy() * 255).astype(np.uint8))
 
                 # psnr_avg = sum(psnrs) / len(psnrs)
