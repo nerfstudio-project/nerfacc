@@ -94,7 +94,7 @@ __global__ void cdf_resampling_kernel(
     const int *packed_info,  // input ray & point indices.
     const scalar_t *starts,  // input start t
     const scalar_t *ends,    // input end t
-    const scalar_t *weights, // transmittance weights
+    const scalar_t *w, // transmittance weights
     const int *resample_packed_info,
     scalar_t *resample_starts,
     scalar_t *resample_ends)
@@ -111,25 +111,26 @@ __global__ void cdf_resampling_kernel(
 
     starts += base;
     ends += base;
-    weights += base;
+    w += base;
     resample_starts += resample_base;
     resample_ends += resample_base;
 
     // normalize weights **per ray**
-    scalar_t weights_sum = 0.0f;
+    scalar_t w_sum = 0.0f;
     for (int j = 0; j < steps; j++)
-        weights_sum += weights[j];
-    scalar_t padding = fmaxf(1e-5f - weights_sum, 0.0f);
-    scalar_t padding_step = padding / steps;
-    weights_sum += padding;
+        w_sum += w[j];
+    // scalar_t padding = fmaxf(1e-10f - weights_sum, 0.0f);
+    // scalar_t padding_step = padding / steps;
+    // weights_sum += padding;
 
-    int num_bins = resample_steps + 1;
-    scalar_t cdf_step_size = (1.0f - 1.0 / num_bins) / resample_steps;
+    int num_endpoints = resample_steps + 1;
+    scalar_t cdf_pad = 1.0f / (2 * num_endpoints);
+    scalar_t cdf_step_size = (1.0f - 2 * cdf_pad) / resample_steps;
 
     int idx = 0, j = 0;
-    scalar_t cdf_prev = 0.0f, cdf_next = (weights[idx] + padding_step) / weights_sum;
-    scalar_t cdf_u = 1.0 / (2 * num_bins);
-    while (j < num_bins)
+    scalar_t cdf_prev = 0.0f, cdf_next = w[idx] / w_sum;
+    scalar_t cdf_u = cdf_pad;
+    while (j < num_endpoints)
     {
         if (cdf_u < cdf_next)
         {
@@ -137,26 +138,32 @@ __global__ void cdf_resampling_kernel(
             // resample in this interval
             scalar_t scaling = (ends[idx] - starts[idx]) / (cdf_next - cdf_prev);
             scalar_t t = (cdf_u - cdf_prev) * scaling + starts[idx];
-            if (j < num_bins - 1)
+            // if (j == 100) {
+            //     printf(
+            //         "cdf_u: %.10f, cdf_next: %.10f, cdf_prev: %.10f, scaling: %.10f, t: %.10f, starts[idx]: %.10f, ends[idx]: %.10f\n",
+            //         cdf_u, cdf_next, cdf_prev, scaling, t, starts[idx], ends[idx]);
+            // }
+            if (j < num_endpoints - 1)
                 resample_starts[j] = t;
             if (j > 0)
                 resample_ends[j - 1] = t;
             // going further to next resample
-            cdf_u += cdf_step_size;
+            // cdf_u += cdf_step_size;
             j += 1;
+            cdf_u = j * cdf_step_size + cdf_pad;
         }
         else
         {
             // going to next interval
             idx += 1;
             cdf_prev = cdf_next;
-            cdf_next += (weights[idx] + padding_step) / weights_sum;
+            cdf_next += w[idx] / w_sum;
         }
     }
-    if (j != num_bins)
-    {
-        printf("Error: %d %d %f\n", j, num_bins, weights_sum);
-    }
+    // if (j != num_endpoints)
+    // {
+    //     printf("Error: %d %d %f\n", j, num_endpoints, weights_sum);
+    // }
     return;
 }
 

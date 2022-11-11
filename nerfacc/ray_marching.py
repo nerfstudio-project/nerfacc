@@ -4,10 +4,12 @@ import torch
 
 import nerfacc.cuda as _C
 
+from .cdf import ray_resampling
 from .contraction import ContractionType
 from .grid import Grid
 from .intersection import ray_aabb_intersect
-from .vol_rendering import render_visibility
+from .pack import unpack_info
+from .vol_rendering import render_visibility, render_weight_from_density
 
 
 @torch.no_grad()
@@ -24,6 +26,7 @@ def ray_marching(
     # sigma/alpha function for skipping invisible space
     sigma_fn: Optional[Callable] = None,
     alpha_fn: Optional[Callable] = None,
+    proposal_nets: Optional[torch.nn.Module] = None,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
     # rendering options
@@ -189,6 +192,23 @@ def ray_marching(
         cone_angle,
     )
 
+    if proposal_nets is not None:
+        proposal_sample_list = []
+        # resample with proposal nets
+        for net, num_samples in zip(proposal_nets, [48]):
+            ray_indices = unpack_info(packed_info)
+            with torch.enable_grad():
+                sigmas = sigma_fn(t_starts, t_ends, ray_indices.long(), net=net)
+                weights = render_weight_from_density(
+                    packed_info, t_starts, t_ends, sigmas, early_stop_eps=0
+                )
+                proposal_sample_list.append(
+                    (packed_info, t_starts, t_ends, weights)
+                )
+            packed_info, t_starts, t_ends = ray_resampling(
+                packed_info, t_starts, t_ends, weights, n_samples=num_samples
+            )
+
     # skip invisible space
     if sigma_fn is not None or alpha_fn is not None:
         # Query sigma without gradients
@@ -218,4 +238,7 @@ def ray_marching(
             t_ends[masks],
         )
 
-    return ray_indices, t_starts, t_ends
+    if proposal_nets is not None:
+        return packed_info, t_starts, t_ends, proposal_sample_list
+    else:
+        return packed_info, t_starts, t_ends

@@ -37,7 +37,7 @@ def ray_resampling(
         resampled_t_starts,
         resampled_t_ends,
     ) = _C.ray_resampling(
-        packed_info.contiguous(),
+        packed_info.contiguous().int(),
         t_starts.contiguous(),
         t_ends.contiguous(),
         weights.contiguous(),
