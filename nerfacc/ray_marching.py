@@ -195,7 +195,7 @@ def ray_marching(
     if proposal_nets is not None:
         proposal_sample_list = []
         # resample with proposal nets
-        for net, num_samples in zip(proposal_nets, [48]):
+        for net, num_samples in zip(proposal_nets, [32]):
             ray_indices = unpack_info(packed_info)
             with torch.enable_grad():
                 sigmas = sigma_fn(t_starts, t_ends, ray_indices.long(), net=net)

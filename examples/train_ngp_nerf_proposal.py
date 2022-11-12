@@ -204,7 +204,7 @@ if __name__ == "__main__":
         subject_id=args.scene,
         root_fp=data_root_fp,
         split=args.train_split,
-        num_rays=target_sample_batch_size // render_n_samples,
+        num_rays=target_sample_batch_size // 32,
         **train_dataset_kwargs,
     )
 
@@ -262,7 +262,7 @@ if __name__ == "__main__":
                 hidden_dim=16,
                 max_res=64,
                 geo_feat_dim=0,
-                n_levels=5,
+                n_levels=2,
                 log2_hashmap_size=17,
             ),
             # NGPradianceField(
