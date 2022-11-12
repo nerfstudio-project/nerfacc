@@ -134,13 +134,15 @@ def test_pdf_query():
     rays_d = torch.randn((1, 3), device=device)
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
-    packed_info, t_starts, t_ends = ray_marching(
+    ray_indices, t_starts, t_ends = ray_marching(
         rays_o,
         rays_d,
         near_plane=0.1,
         far_plane=1.0,
         render_step_size=0.2,
     )
+    packed_info = pack_info(ray_indices, rays_o.shape[0])
+
     weights = torch.rand((t_starts.shape[0],), device=device)
     weights_new = ray_pdf_query(
         packed_info,
@@ -151,6 +153,7 @@ def test_pdf_query():
         t_starts + 0.3,
         t_ends + 0.3,
     )
+
 
 if __name__ == "__main__":
     test_resampling()

@@ -23,7 +23,7 @@ def rendering(
     rgb_alpha_fn: Optional[Callable] = None,
     # rendering options
     render_bkgd: Optional[torch.Tensor] = None,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple:
     """Render the rays through the radience field defined by `rgb_sigma_fn`.
 
     This function is differentiable to the outputs of `rgb_sigma_fn` so it can 

@@ -1,9 +1,7 @@
-from struct import pack
-
 import torch
 from torch import Tensor
 
-from nerfacc import ray_marching, ray_resampling
+from nerfacc import pack_info, ray_marching, ray_resampling
 from nerfacc.cuda import ray_pdf_query
 
 device = "cuda:0"
@@ -44,13 +42,14 @@ def test_pdf_query():
     rays_d = torch.randn((n_rays, 3), device=device)
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
-    packed_info, t_starts, t_ends = ray_marching(
+    ray_indices, t_starts, t_ends = ray_marching(
         rays_o,
         rays_d,
         near_plane=0.1,
         far_plane=1.0,
         render_step_size=0.2,
     )
+    packed_info = pack_info(ray_indices, n_rays)
     weights = torch.rand((t_starts.shape[0],), device=device)
 
     packed_info_new = packed_info
@@ -76,10 +75,10 @@ def test_pdf_query():
         t_ends_new,
     )
     weights_new = weights_new.flatten()
-    print(weights)
+    # print(weights)
 
-    print(weights_new_ref)
-    print(weights_new)
+    # print(weights_new_ref)
+    # print(weights_new)
 
 
 if __name__ == "__main__":

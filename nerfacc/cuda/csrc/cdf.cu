@@ -256,7 +256,7 @@ std::vector<torch::Tensor> ray_resampling(
     TORCH_CHECK(packed_info.ndimension() == 2 & packed_info.size(1) == 2);
     TORCH_CHECK(starts.ndimension() == 2 & starts.size(1) == 1);
     TORCH_CHECK(ends.ndimension() == 2 & ends.size(1) == 1);
-    TORCH_CHECK(weights.ndimension() == 1);
+    TORCH_CHECK(weights.ndimension() == 2 & weights.size(1) == 1);
 
     const uint32_t n_rays = packed_info.size(0);
     const uint32_t n_samples = weights.size(0);
@@ -312,7 +312,7 @@ torch::Tensor ray_pdf_query(
     TORCH_CHECK(packed_info.ndimension() == 2 & packed_info.size(1) == 2);
     TORCH_CHECK(starts.ndimension() == 2 & starts.size(1) == 1);
     TORCH_CHECK(ends.ndimension() == 2 & ends.size(1) == 1);
-    TORCH_CHECK(pdfs.ndimension() == 1);
+    TORCH_CHECK(pdfs.ndimension() == 2 & pdfs.size(1) == 1);
 
     const uint32_t n_rays = packed_info.size(0);
     const uint32_t n_resamples = resample_starts.size(0);
@@ -320,7 +320,7 @@ torch::Tensor ray_pdf_query(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    torch::Tensor resample_pdfs = torch::zeros({n_resamples}, pdfs.options());
+    torch::Tensor resample_pdfs = torch::zeros({n_resamples, 1}, pdfs.options());
 
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(
         pdfs.scalar_type(),

@@ -196,11 +196,10 @@ def ray_marching(
         proposal_sample_list = []
         # resample with proposal nets
         for net, num_samples in zip(proposal_nets, [32]):
-            ray_indices = unpack_info(packed_info)
             with torch.enable_grad():
                 sigmas = sigma_fn(t_starts, t_ends, ray_indices.long(), net=net)
                 weights = render_weight_from_density(
-                    packed_info, t_starts, t_ends, sigmas, early_stop_eps=0
+                    t_starts, t_ends, sigmas, ray_indices=ray_indices
                 )
                 proposal_sample_list.append(
                     (packed_info, t_starts, t_ends, weights)
@@ -208,6 +207,7 @@ def ray_marching(
             packed_info, t_starts, t_ends = ray_resampling(
                 packed_info, t_starts, t_ends, weights, n_samples=num_samples
             )
+            ray_indices = unpack_info(packed_info, n_samples=t_starts.shape[0])
 
     # skip invisible space
     if sigma_fn is not None or alpha_fn is not None:
@@ -239,6 +239,6 @@ def ray_marching(
         )
 
     if proposal_nets is not None:
-        return packed_info, t_starts, t_ends, proposal_sample_list
+        return ray_indices, t_starts, t_ends, proposal_sample_list
     else:
-        return packed_info, t_starts, t_ends
+        return ray_indices, t_starts, t_ends
