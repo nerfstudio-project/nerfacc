@@ -18,7 +18,7 @@ from datasets.utils import Rays, namedtuple_map
 from radiance_fields.ngp import NGPradianceField
 from utils import set_random_seed
 
-from nerfacc import ContractionType, ray_marching, rendering
+from nerfacc import ContractionType, pack_info, ray_marching, rendering
 from nerfacc.cuda import ray_pdf_query
 
 
@@ -80,7 +80,7 @@ def render_image(
     )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        packed_info, t_starts, t_ends, proposal_sample_list = ray_marching(
+        ray_indices, t_starts, t_ends, proposal_sample_list = ray_marching(
             chunk_rays.origins,
             chunk_rays.viewdirs,
             scene_aabb=scene_aabb,
@@ -95,13 +95,15 @@ def render_image(
             alpha_thre=alpha_thre,
         )
         rgb, opacity, depth, weights = rendering(
-            rgb_sigma_fn,
-            packed_info,
             t_starts,
             t_ends,
+            ray_indices=ray_indices,
+            n_rays=len(chunk_rays.origins),
+            rgb_sigma_fn=rgb_sigma_fn,
             render_bkgd=render_bkgd,
         )
         if radiance_field.training:
+            packed_info = pack_info(ray_indices, n_rays=len(chunk_rays.origins))
             proposal_sample_list.append(
                 (packed_info, t_starts, t_ends, weights)
             )
