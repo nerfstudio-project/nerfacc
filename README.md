@@ -16,8 +16,7 @@
 
 https://www.nerfacc.com/
 
-NerfAcc is a PyTorch Nerf acceleration toolbox for both training and inference. It focus on
-efficient volumetric rendering of radiance fields, which is universal and plug-and-play for most of the NeRFs.
+NerfAcc is a PyTorch Nerf acceleration toolbox for both training and inference. It focuses on efficient volumetric rendering of radiance fields, which is universal and plug-and-play for most of the NeRFs.
 
 Using NerfAcc, 
 
@@ -29,7 +28,7 @@ Using NerfAcc,
   rather than *2 days* as in the paper, and with *better quality* (+~2.5 PSNR).
 - Both *bounded* and *unbounded* scenes are supported.
 
-**And it is pure Python interface with flexible APIs!**
+**And it is a pure Python interface with flexible APIs!**
 
 ## Installation
 
@@ -39,11 +38,11 @@ pip install nerfacc
 
 ## Usage
 
-The idea of NerfAcc is to perform efficient ray marching and volumetric rendering. So NerfAcc can work with any user-defined radiance field. To plug the NerfAcc rendering pipeline into your code and enjoy the acceleration, you only need to define two functions with your radience field.
+The idea of NerfAcc is to perform efficient ray marching and volumetric rendering. So NerfAcc can work with any user-defined radiance field. To plug the NerfAcc rendering pipeline into your code and enjoy the acceleration, you only need to define two functions with your radiance field.
 - `sigma_fn`: Compute density at each sample. It will be used by `nerfacc.ray_marching()` to skip the empty and occluded space during ray marching, which is where the major speedup comes from. 
 - `rgb_sigma_fn`: Compute color and density at each sample. It will be used by `nerfacc.rendering()` to conduct differentiable volumetric rendering. This function will receive gradients to update your network.
 
-An simple example is like this:
+A simple example is like this:
 
 ``` python
 import torch
@@ -109,8 +108,7 @@ optimizer.step()
 
 ## Examples: 
 
-Before running those example scripts, please check the script about which dataset it is needed, and download
-the dataset first.
+Before running those example scripts, please check the script about which dataset it is needed, and download the dataset first.
 
 ```bash
 # clone the repo with submodules.
