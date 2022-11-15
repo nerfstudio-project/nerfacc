@@ -50,7 +50,7 @@ def test_pdf_query():
         render_step_size=0.2,
     )
     packed_info = pack_info(ray_indices, n_rays)
-    weights = torch.rand((t_starts.shape[0],), device=device)
+    weights = torch.rand((t_starts.shape[0], 1), device=device)
 
     packed_info_new = packed_info
     t_starts_new = t_starts - 0.3

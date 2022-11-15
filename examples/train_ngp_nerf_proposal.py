@@ -28,6 +28,7 @@ def set_random_seed(seed):
     torch.manual_seed(seed)
 
 
+# @profile
 def render_image(
     # scene
     radiance_field: torch.nn.Module,
@@ -169,7 +170,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--test_chunk_size",
         type=int,
-        default=8192,
+        default=1024,
     )
     parser.add_argument(
         "--unbounded",
@@ -264,8 +265,8 @@ if __name__ == "__main__":
                 hidden_dim=16,
                 max_res=64,
                 geo_feat_dim=0,
-                n_levels=2,
-                log2_hashmap_size=17,
+                n_levels=4,
+                log2_hashmap_size=19,
             ),
             # NGPradianceField(
             #     aabb=args.aabb,
@@ -303,6 +304,8 @@ if __name__ == "__main__":
     for epoch in range(10000000):
         for i in range(len(train_dataset)):
             radiance_field.train()
+            proposal_nets.train()
+
             data = train_dataset[i]
 
             render_bkgd = data["color_bkgd"]
@@ -350,6 +353,7 @@ if __name__ == "__main__":
                 t_ends,
                 weights,
             ) = proposal_sample_list[-1]
+            loss_interval = 0.0
             for (
                 proposal_packed_info,
                 proposal_t_starts,
@@ -365,7 +369,6 @@ if __name__ == "__main__":
                     proposal_t_starts,
                     proposal_t_ends,
                 ).detach()
-                torch.cuda.synchronize()
 
                 loss_interval = (
                     torch.clamp(proposal_weights_gt - proposal_weights, min=0)
@@ -392,6 +395,7 @@ if __name__ == "__main__":
             if step >= 0 and step % 1000 == 0 and step > 0:
                 # evaluation
                 radiance_field.eval()
+                proposal_nets.eval()
 
                 psnrs = []
                 with torch.no_grad():

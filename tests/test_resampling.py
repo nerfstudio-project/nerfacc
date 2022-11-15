@@ -105,8 +105,8 @@ def test_resampling():
 
     t_starts = t[:, :-1][masks].unsqueeze(-1)
     t_ends = t[:, 1:][masks].unsqueeze(-1)
-    w_logits = w_logits[masks]
-    w = w[masks]
+    w_logits = w_logits[masks].unsqueeze(-1)
+    w = w[masks].unsqueeze(-1)
     num_steps = masks.long().sum(dim=-1)
     cum_steps = torch.cumsum(num_steps, dim=0)
     packed_info = torch.stack([cum_steps - num_steps, num_steps], dim=-1).int()
@@ -143,7 +143,7 @@ def test_pdf_query():
     )
     packed_info = pack_info(ray_indices, rays_o.shape[0])
 
-    weights = torch.rand((t_starts.shape[0],), device=device)
+    weights = torch.rand((t_starts.shape[0], 1), device=device)
     weights_new = ray_pdf_query(
         packed_info,
         t_starts,
