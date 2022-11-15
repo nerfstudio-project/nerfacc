@@ -142,7 +142,7 @@ def accumulate_along_rays(
 
     Args:
         weights: Volumetric rendering weights for those samples. Tensor with shape \
-            (n_samples,).
+            (n_samples, 1).
         ray_indices: Ray index of each sample. IntTensor with shape (n_samples).
         values: The values to be accmulated. Tensor with shape (n_samples, D). If \
             None, the accumulated values are just weights. Default is None.

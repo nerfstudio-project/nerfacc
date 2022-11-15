@@ -201,7 +201,7 @@ if __name__ == "__main__":
         from datasets.nerf_synthetic import SubjectLoader
 
         data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
-        target_sample_batch_size = 1 << 20
+        target_sample_batch_size = 1 << 18
 
     train_dataset = SubjectLoader(
         subject_id=args.scene,
@@ -255,7 +255,7 @@ if __name__ == "__main__":
             * math.sqrt(3)
             / render_n_samples
         ).item()
-        alpha_thre = 0.0
+        alpha_thre = 1e-2
 
     proposal_nets = torch.nn.ModuleList(
         [
@@ -330,7 +330,7 @@ if __name__ == "__main__":
                 render_step_size=render_step_size,
                 render_bkgd=render_bkgd,
                 cone_angle=args.cone_angle,
-                alpha_thre=alpha_thre,
+                alpha_thre=min(alpha_thre, alpha_thre * step / 1000),
             )
             if n_rendering_samples == 0:
                 continue
@@ -374,7 +374,7 @@ if __name__ == "__main__":
                     torch.clamp(proposal_weights_gt - proposal_weights, min=0)
                 ) ** 2 / (proposal_weights + torch.finfo(torch.float32).eps)
                 loss_interval = loss_interval.mean()
-                loss += loss_interval * 1.0
+                loss += loss_interval * 0.1
 
             optimizer.zero_grad()
             # do not unscale it because we are using Adam.

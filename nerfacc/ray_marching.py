@@ -196,7 +196,7 @@ def ray_marching(
     proposal_sample_list = []
     if proposal_nets is not None:
         # resample with proposal nets
-        for net, num_samples in zip(proposal_nets, [64]):
+        for net, num_samples in zip(proposal_nets, [32]):
             with torch.no_grad():
                 # skip invisible space
                 if sigma_fn is not None or alpha_fn is not None:
@@ -226,7 +226,7 @@ def ray_marching(
                         alphas,
                         ray_indices=ray_indices,
                         early_stop_eps=early_stop_eps,
-                        alpha_thre=min(alphas.mean().item(), 1e-1),
+                        alpha_thre=alpha_thre,
                         n_rays=rays_o.shape[0],
                     )
                     ray_indices, t_starts, t_ends = (
@@ -254,6 +254,40 @@ def ray_marching(
                 packed_info, t_starts, t_ends, weights, n_samples=num_samples
             )
             ray_indices = unpack_info(packed_info, n_samples=t_starts.shape[0])
+
+    with torch.no_grad():
+        # skip invisible space
+        if sigma_fn is not None or alpha_fn is not None:
+            # Query sigma without gradients
+            if sigma_fn is not None:
+                sigmas = sigma_fn(t_starts, t_ends, ray_indices.long())
+                assert (
+                    sigmas.shape == t_starts.shape
+                ), "sigmas must have shape of (N, 1)! Got {}".format(
+                    sigmas.shape
+                )
+                alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+            elif alpha_fn is not None:
+                alphas = alpha_fn(t_starts, t_ends, ray_indices.long())
+                assert (
+                    alphas.shape == t_starts.shape
+                ), "alphas must have shape of (N, 1)! Got {}".format(
+                    alphas.shape
+                )
+
+            # Compute visibility of the samples, and filter out invisible samples
+            masks = render_visibility(
+                alphas,
+                ray_indices=ray_indices,
+                early_stop_eps=early_stop_eps,
+                alpha_thre=alpha_thre,
+                n_rays=rays_o.shape[0],
+            )
+            ray_indices, t_starts, t_ends = (
+                ray_indices[masks],
+                t_starts[masks],
+                t_ends[masks],
+            )
 
     if proposal_nets is not None:
         return ray_indices, t_starts, t_ends, proposal_sample_list
