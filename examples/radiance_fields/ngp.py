@@ -111,25 +111,39 @@ class NGPradianceField(torch.nn.Module):
                 },
             )
 
-        self.mlp_base = tcnn.NetworkWithInputEncoding(
-            n_input_dims=num_dim,
-            n_output_dims=1 + self.geo_feat_dim,
-            encoding_config={
-                "otype": "HashGrid",
-                "n_levels": n_levels,
-                "n_features_per_level": 2,
-                "log2_hashmap_size": log2_hashmap_size,
-                "base_resolution": base_res,
-                "per_level_scale": per_level_scale,
-            },
-            network_config={
-                "otype": "FullyFusedMLP",
-                "activation": "ReLU",
-                "output_activation": "None",
-                "n_neurons": hidden_dim,
-                "n_hidden_layers": 1,
-            },
-        )
+        if hidden_dim > 0:
+            self.mlp_base = tcnn.NetworkWithInputEncoding(
+                n_input_dims=num_dim,
+                n_output_dims=1 + self.geo_feat_dim,
+                encoding_config={
+                    "otype": "HashGrid",
+                    "n_levels": n_levels,
+                    "n_features_per_level": 2,
+                    "log2_hashmap_size": log2_hashmap_size,
+                    "base_resolution": base_res,
+                    "per_level_scale": per_level_scale,
+                },
+                network_config={
+                    "otype": "FullyFusedMLP",
+                    "activation": "ReLU",
+                    "output_activation": "None",
+                    "n_neurons": hidden_dim,
+                    "n_hidden_layers": 1,
+                },
+            )
+        else:
+            self.mlp_base = tcnn.Encoding(
+                n_input_dims=num_dim,
+                encoding_config={
+                    "otype": "HashGrid",
+                    "n_levels": 1,
+                    "n_features_per_level": 1,
+                    "log2_hashmap_size": 21,
+                    "base_resolution": 128,
+                    "per_level_scale": 1.0,
+                },
+            )
+
         if self.geo_feat_dim > 0:
             self.mlp_head = tcnn.Network(
                 n_input_dims=(

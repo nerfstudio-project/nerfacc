@@ -262,12 +262,18 @@ if __name__ == "__main__":
             NGPradianceField(
                 aabb=args.aabb,
                 use_viewdirs=False,
-                hidden_dim=16,
-                max_res=64,
+                hidden_dim=0,
                 geo_feat_dim=0,
-                n_levels=4,
-                log2_hashmap_size=19,
             ),
+            # NGPradianceField(
+            #     aabb=args.aabb,
+            #     use_viewdirs=False,
+            #     hidden_dim=16,
+            #     max_res=64,
+            #     geo_feat_dim=0,
+            #     n_levels=4,
+            #     log2_hashmap_size=19,
+            # ),
             # NGPradianceField(
             #     aabb=args.aabb,
             #     use_viewdirs=False,
@@ -374,7 +380,7 @@ if __name__ == "__main__":
                     torch.clamp(proposal_weights_gt - proposal_weights, min=0)
                 ) ** 2 / (proposal_weights + torch.finfo(torch.float32).eps)
                 loss_interval = loss_interval.mean()
-                loss += loss_interval * 0.1
+                loss += loss_interval * 1.0
 
             optimizer.zero_grad()
             # do not unscale it because we are using Adam.
