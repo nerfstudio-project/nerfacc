@@ -42,6 +42,7 @@ def render_image(
     render_bkgd: Optional[torch.Tensor] = None,
     cone_angle: float = 0.0,
     alpha_thre: float = 0.0,
+    proposal_nets_require_grads: bool = True,
     # test options
     test_chunk_size: int = 8192,
 ):
@@ -94,6 +95,7 @@ def render_image(
             stratified=radiance_field.training,
             cone_angle=cone_angle,
             alpha_thre=alpha_thre,
+            proposal_nets_require_grads=proposal_nets_require_grads,
         )
         rgb, opacity, depth, weights = rendering(
             t_starts,
@@ -312,91 +314,102 @@ if __name__ == "__main__":
             radiance_field.train()
             proposal_nets.train()
 
-            data = train_dataset[i]
+            # @profile
+            def _train():
+                data = train_dataset[i]
 
-            render_bkgd = data["color_bkgd"]
-            rays = data["rays"]
-            pixels = data["pixels"]
+                render_bkgd = data["color_bkgd"]
+                rays = data["rays"]
+                pixels = data["pixels"]
 
-            # render
-            (
-                rgb,
-                acc,
-                depth,
-                n_rendering_samples,
-                proposal_sample_list,
-            ) = render_image(
-                radiance_field,
-                proposal_nets,
-                rays,
-                scene_aabb,
-                # rendering options
-                near_plane=near_plane,
-                far_plane=far_plane,
-                render_step_size=render_step_size,
-                render_bkgd=render_bkgd,
-                cone_angle=args.cone_angle,
-                alpha_thre=min(alpha_thre, alpha_thre * step / 1000),
-            )
-            if n_rendering_samples == 0:
-                continue
+                # render
+                (
+                    rgb,
+                    acc,
+                    depth,
+                    n_rendering_samples,
+                    proposal_sample_list,
+                ) = render_image(
+                    radiance_field,
+                    proposal_nets,
+                    rays,
+                    scene_aabb,
+                    # rendering options
+                    near_plane=near_plane,
+                    far_plane=far_plane,
+                    render_step_size=render_step_size,
+                    render_bkgd=render_bkgd,
+                    cone_angle=args.cone_angle,
+                    alpha_thre=min(alpha_thre, alpha_thre * step / 1000),
+                    proposal_nets_require_grads=(step < 100 or step % 16 == 0),
+                )
+                # if n_rendering_samples == 0:
+                #     continue
 
-            # dynamic batch size for rays to keep sample batch size constant.
-            num_rays = len(pixels)
-            num_rays = int(
-                num_rays
-                * (target_sample_batch_size / float(n_rendering_samples))
-            )
-            train_dataset.update_num_rays(num_rays)
-            alive_ray_mask = acc.squeeze(-1) > 0
+                # dynamic batch size for rays to keep sample batch size constant.
+                num_rays = len(pixels)
+                num_rays = int(
+                    num_rays
+                    * (target_sample_batch_size / float(n_rendering_samples))
+                )
+                train_dataset.update_num_rays(num_rays)
+                alive_ray_mask = acc.squeeze(-1) > 0
 
-            # compute loss
-            loss = F.smooth_l1_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
+                # compute loss
+                loss = F.smooth_l1_loss(
+                    rgb[alive_ray_mask], pixels[alive_ray_mask]
+                )
 
-            (
-                packed_info,
-                t_starts,
-                t_ends,
-                weights,
-            ) = proposal_sample_list[-1]
-            loss_interval = 0.0
-            for (
-                proposal_packed_info,
-                proposal_t_starts,
-                proposal_t_ends,
-                proposal_weights,
-            ) in proposal_sample_list[:-1]:
-                proposal_weights_gt = ray_pdf_query(
+                (
                     packed_info,
                     t_starts,
                     t_ends,
-                    weights.detach(),
+                    weights,
+                ) = proposal_sample_list[-1]
+                loss_interval = 0.0
+                for (
                     proposal_packed_info,
                     proposal_t_starts,
                     proposal_t_ends,
-                ).detach()
+                    proposal_weights,
+                ) in proposal_sample_list[:-1]:
+                    proposal_weights_gt = ray_pdf_query(
+                        packed_info,
+                        t_starts,
+                        t_ends,
+                        weights.detach(),
+                        proposal_packed_info,
+                        proposal_t_starts,
+                        proposal_t_ends,
+                    ).detach()
 
-                loss_interval = (
-                    torch.clamp(proposal_weights_gt - proposal_weights, min=0)
-                ) ** 2 / (proposal_weights + torch.finfo(torch.float32).eps)
-                loss_interval = loss_interval.mean()
-                loss += loss_interval * 1.0
+                    loss_interval = (
+                        torch.clamp(
+                            proposal_weights_gt - proposal_weights, min=0
+                        )
+                    ) ** 2 / (proposal_weights + torch.finfo(torch.float32).eps)
+                    loss_interval = loss_interval.mean()
+                    loss += loss_interval * 1.0
 
-            optimizer.zero_grad()
-            # do not unscale it because we are using Adam.
-            grad_scaler.scale(loss).backward()
-            optimizer.step()
-            scheduler.step()
+                optimizer.zero_grad()
+                # do not unscale it because we are using Adam.
+                grad_scaler.scale(loss).backward()
+                optimizer.step()
+                scheduler.step()
 
-            if step % 100 == 0:
-                elapsed_time = time.time() - tic
-                loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
-                print(
-                    f"elapsed_time={elapsed_time:.2f}s | step={step} | "
-                    f"loss={loss:.5f} | loss_interval={loss_interval:.5f} "
-                    f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
-                    f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
-                )
+                if step % 100 == 0:
+                    elapsed_time = time.time() - tic
+                    loss = F.mse_loss(
+                        rgb[alive_ray_mask], pixels[alive_ray_mask]
+                    )
+                    print(
+                        f"elapsed_time={elapsed_time:.2f}s | step={step} | "
+                        f"loss={loss:.5f} | loss_interval={loss_interval:.5f} "
+                        f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
+                        f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
+                    )
+
+            _train()
 
             if step >= 0 and step % 1000 == 0 and step > 0:
                 # evaluation
@@ -424,6 +437,7 @@ if __name__ == "__main__":
                             render_bkgd=render_bkgd,
                             cone_angle=args.cone_angle,
                             alpha_thre=alpha_thre,
+                            proposal_nets_require_grads=False,
                             # test options
                             test_chunk_size=args.test_chunk_size,
                         )
