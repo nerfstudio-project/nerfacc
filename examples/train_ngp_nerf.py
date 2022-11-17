@@ -17,6 +17,8 @@ from utils import render_image, set_random_seed
 
 from nerfacc import ContractionType, OccupancyGrid
 
+import matplotlib.pyplot as plt
+
 if __name__ == "__main__":
 
     device = "cuda:0"
@@ -36,50 +38,26 @@ if __name__ == "__main__":
 
     render_n_samples = 1024
 
-    # setup the dataset
-    train_dataset_kwargs = {}
-    test_dataset_kwargs = {}
-
+    #---------------------------------------------------------------------------------------------------------------------------------------
     if args.ev_data == True:
         from datasets.nerf_synthetic import SubjectLoader
         from datasets.generateTestPoses import SubjectTestPoseLoader
         data_root_fp = "/home/ubuntu/data/"
-        train_dataset_kwargs = {"color_bkgd_aug": "random"}
         target_sample_batch_size = 1 << 20
         grid_resolution = 256
 
-    elif args.unbounded:
-        from datasets.nerf_360_v2 import SubjectLoader
-        data_root_fp = "/home/ubuntu/data/360_v2/"
-        target_sample_batch_size = 1 << 20
-        train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
-        test_dataset_kwargs = {"factor": 4}
-        grid_resolution = 256
-
-    else:
-        from datasets.nerf_synthetic import SubjectLoader
-        data_root_fp = "/home/ubuntu/data/nerf_synthetic/"
-        target_sample_batch_size = 1 << 18
-        grid_resolution = 128
-
-    train_dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split=args.train_split,
-                                  num_rays=target_sample_batch_size // render_n_samples,**train_dataset_kwargs)
+    #---------------------------------------------------------------------------------------------------------------------------------------
+    train_dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="train",num_rays=target_sample_batch_size // render_n_samples)
     train_dataset.images = train_dataset.images.to(device)
     train_dataset.camtoworlds = train_dataset.camtoworlds.to(device)
     train_dataset.K = train_dataset.K.to(device)
 
-    test_dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="None",
-                                 num_rays=None,**test_dataset_kwargs)
+    test_dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="test",num_rays=None)
     test_dataset.images = test_dataset.images.to(device)
     test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
     test_dataset.K = test_dataset.K.to(device)
 
-    #test poses
-    numOfFrames = 30
-    test_poses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp, numberOfFrames=numOfFrames, **train_dataset_kwargs)
-    test_poses.camtoworlds = test_poses.camtoworlds.to(device)
-    test_poses.K = test_poses.K.to(device)
-
+    #---------------------------------------------------------------------------------------------------------------------------------------
     savepath = os.path.join(data_root_fp,args.scene+"_test")
     if not os.path.exists(savepath):
         os.makedirs(savepath)
@@ -87,34 +65,18 @@ if __name__ == "__main__":
     else:
         print('Test images will be saved in ' +savepath)
 
-    if args.auto_aabb:
-        #camera_locs = torch.cat([train_dataset.camtoworlds, test_dataset.camtoworlds])[:, :3, -1]
-        camera_locs = train_dataset.camtoworlds[:, :3, -1]
-        args.aabb = torch.cat([camera_locs.min(dim=0).values, camera_locs.max(dim=0).values]).tolist()
-        print("Using auto aabb", args.aabb)
-
-    # setup the scene bounding box.
-    if args.unbounded:
-        print("Using unbounded rendering")
-        contraction_type = ContractionType.UN_BOUNDED_SPHERE
-        # contraction_type = ContractionType.UN_BOUNDED_TANH
-        scene_aabb = None
-        near_plane = 0.2
-        far_plane = 1e4
-        render_step_size = 1e-2
-        alpha_thre = 1e-2
-    else:
-        contraction_type = ContractionType.AABB
-        # args.aabb = [-1.5, -1.5, -1.5, 1.5, 1.5, 1.5]
-        args.aabb = [-1500, -1500, -50, 1500, 1500, 250]
-        scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
-        near_plane = None
-        far_plane = None
-        render_step_size = ((scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples).item()
-        alpha_thre = 0.0
-
+    #---------------------------------------------------------------------------------------------------------------------------------------
+    contraction_type = ContractionType.AABB
+    # args.aabb = [-1500, -1500, -50, 1500, 1500, 250]
+    args.aabb = [train_dataset.aabb[0][0], train_dataset.aabb[0][1], -100, train_dataset.aabb[1][0], train_dataset.aabb[1][1], 100]
+    scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
+    near_plane = None
+    far_plane = None
+    render_step_size = ((scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples).item()
+    alpha_thre = 0.0
     print("Using aabb", args.aabb, render_step_size)
 
+    #---------------------------------------------------------------------------------------------------------------------------------------
     # setup the radiance field we want to train.
     max_steps = 30000
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
@@ -128,6 +90,7 @@ if __name__ == "__main__":
     )
 
     occupancy_grid = OccupancyGrid(roi_aabb=args.aabb,resolution=grid_resolution,contraction_type=contraction_type).to(device)
+    #---------------------------------------------------------------------------------------------------------------------------------------
 
     # training
     step = 0
@@ -218,12 +181,13 @@ if __name__ == "__main__":
 
                 psnrs = []
                 with torch.no_grad():
-                    for i in tqdm.tqdm(range(10)):
+                    # for i in tqdm.tqdm(range(len(test_dataset))):
+                    for i in tqdm.tqdm([0, 15, 17]):
                         data = test_dataset[i]
                         # data = test_poses[i]
                         render_bkgd = data["color_bkgd"]
                         rays = data["rays"]
-                        # pixels = data["pixels"]
+                        pixels = data["pixels"]
 
                         # rendering
                         rgb, acc, depth, _ = render_image(
@@ -241,15 +205,24 @@ if __name__ == "__main__":
                             # test options
                             test_chunk_size=args.test_chunk_size,
                         )
-                        # mse = F.mse_loss(rgb, pixels)
-                        # psnr = -10.0 * torch.log(mse) / np.log(10.0)
-                        # psnrs.append(psnr.item())
-                        saveImg = os.path.join(savepath,"rgb_test_"+str(i)+".png")
-                        imageio.imwrite(saveImg,(rgb.cpu().numpy() * 255).astype(np.uint8))
-                        # imageio.imwrite("/home/ubuntu/data/depth_test_"+str(i)+".png",(depth.cpu().numpy() * 255).astype(np.uint8))
+                        mse = F.mse_loss(rgb, pixels)
+                        psnr = -10.0 * torch.log(mse) / np.log(10.0)
+                        psnrs.append(psnr.item())
 
-                # psnr_avg = sum(psnrs) / len(psnrs)
-                # print(f"evaluation: psnr_avg={psnr_avg}")
+                        saveImg = os.path.join(savepath,"rgb_test_"+str(i)+".png")
+                        saveDepth = os.path.join(savepath,"depth_test_"+str(i)+".png")
+                        
+                        #save rgb image
+                        imageio.imwrite(saveImg,(rgb.cpu().numpy() * 255).astype(np.uint8))
+                        
+                        #save depth image (4000 is max depth)
+                        # depthImage = (depth.cpu().numpy() / depth.max().item()) * 255
+                        depthImage = depth.cpu().numpy()
+                        plt.imsave(saveDepth,depthImage[...,-1], cmap=plt.get_cmap('turbo'), vmin=2300, vmax=depth.max().item())
+                        # imageio.imwrite(saveDepth,(depth.cpu().numpy() * 255).astype(np.uint8))
+
+                psnr_avg = sum(psnrs) / len(psnrs)
+                print(f"evaluation: psnr_avg={psnr_avg}")
                 train_dataset.training = True
 
             if step == max_steps:

@@ -149,20 +149,20 @@ class NGPradianceField(torch.nn.Module):
             x = contract_to_unisphere(x, self.aabb)
         else:
             aabb_min, aabb_max = torch.split(self.aabb, self.num_dim, dim=-1)
-            x = (x - aabb_min) / (aabb_max - aabb_min)
+            x = (x - aabb_min) / (aabb_max - aabb_min) #scale the scene in range [0,1]
+
         selector = ((x > 0.0) & (x < 1.0)).all(dim=-1)
+        
         x = (
             self.mlp_base(x.view(-1, self.num_dim))
             .view(list(x.shape[:-1]) + [1 + self.geo_feat_dim])
             .to(x)
         )
-        density_before_activation, base_mlp_out = torch.split(
-            x, [1, self.geo_feat_dim], dim=-1
-        )
-        density = (
-            self.density_activation(density_before_activation)
-            * selector[..., None]
-        )
+
+        density_before_activation, base_mlp_out = torch.split( x, [1, self.geo_feat_dim], dim=-1 )
+
+        density = (self.density_activation(density_before_activation) * selector[..., None])
+
         if return_feat:
             return density, base_mlp_out
         else:

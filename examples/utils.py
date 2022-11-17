@@ -41,9 +41,7 @@ def render_image(
     if len(rays_shape) == 3:
         height, width, _ = rays_shape
         num_rays = height * width
-        rays = namedtuple_map(
-            lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays
-        )
+        rays = namedtuple_map(lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays)
     else:
         num_rays, _ = rays_shape
 
@@ -83,6 +81,7 @@ def render_image(
         if radiance_field.training
         else test_chunk_size
     )
+    
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
         ray_indices, t_starts, t_ends = ray_marching(
@@ -108,10 +107,12 @@ def render_image(
         )
         chunk_results = [rgb, opacity, depth, len(t_starts)]
         results.append(chunk_results)
+
     colors, opacities, depths, n_rendering_samples = [
         torch.cat(r, dim=0) if isinstance(r[0], torch.Tensor) else r
         for r in zip(*results)
     ]
+    
     return (
         colors.view((*rays_shape[:-1], -1)),
         opacities.view((*rays_shape[:-1], -1)),

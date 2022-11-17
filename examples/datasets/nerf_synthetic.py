@@ -21,19 +21,20 @@ def _load_renderings(root_fp: str, subject_id: str, split: str):
 
     data_dir = os.path.join(root_fp, subject_id)
     
-    if split == "None":
-        with open(os.path.join(data_dir, 'transforms.json'), 'r') as fp:
-            meta = json.load(fp)
-    else:
-        with open(os.path.join(data_dir, "transforms_{}.json".format(split)), "r") as fp:
-            meta = json.load(fp)
+    with open(os.path.join(data_dir, 'transforms.json'), 'r') as fp:
+        meta = json.load(fp)
 
     images = []
     camtoworlds = []
     intrinsics = []
-    for i in range(len(meta["frames"])):
+    
+    if split == "test":
+        N = len(meta["frames"])
+    else:
+        N = len(meta["frames"])
+
+    for i in range(N):
         frame = meta["frames"][i]
-        # fname = os.path.join(data_dir, frame["file_path"] + ".png")
         fname = os.path.join(data_dir, frame['file_path'][2:])
         rgba = imageio.imread(fname)
         camtoworlds.append(frame["transform_matrix"])
@@ -47,12 +48,9 @@ def _load_renderings(root_fp: str, subject_id: str, split: str):
     images = np.stack(images, axis=0) #assume all images have same size
     camtoworlds = np.stack(camtoworlds, axis=0)
     intrinsics = np.stack(intrinsics, axis=0)
-        
-    # h, w = images.shape[1:3]
-    # camera_angle_x = float(meta["camera_angle_x"])
-    # focal = 0.5 * w / np.tan(0.5 * camera_angle_x)
+    aabb = meta["aabb"]
 
-    return images, camtoworlds, focal, intrinsics
+    return images, camtoworlds, focal, intrinsics, aabb
 
 
 class SubjectLoader(torch.utils.data.Dataset):
@@ -62,7 +60,7 @@ class SubjectLoader(torch.utils.data.Dataset):
     NEAR, FAR = 2.0, 6.0
     OPENGL_CAMERA = True
 
-    def __init__(   self,subject_id: str,root_fp: str,split: str,color_bkgd_aug: str = "white",
+    def __init__(   self,subject_id: str,root_fp: str,split: str,color_bkgd_aug: str = "random",
                     num_rays: int = None,near: float = None,far: float = None,batch_over_images: bool = True):
 
         super().__init__()
@@ -75,18 +73,11 @@ class SubjectLoader(torch.utils.data.Dataset):
         self.near = self.NEAR if near is None else near
         self.far = self.FAR if far is None else far
         
-        self.training = (num_rays is not None) and (split in ["train", "trainval", "None"])
+        self.training = (num_rays is not None) and (split in ["train", "None"])
         self.color_bkgd_aug = color_bkgd_aug
         self.batch_over_images = batch_over_images
         
-        if split == "trainval":
-            _images_train, _camtoworlds_train, _focal_train = _load_renderings(root_fp, subject_id, "train")
-            _images_val, _camtoworlds_val, _focal_val = _load_renderings(root_fp, subject_id, "val")
-            self.images = np.concatenate([_images_train, _images_val])
-            self.camtoworlds = np.concatenate([_camtoworlds_train, _camtoworlds_val])
-            self.focal = _focal_train
-        else:
-            self.images, self.camtoworlds, self.focal, self.K = _load_renderings(root_fp, subject_id, split)
+        self.images, self.camtoworlds, self.focal, self.K, self.aabb = _load_renderings(root_fp, subject_id, split)
 
         self.images = torch.from_numpy(self.images).to(torch.uint8)
         self.camtoworlds = torch.from_numpy(self.camtoworlds).to(torch.float32)
@@ -107,18 +98,15 @@ class SubjectLoader(torch.utils.data.Dataset):
         """Process the fetched / cached data with randomness."""
         rgba, rays = data["rgba"], data["rays"]
         
-        if self.training:
-            if self.color_bkgd_aug == "random":
-                color_bkgd = torch.rand(3, device=self.images.device)
-            elif self.color_bkgd_aug == "white":
-                color_bkgd = torch.ones(3, device=self.images.device)
-            elif self.color_bkgd_aug == "black":
-                color_bkgd = torch.zeros(3, device=self.images.device)
-        else:
-            # just use white during inference
+        if self.color_bkgd_aug == "random":
+            color_bkgd = torch.tensor([0, 0, 0], device=self.images.device)
+            # color_bkgd = torch.rand(3, device=self.images.device)
+        elif self.color_bkgd_aug == "white":
             color_bkgd = torch.ones(3, device=self.images.device)
+        elif self.color_bkgd_aug == "black":
+            color_bkgd = torch.zeros(3, device=self.images.device)
 
-        if rgba.shape[1] == 4:
+        if rgba.shape[-1] == 4:
             pixels, alpha = torch.split(rgba, [3, 1], dim=-1)
             pixels = pixels * alpha + color_bkgd * (1.0 - alpha)
         else:
