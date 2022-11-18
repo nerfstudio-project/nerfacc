@@ -9,25 +9,40 @@ from .utils import Rays
 
 from scipy.spatial.transform import Rotation as SR
 
-#generates "numberOfFrames" poses in spherical position
-#each pose is looking at 0,0,0 and rotates around Z axis
+
 def sphericalPoses(p0,numberOfFrames):
-   # transMat = np.array([[1,0,0,t[0]],[0,1,0,t[1]],[0,0,1,t[2]],[0,0,0,1]]).astype(float)
-   # rotMatX = np.identity(4)
-   # rotMatX[0:3,0:3] = SR.from_euler('X',-np.pi/4).as_matrix()
+   """
+   We first move the camera to [0,0,tz] in the world coordinate space. 
+   Then we rotate the camera pos 45 degrees wrt X axis.
+   Finally we rotate the camera wrt Z axis numberOfFrames times.
+   Note: Camera space and world space (ENU) is actually aligned 
+      X_c == X_w or E (east)
+      Y_c == Y_w or N (north)
+      Z_c == Z_w or U (up)
+      Camera is positioned at [0,0,tz] it is actually looking down to -Z direction 
+   """
+   transMat = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,1500],[0,0,0,1]]).astype(float) #move camera to 0,0,1500
+   
+   #rotate camera 45 degrees wrt X axis
+   rotMatX = np.identity(4)
+   rotMatX[0:3,0:3] = SR.from_euler('X',np.pi/4).as_matrix()
+   
+   #first translate then rotate
+   transMat = rotMatX @ transMat
+   
    poses = []
-   for angle in np.linspace(0,np.pi/2,numberOfFrames):
+   for angle in np.linspace(0,2*np.pi,numberOfFrames):
 
       rotMatZ = np.identity(4)
       rotMatZ[0:3,0:3] = SR.from_euler('Z',angle).as_matrix()
 
-      myPose = rotMatZ @ p0
+      myPose = rotMatZ @ transMat
       poses.append(myPose)
 
    poses = np.stack(poses, axis=0)
    return poses
 
-def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: int = 30):
+def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: int):
 
    if not root_fp.startswith("/"):
       root_fp = os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","..",root_fp) # e.g., "./data/nerf_synthetic/"
@@ -40,22 +55,24 @@ def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: in
    frame = meta["frames"][15]
    fname = os.path.join(data_dir, frame['file_path'][2:])
 
+   factor = 4
    #image intrinsics
    focal, cx, cy = frame['fl_x'], frame['cx'], frame['cy']
    K = np.array([[focal, 0, cx], [0, focal, cy], [0, 0, 1]])
+   K[:2, :] /= factor
 
-   w, h = frame['w'], frame['h']
+   w, h = frame['w']/factor, frame['h']/factor
 
    c2w = np.array(frame["transform_matrix"])
    camtoworlds = sphericalPoses(c2w, numberOfFrames)
-   
+
    return camtoworlds, K, int(w), int(h)
 
 
 class SubjectTestPoseLoader(torch.utils.data.Dataset):
 
    OPENGL_CAMERA = True
-   def __init__(self, subject_id: str, root_fp: str,color_bkgd_aug: str = "white", numberOfFrames: int = 30):
+   def __init__(self, subject_id: str, root_fp: str,color_bkgd_aug: str = "random", numberOfFrames: int = 120):
 
       super().__init__()
       
@@ -111,7 +128,7 @@ class SubjectTestPoseLoader(torch.utils.data.Dataset):
 
       rays = Rays(origins=origins, viewdirs=viewdirs)
 
-      color_bkgd = torch.ones(3, device=self.camtoworlds.device)
+      color_bkgd = torch.tensor([0, 0, 0], device=self.camtoworlds.device)
 
       return {
          "rays": rays,  # [h, w, 3] or [num_rays, 3]
