@@ -25,7 +25,7 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_split",type=str,default="trainval",choices=["train", "trainval", "None"],help="which train split to use")
+    parser.add_argument("--exp_name",type=str,default="exp",help="The name of the folder for saving results")
     parser.add_argument("--scene",type=str,default="lego",help="which scene to use")
     parser.add_argument("--aabb",type=lambda s: [float(item) for item in s.split(",")],default="-1.5,-1.5,-1.5,1.5,1.5,1.5",help="delimited list input")
     parser.add_argument("--test_chunk_size",type=int,default=8192)
@@ -43,8 +43,8 @@ if __name__ == "__main__":
         from datasets.nerf_synthetic import SubjectLoader
         from datasets.generateTestPoses import SubjectTestPoseLoader
         data_root_fp = "/home/ubuntu/data/"
-        target_sample_batch_size = 1 << 21
-        grid_resolution = [256,256,512]
+        target_sample_batch_size = 1 << 20
+        grid_resolution = 256
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="train",num_rays=target_sample_batch_size // render_n_samples)
@@ -52,12 +52,12 @@ if __name__ == "__main__":
     dataset.camtoworlds = dataset.camtoworlds.to(device)
     dataset.K = dataset.K.to(device)
 
-    testPoses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp)
+    testPoses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp,numberOfFrames=240)
     testPoses.camtoworlds = testPoses.camtoworlds.to(device)
     testPoses.K = testPoses.K.to(device)
 
     #---------------------------------------------------------------------------------------------------------------------------------------
-    savepath = os.path.join(data_root_fp,args.scene+"_test")
+    savepath = os.path.join(data_root_fp,args.scene+"_"+args.exp_name)
     if not os.path.exists(savepath):
         os.makedirs(savepath)
         print('Test results folder not found, creating new dir: ' + savepath)
@@ -66,8 +66,11 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     contraction_type = ContractionType.AABB
-    args.aabb = [dataset.aabb[0][0], dataset.aabb[0][1], -50, dataset.aabb[1][0], dataset.aabb[1][1], 50]
+    args.aabb = [dataset.aabb[0][0], dataset.aabb[0][1], -50, dataset.aabb[1][0], dataset.aabb[1][1], 100]
     scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
+    render_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
+    render_aabb[5] = 50
+    
     near_plane = None
     far_plane = None
     render_step_size = ((scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples).item()
@@ -76,7 +79,7 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     # setup the radiance field we want to train.
-    max_steps = 30000
+    max_steps = 50000
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPradianceField(aabb=args.aabb,unbounded=args.unbounded,).to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
@@ -182,6 +185,7 @@ if __name__ == "__main__":
                 with torch.no_grad():
                     # for i in tqdm.tqdm(range(len(test_dataset))):
                     rgbs = []
+                    depths = []
                     for i in tqdm.tqdm(range(len(testPoses))):
                         dataset.training = False
 
@@ -196,7 +200,7 @@ if __name__ == "__main__":
                             radiance_field,
                             occupancy_grid,
                             rays,
-                            scene_aabb,
+                            render_aabb,
                             # rendering options
                             near_plane=near_plane,
                             far_plane=far_plane,
@@ -216,17 +220,25 @@ if __name__ == "__main__":
                         
                         #save rgb image
                         rgbImage = (rgb.cpu().numpy() * 255).astype(np.uint8)
-                        # imageio.imwrite(saveImg,rgbImage)
-                        
                         rgbs.append(rgbImage)
                         
                         #save depth image (4000 is max depth)
-                        # depthImage = (depth.cpu().numpy() / depth.max().item()) * 255
-                        # depthImage = depth.cpu().numpy()
-                        # plt.imsave(saveDepth,depthImage[...,-1], cmap=plt.get_cmap('turbo'), vmin=1000, vmax=4200)
+                        depthImage = depth.cpu().numpy()
+                        depthImage = depthImage[...,-1]
+
+                        # a colormap and a normalization instance
+                        cmap = plt.cm.turbo
+                        norm = plt.Normalize(vmin=1000, vmax=depthImage.max())
+
+                        # map the normalized data to colors
+                        depthImage = (cmap(norm(depthImage)) * 255).astype(np.uint8)
+                        depths.append(depthImage)
 
                     rgbs = np.stack(rgbs, 0)
-                    imageio.mimwrite(os.path.join(savepath,"rgb.mp4"), rgbs, fps=30, quality=8)
+                    imageio.mimwrite(os.path.join(savepath,"rgb"+str(step)+".mp4"), rgbs, fps=30, quality=8)
+                    
+                    depths = np.stack(depths, 0)
+                    imageio.mimwrite(os.path.join(savepath,"depth"+str(step)+".mp4"), depths, fps=30, quality=8)
 
                 # psnr_avg = sum(psnrs) / len(psnrs)
                 # print(f"evaluation: psnr_avg={psnr_avg}")
