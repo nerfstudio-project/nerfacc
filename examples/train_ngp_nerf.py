@@ -43,19 +43,18 @@ if __name__ == "__main__":
         from datasets.nerf_synthetic import SubjectLoader
         from datasets.generateTestPoses import SubjectTestPoseLoader
         data_root_fp = "/home/ubuntu/data/"
-        target_sample_batch_size = 1 << 20
-        grid_resolution = 256
+        target_sample_batch_size = 1 << 21
+        grid_resolution = [256,256,512]
 
     #---------------------------------------------------------------------------------------------------------------------------------------
-    train_dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="train",num_rays=target_sample_batch_size // render_n_samples)
-    train_dataset.images = train_dataset.images.to(device)
-    train_dataset.camtoworlds = train_dataset.camtoworlds.to(device)
-    train_dataset.K = train_dataset.K.to(device)
+    dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="train",num_rays=target_sample_batch_size // render_n_samples)
+    dataset.images = dataset.images.to(device)
+    dataset.camtoworlds = dataset.camtoworlds.to(device)
+    dataset.K = dataset.K.to(device)
 
-    test_dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="test",num_rays=None)
-    test_dataset.images = test_dataset.images.to(device)
-    test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
-    test_dataset.K = test_dataset.K.to(device)
+    testPoses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp)
+    testPoses.camtoworlds = testPoses.camtoworlds.to(device)
+    testPoses.K = testPoses.K.to(device)
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     savepath = os.path.join(data_root_fp,args.scene+"_test")
@@ -67,8 +66,7 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     contraction_type = ContractionType.AABB
-    # args.aabb = [-1500, -1500, -50, 1500, 1500, 250]
-    args.aabb = [train_dataset.aabb[0][0], train_dataset.aabb[0][1], -100, train_dataset.aabb[1][0], train_dataset.aabb[1][1], 100]
+    args.aabb = [dataset.aabb[0][0], dataset.aabb[0][1], -50, dataset.aabb[1][0], dataset.aabb[1][1], 50]
     scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
     near_plane = None
     far_plane = None
@@ -96,9 +94,10 @@ if __name__ == "__main__":
     step = 0
     tic = time.time()
     for epoch in range(10000000):
-        for i in range(len(train_dataset)):
+        for i in range(len(dataset)):
             radiance_field.train()
-            data = train_dataset[i]
+        
+            data = dataset[i]
 
             render_bkgd = data["color_bkgd"]
             rays = data["rays"]
@@ -107,8 +106,8 @@ if __name__ == "__main__":
             def occ_eval_fn(x):
                 if args.cone_angle > 0.0:
                     # randomly sample a camera for computing step size.
-                    camera_ids = torch.randint(0, len(train_dataset), (x.shape[0],), device=device)
-                    origins = train_dataset.camtoworlds[camera_ids, :3, -1]
+                    camera_ids = torch.randint(0, len(dataset), (x.shape[0],), device=device)
+                    origins = dataset.camtoworlds[camera_ids, :3, -1]
                     t = (origins - x).norm(dim=-1, keepdim=True)
 
                     # compute actual step size used in marching, based on the distance to the camera.
@@ -153,7 +152,7 @@ if __name__ == "__main__":
             num_rays = len(pixels)
             num_rays = int(num_rays * (target_sample_batch_size / float(n_rendering_samples)))
 
-            train_dataset.update_num_rays(num_rays)
+            dataset.update_num_rays(num_rays)
             alive_ray_mask = acc.squeeze(-1) > 0
 
             # compute loss
@@ -182,12 +181,15 @@ if __name__ == "__main__":
                 psnrs = []
                 with torch.no_grad():
                     # for i in tqdm.tqdm(range(len(test_dataset))):
-                    for i in tqdm.tqdm([0, 15, 17]):
-                        data = test_dataset[i]
-                        # data = test_poses[i]
+                    rgbs = []
+                    for i in tqdm.tqdm(range(len(testPoses))):
+                        dataset.training = False
+
+                        # data = dataset[i]
+                        data = testPoses[i]
                         render_bkgd = data["color_bkgd"]
                         rays = data["rays"]
-                        pixels = data["pixels"]
+                        # pixels = data["pixels"]
 
                         # rendering
                         rgb, acc, depth, _ = render_image(
@@ -205,25 +207,30 @@ if __name__ == "__main__":
                             # test options
                             test_chunk_size=args.test_chunk_size,
                         )
-                        mse = F.mse_loss(rgb, pixels)
-                        psnr = -10.0 * torch.log(mse) / np.log(10.0)
-                        psnrs.append(psnr.item())
+                        # mse = F.mse_loss(rgb, pixels)
+                        # psnr = -10.0 * torch.log(mse) / np.log(10.0)
+                        # psnrs.append(psnr.item())
 
                         saveImg = os.path.join(savepath,"rgb_test_"+str(i)+".png")
                         saveDepth = os.path.join(savepath,"depth_test_"+str(i)+".png")
                         
                         #save rgb image
-                        imageio.imwrite(saveImg,(rgb.cpu().numpy() * 255).astype(np.uint8))
+                        rgbImage = (rgb.cpu().numpy() * 255).astype(np.uint8)
+                        # imageio.imwrite(saveImg,rgbImage)
+                        
+                        rgbs.append(rgbImage)
                         
                         #save depth image (4000 is max depth)
                         # depthImage = (depth.cpu().numpy() / depth.max().item()) * 255
-                        depthImage = depth.cpu().numpy()
-                        plt.imsave(saveDepth,depthImage[...,-1], cmap=plt.get_cmap('turbo'), vmin=2300, vmax=depth.max().item())
-                        # imageio.imwrite(saveDepth,(depth.cpu().numpy() * 255).astype(np.uint8))
+                        # depthImage = depth.cpu().numpy()
+                        # plt.imsave(saveDepth,depthImage[...,-1], cmap=plt.get_cmap('turbo'), vmin=1000, vmax=4200)
 
-                psnr_avg = sum(psnrs) / len(psnrs)
-                print(f"evaluation: psnr_avg={psnr_avg}")
-                train_dataset.training = True
+                    rgbs = np.stack(rgbs, 0)
+                    imageio.mimwrite(os.path.join(savepath,"rgb.mp4"), rgbs, fps=30, quality=8)
+
+                # psnr_avg = sum(psnrs) / len(psnrs)
+                # print(f"evaluation: psnr_avg={psnr_avg}")
+                dataset.training = True
 
             if step == max_steps:
                 print("training stops")
