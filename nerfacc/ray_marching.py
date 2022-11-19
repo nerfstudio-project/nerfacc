@@ -231,8 +231,6 @@ def ray_marching(
         # marching
         packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
             # rays
-            rays_o.contiguous(),
-            rays_d.contiguous(),
             t_min.contiguous(),
             t_max.contiguous(),
             # sampling

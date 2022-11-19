@@ -80,8 +80,6 @@ inline __device__ __host__ float advance_to_next_voxel(
 __global__ void ray_marching_kernel(
     // rays info
     const uint32_t n_rays,
-    const float *rays_o, // shape (n_rays, 3)
-    const float *rays_d, // shape (n_rays, 3)
     const float *t_min,  // shape (n_rays,)
     const float *t_max,  // shape (n_rays,)
     // sampling
@@ -100,8 +98,6 @@ __global__ void ray_marching_kernel(
     bool is_first_round = (packed_info == nullptr);
 
     // locate
-    rays_o += i * 3;
-    rays_d += i * 3;
     t_min += i;
     t_max += i;
 
@@ -118,9 +114,6 @@ __global__ void ray_marching_kernel(
         ray_indices += base;
     }
 
-    const float3 origin = make_float3(rays_o[0], rays_o[1], rays_o[2]);
-    const float3 dir = make_float3(rays_d[0], rays_d[1], rays_d[2]);
-    const float3 inv_dir = 1.0f / dir;
     const float near = t_min[0], far = t_max[0];
 
     float dt_min = step_size;
@@ -270,39 +263,31 @@ __global__ void ray_marching_with_grid_kernel(
 
 std::vector<torch::Tensor> ray_marching(
     // rays
-    const torch::Tensor rays_o,
-    const torch::Tensor rays_d,
     const torch::Tensor t_min,
     const torch::Tensor t_max,
     // sampling
     const float step_size,
     const float cone_angle)
 {
-    DEVICE_GUARD(rays_o);
+    DEVICE_GUARD(t_min);
 
-    CHECK_INPUT(rays_o);
-    CHECK_INPUT(rays_d);
     CHECK_INPUT(t_min);
     CHECK_INPUT(t_max);
-    TORCH_CHECK(rays_o.ndimension() == 2 & rays_o.size(1) == 3)
-    TORCH_CHECK(rays_d.ndimension() == 2 & rays_d.size(1) == 3)
     TORCH_CHECK(t_min.ndimension() == 1)
     TORCH_CHECK(t_max.ndimension() == 1)
 
-    const int n_rays = rays_o.size(0);
+    const int n_rays = t_min.size(0);
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
     // helper counter
     torch::Tensor num_steps = torch::empty(
-        {n_rays}, rays_o.options().dtype(torch::kInt32));
+        {n_rays}, t_min.options().dtype(torch::kInt32));
 
     // count number of samples per ray
     ray_marching_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         // rays
         n_rays,
-        rays_o.data_ptr<float>(),
-        rays_d.data_ptr<float>(),
         t_min.data_ptr<float>(),
         t_max.data_ptr<float>(),
         // sampling
@@ -320,15 +305,13 @@ std::vector<torch::Tensor> ray_marching(
 
     // output samples starts and ends
     int total_steps = cum_steps[cum_steps.size(0) - 1].item<int>();
-    torch::Tensor t_starts = torch::empty({total_steps, 1}, rays_o.options());
-    torch::Tensor t_ends = torch::empty({total_steps, 1}, rays_o.options());
+    torch::Tensor t_starts = torch::empty({total_steps, 1}, t_min.options());
+    torch::Tensor t_ends = torch::empty({total_steps, 1}, t_min.options());
     torch::Tensor ray_indices = torch::empty({total_steps}, cum_steps.options());
 
     ray_marching_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         // rays
         n_rays,
-        rays_o.data_ptr<float>(),
-        rays_d.data_ptr<float>(),
         t_min.data_ptr<float>(),
         t_max.data_ptr<float>(),
         // sampling

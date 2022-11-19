@@ -265,7 +265,8 @@ std::vector<torch::Tensor> ray_resampling(
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
     torch::Tensor num_steps = torch::split(packed_info, 1, 1)[1];
-    torch::Tensor resample_num_steps = (num_steps > 0).to(num_steps.options()) * steps;
+    // torch::Tensor resample_num_steps = (num_steps > 0).to(num_steps.options()) * steps;
+    torch::Tensor resample_num_steps = torch::clamp(num_steps, 0, steps);
     torch::Tensor resample_cum_steps = resample_num_steps.cumsum(0, torch::kInt32);
     torch::Tensor resample_packed_info = torch::cat(
         {resample_cum_steps - resample_num_steps, resample_num_steps}, 1);

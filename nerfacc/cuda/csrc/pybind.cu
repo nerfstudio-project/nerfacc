@@ -14,8 +14,6 @@ std::vector<torch::Tensor> ray_aabb_intersect(
 
 std::vector<torch::Tensor> ray_marching(
     // rays
-    const torch::Tensor rays_o,
-    const torch::Tensor rays_d,
     const torch::Tensor t_min,
     const torch::Tensor t_max,
     // sampling

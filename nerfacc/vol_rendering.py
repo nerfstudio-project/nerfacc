@@ -500,21 +500,24 @@ def render_visibility(
 
     """
     assert (
-        ray_indices is not None or packed_info is not None
-    ), "Either ray_indices or packed_info should be provided."
-    if ray_indices is not None and _C.is_cub_available():
-        transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
-            ray_indices, alphas
-        )
-    else:
-        if packed_info is None:
-            packed_info = pack_info(ray_indices, n_rays=n_rays)
-        transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
-            packed_info, alphas
-        )
-    visibility = transmittance >= early_stop_eps
-    if alpha_thre > 0:
-        visibility = visibility & (alphas >= alpha_thre)
+        alphas.dim() == 2 and alphas.shape[-1] == 1
+    ), "alphas should be a 2D tensor with shape (n_samples, 1)."
+    visibility = alphas >= alpha_thre
+    if early_stop_eps > 0:
+        assert (
+            ray_indices is not None or packed_info is not None
+        ), "Either ray_indices or packed_info should be provided."
+        if ray_indices is not None and _C.is_cub_available():
+            transmittance = _RenderingTransmittanceFromAlphaCUB.apply(
+                ray_indices, alphas
+            )
+        else:
+            if packed_info is None:
+                packed_info = pack_info(ray_indices, n_rays=n_rays)
+            transmittance = _RenderingTransmittanceFromAlphaNaive.apply(
+                packed_info, alphas
+            )
+        visibility = visibility & (transmittance >= early_stop_eps)
     visibility = visibility.squeeze(-1)
     return visibility
 
