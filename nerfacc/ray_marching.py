@@ -4,7 +4,7 @@ import torch
 
 from .grid import Grid
 from .intersection import ray_aabb_intersect
-from .sampling import proposal_sampling_with_filter, sample_along_rays
+from .sampling import proposal_resampling, sample_along_rays
 
 
 @torch.no_grad()
@@ -171,12 +171,7 @@ def ray_marching(
         grid=grid,
     )
 
-    (
-        ray_indices,
-        t_starts,
-        t_ends,
-        proposal_samples,
-    ) = proposal_sampling_with_filter(
+    ray_indices, t_starts, t_ends, proposal_samples = proposal_resampling(
         t_starts=t_starts,
         t_ends=t_ends,
         ray_indices=ray_indices,
