@@ -87,7 +87,15 @@ def render_image(
             chunk_rays.viewdirs,
             scene_aabb=scene_aabb,
             grid=None,
-            proposal_nets=proposal_nets,
+            # proposal density fns: {t_starts, t_ends, ray_indices} -> density
+            proposal_sigma_fns=[
+                lambda t_starts, t_ends, ray_indices: sigma_fn(
+                    t_starts, t_ends, ray_indices, proposal_net
+                )
+                for proposal_net in proposal_nets
+            ],
+            proposal_n_samples=[32],
+            proposal_require_grads=proposal_nets_require_grads,
             sigma_fn=sigma_fn,
             near_plane=near_plane,
             far_plane=far_plane,
@@ -95,7 +103,6 @@ def render_image(
             stratified=radiance_field.training,
             cone_angle=cone_angle,
             alpha_thre=alpha_thre,
-            proposal_nets_require_grads=proposal_nets_require_grads,
         )
         rgb, opacity, depth, weights = rendering(
             t_starts,
