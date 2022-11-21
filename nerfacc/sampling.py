@@ -99,7 +99,7 @@ def sample_along_rays(
 
 
 @torch.no_grad()
-def proposal_resampling(
+def proposal_sampling_with_filter(
     t_starts: torch.Tensor,  # [n_samples, 1]
     t_ends: torch.Tensor,  # [n_samples, 1]
     ray_indices: torch.Tensor,  # [n_samples,]

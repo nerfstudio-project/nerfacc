@@ -124,7 +124,7 @@ def test_rendering():
     t_starts = torch.rand_like(sigmas)
     t_ends = torch.rand_like(sigmas) + 1.0
 
-    _, _, _, _ = rendering(
+    _, _, _ = rendering(
         t_starts,
         t_ends,
         ray_indices=ray_indices,

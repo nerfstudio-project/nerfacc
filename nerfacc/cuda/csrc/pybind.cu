@@ -14,13 +14,6 @@ std::vector<torch::Tensor> ray_aabb_intersect(
 
 std::vector<torch::Tensor> ray_marching(
     // rays
-    const torch::Tensor t_min,
-    const torch::Tensor t_max,
-    // sampling
-    const float step_size,
-    const float cone_angle);
-std::vector<torch::Tensor> ray_marching_with_grid(
-    // rays
     const torch::Tensor rays_o,
     const torch::Tensor rays_d,
     const torch::Tensor t_min,
@@ -64,15 +57,6 @@ std::vector<torch::Tensor> ray_resampling(
     torch::Tensor ends,
     torch::Tensor weights,
     const int steps);
-
-torch::Tensor ray_pdf_query(
-    torch::Tensor packed_info,
-    torch::Tensor starts,
-    torch::Tensor ends,
-    torch::Tensor pdfs,
-    torch::Tensor resample_packed_info,
-    torch::Tensor resample_starts,
-    torch::Tensor resample_ends);
 
 torch::Tensor unpack_data(
     torch::Tensor packed_info,
@@ -160,9 +144,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     // marching
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
     m.def("ray_marching", &ray_marching);
-    m.def("ray_marching_with_grid", &ray_marching_with_grid);
     m.def("ray_resampling", &ray_resampling);
-    m.def("ray_pdf_query", &ray_pdf_query);
 
     // rendering
     m.def("is_cub_available", is_cub_available);

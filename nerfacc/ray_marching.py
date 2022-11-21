@@ -2,13 +2,15 @@ from typing import Callable, Optional, Tuple
 
 import torch
 
+import nerfacc.cuda as _C
+
+from .contraction import ContractionType
 from .grid import Grid
 from .intersection import ray_aabb_intersect
-from .sampling import proposal_resampling, sample_along_rays
+from .vol_rendering import render_visibility
 
 
 @torch.no_grad()
-# @profile
 def ray_marching(
     # rays
     rays_o: torch.Tensor,
@@ -22,10 +24,6 @@ def ray_marching(
     # sigma/alpha function for skipping invisible space
     sigma_fn: Optional[Callable] = None,
     alpha_fn: Optional[Callable] = None,
-    # proposal density fns: {t_starts, t_ends, ray_indices} -> density
-    proposal_sigma_fns: Tuple[Callable, ...] = [],
-    proposal_n_samples: Tuple[int, ...] = [],
-    proposal_require_grads: bool = False,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
     # rendering options
@@ -130,8 +128,6 @@ def ray_marching(
         sample_locs = rays_o[ray_indices] + t_mid * rays_d[ray_indices]
 
     """
-    n_rays = rays_o.shape[0]
-
     if not rays_o.is_cuda:
         raise NotImplementedError("Only support cuda inputs.")
     if alpha_fn is not None and sigma_fn is not None:
@@ -161,27 +157,65 @@ def ray_marching(
     if stratified:
         t_min = t_min + torch.rand_like(t_min) * render_step_size
 
-    ray_indices, t_starts, t_ends = sample_along_rays(
-        rays_o=rays_o,
-        rays_d=rays_d,
-        t_min=t_min,
-        t_max=t_max,
-        step_size=render_step_size,
-        cone_angle=cone_angle,
-        grid=grid,
+    # use grid for skipping if given
+    if grid is not None:
+        grid_roi_aabb = grid.roi_aabb
+        grid_binary = grid.binary
+        contraction_type = grid.contraction_type.to_cpp_version()
+    else:
+        grid_roi_aabb = torch.tensor(
+            [-1e10, -1e10, -1e10, 1e10, 1e10, 1e10],
+            dtype=torch.float32,
+            device=rays_o.device,
+        )
+        grid_binary = torch.ones(
+            [1, 1, 1], dtype=torch.bool, device=rays_o.device
+        )
+        contraction_type = ContractionType.AABB.to_cpp_version()
+
+    # marching with grid-based skipping
+    packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
+        # rays
+        rays_o.contiguous(),
+        rays_d.contiguous(),
+        t_min.contiguous(),
+        t_max.contiguous(),
+        # coontraction and grid
+        grid_roi_aabb.contiguous(),
+        grid_binary.contiguous(),
+        contraction_type,
+        # sampling
+        render_step_size,
+        cone_angle,
     )
 
-    ray_indices, t_starts, t_ends, proposal_samples = proposal_resampling(
-        t_starts=t_starts,
-        t_ends=t_ends,
-        ray_indices=ray_indices,
-        n_rays=n_rays,
-        sigma_fn=sigma_fn,
-        proposal_sigma_fns=proposal_sigma_fns,
-        proposal_n_samples=proposal_n_samples,
-        proposal_require_grads=proposal_require_grads,
-        early_stop_eps=early_stop_eps,
-        alpha_thre=alpha_thre,
-    )
+    # skip invisible space
+    if sigma_fn is not None or alpha_fn is not None:
+        # Query sigma without gradients
+        if sigma_fn is not None:
+            sigmas = sigma_fn(t_starts, t_ends, ray_indices.long())
+            assert (
+                sigmas.shape == t_starts.shape
+            ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
+            alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+        elif alpha_fn is not None:
+            alphas = alpha_fn(t_starts, t_ends, ray_indices.long())
+            assert (
+                alphas.shape == t_starts.shape
+            ), "alphas must have shape of (N, 1)! Got {}".format(alphas.shape)
 
-    return ray_indices, t_starts, t_ends, proposal_samples
+        # Compute visibility of the samples, and filter out invisible samples
+        masks = render_visibility(
+            alphas,
+            ray_indices=ray_indices,
+            early_stop_eps=early_stop_eps,
+            alpha_thre=alpha_thre,
+            n_rays=rays_o.shape[0],
+        )
+        ray_indices, t_starts, t_ends = (
+            ray_indices[masks],
+            t_starts[masks],
+            t_ends[masks],
+        )
+
+    return ray_indices, t_starts, t_ends
