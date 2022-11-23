@@ -236,7 +236,7 @@ class OccupancyGrid(Grid):
         # )
         self._binary = (
             self.occs > torch.clamp(self.occs.mean(), max=occ_thre)
-        ).reshape(self._binary.shape)
+        ).view(self._binary.shape)
 
     @torch.no_grad()
     def every_n_step(
@@ -289,7 +289,7 @@ class OccupancyGrid(Grid):
         return query_grid(
             samples,
             self._roi_aabb,
-            self.occs.reshape(self.resolution.tolist()),
+            self.binary,
             self.contraction_type,
         )
 
