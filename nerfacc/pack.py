@@ -37,7 +37,7 @@ def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
     ), "mask must be with shape of (n_rays, n_samples)."
     assert mask.dtype == torch.bool, "mask must be a boolean tensor."
     packed_data = data[mask]
-    num_steps = mask.long().sum(dim=-1)
+    num_steps = mask.sum(dim=-1, dtype=torch.long)
     cum_steps = num_steps.cumsum(dim=0, dtype=torch.long)
     packed_info = torch.stack([cum_steps - num_steps, num_steps], dim=-1)
     return packed_data, packed_info
@@ -61,7 +61,7 @@ def pack_info(ray_indices: Tensor, n_rays: int = None) -> Tensor:
         ray_indices.dim() == 1
     ), "ray_indices must be a 1D tensor with shape (n_samples)."
     if ray_indices.is_cuda:
-        ray_indices = ray_indices.contiguous()
+        ray_indices = ray_indices
         device = ray_indices.device
         if n_rays is None:
             n_rays = int(ray_indices.max()) + 1
@@ -69,7 +69,7 @@ def pack_info(ray_indices: Tensor, n_rays: int = None) -> Tensor:
         #     assert n_rays > ray_indices.max()
         src = torch.ones_like(ray_indices, dtype=torch.int)
         num_steps = torch.zeros((n_rays,), device=device, dtype=torch.int)
-        num_steps.scatter_add_(0, ray_indices.long(), src)
+        num_steps.scatter_add_(0, ray_indices, src)
         cum_steps = num_steps.cumsum(dim=0, dtype=torch.int)
         packed_info = torch.stack([cum_steps - num_steps, num_steps], dim=-1)
     else:
