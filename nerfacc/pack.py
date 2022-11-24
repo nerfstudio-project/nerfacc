@@ -55,26 +55,26 @@ def pack_info(ray_indices: Tensor, n_rays: int = None) -> Tensor:
 
     Returns:
         packed_info: Stores information on which samples belong to the same ray. \
-            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
+            See :func:`nerfacc.ray_marching` for details. IntTensor with shape (n_rays, 2).
     """
     assert (
         ray_indices.dim() == 1
     ), "ray_indices must be a 1D tensor with shape (n_samples)."
     if ray_indices.is_cuda:
-        ray_indices = ray_indices.contiguous().int()
+        ray_indices = ray_indices.contiguous()
         device = ray_indices.device
         if n_rays is None:
             n_rays = int(ray_indices.max()) + 1
         # else:
         #     assert n_rays > ray_indices.max()
-        src = torch.ones_like(ray_indices)
+        src = torch.ones_like(ray_indices, dtype=torch.int)
         num_steps = torch.zeros((n_rays,), device=device, dtype=torch.int)
         num_steps.scatter_add_(0, ray_indices.long(), src)
         cum_steps = num_steps.cumsum(dim=0, dtype=torch.int)
         packed_info = torch.stack([cum_steps - num_steps, num_steps], dim=-1)
     else:
         raise NotImplementedError("Only support cuda inputs.")
-    return packed_info.int()
+    return packed_info
 
 
 @torch.no_grad()
@@ -86,7 +86,7 @@ def unpack_info(packed_info: Tensor, n_samples: int) -> Tensor:
 
     Args:
         packed_info: Stores information on which samples belong to the same ray. \
-            See :func:`nerfacc.ray_marching` for details. Tensor with shape (n_rays, 2).
+            See :func:`nerfacc.ray_marching` for details. IntTensor with shape (n_rays, 2).
         n_samples: Total number of samples.
 
     Returns:
@@ -115,7 +115,7 @@ def unpack_info(packed_info: Tensor, n_samples: int) -> Tensor:
         packed_info.dim() == 2 and packed_info.shape[-1] == 2
     ), "packed_info must be a 2D tensor with shape (n_rays, 2)."
     if packed_info.is_cuda:
-        ray_indices = _C.unpack_info(packed_info.contiguous().int(), n_samples)
+        ray_indices = _C.unpack_info(packed_info.contiguous(), n_samples)
     else:
         raise NotImplementedError("Only support cuda inputs.")
     return ray_indices.long()
@@ -173,7 +173,7 @@ class _UnpackData(torch.autograd.Function):
     @staticmethod
     def forward(ctx, packed_info: Tensor, data: Tensor, n_samples: int):
         # shape of the data should be (all_samples, D)
-        packed_info = packed_info.contiguous().int()
+        packed_info = packed_info.contiguous()
         data = data.contiguous()
         if ctx.needs_input_grad[1]:
             ctx.save_for_backward(packed_info)
