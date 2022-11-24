@@ -127,7 +127,7 @@ def proposal_sampling_with_filter(
     for proposal_fn, n_samples in zip(proposal_sigma_fns, proposal_n_samples):
 
         # compute weights for resampling
-        sigmas = proposal_fn(t_starts, t_ends, ray_indices.long())
+        sigmas = proposal_fn(t_starts, t_ends, ray_indices)
         assert (
             sigmas.shape == t_starts.shape
         ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
@@ -152,7 +152,7 @@ def proposal_sampling_with_filter(
         # Rerun the proposal function **with** gradients on filtered samples.
         if proposal_require_grads:
             with torch.enable_grad():
-                sigmas = proposal_fn(t_starts, t_ends, ray_indices.long())
+                sigmas = proposal_fn(t_starts, t_ends, ray_indices)
                 weights = render_weight_from_density(
                     t_starts, t_ends, sigmas, ray_indices=ray_indices
                 )
@@ -168,7 +168,7 @@ def proposal_sampling_with_filter(
 
     # last round filtering with sigma_fn
     if (alpha_thre > 0 or early_stop_eps > 0) and (sigma_fn is not None):
-        sigmas = sigma_fn(t_starts, t_ends, ray_indices.long())
+        sigmas = sigma_fn(t_starts, t_ends, ray_indices)
         assert (
             sigmas.shape == t_starts.shape
         ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)

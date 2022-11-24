@@ -78,7 +78,7 @@ def rendering(
 
     # Query sigma/alpha and color with gradients
     if rgb_sigma_fn is not None:
-        rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices.long())
+        rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
         )
@@ -94,7 +94,7 @@ def rendering(
             n_rays=n_rays,
         )
     elif rgb_alpha_fn is not None:
-        rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices.long())
+        rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
         )

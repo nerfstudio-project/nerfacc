@@ -304,14 +304,13 @@ def _meshgrid3d(
         torch.stack(
             torch.meshgrid(
                 [
-                    torch.arange(res[0]),
-                    torch.arange(res[1]),
-                    torch.arange(res[2]),
+                    torch.arange(res[0], dtype=torch.long),
+                    torch.arange(res[1], dtype=torch.long),
+                    torch.arange(res[2], dtype=torch.long),
                 ],
                 indexing="ij",
             ),
             dim=-1,
         )
-        .long()
         .to(device)
     )
