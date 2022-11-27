@@ -188,7 +188,6 @@ def ray_marching(
         render_step_size,
         cone_angle,
     )
-    ray_indices = ray_indices.long()
 
     # skip invisible space
     if sigma_fn is not None or alpha_fn is not None:

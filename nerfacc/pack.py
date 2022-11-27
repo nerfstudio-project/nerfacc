@@ -118,7 +118,7 @@ def unpack_info(packed_info: Tensor, n_samples: int) -> Tensor:
         ray_indices = _C.unpack_info(packed_info.contiguous(), n_samples)
     else:
         raise NotImplementedError("Only support cuda inputs.")
-    return ray_indices.long()
+    return ray_indices
 
 
 def unpack_data(

@@ -95,7 +95,7 @@ __global__ void ray_marching_kernel(
     // first round outputs
     int *num_steps,
     // second round outputs
-    int *ray_indices,
+    long *ray_indices,
     float *t_starts,
     float *t_ends)
 {
