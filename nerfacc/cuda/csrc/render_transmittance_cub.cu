@@ -20,8 +20,8 @@ template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename V
 inline void exclusive_sum_by_key(
     KeysInputIteratorT keys, ValuesInputIteratorT input, ValuesOutputIteratorT output, int64_t num_items)
 {
-    TORCH_CHECK(num_items <= std::numeric_limits<int>::max(),
-                "cub ExclusiveSumByKey does not support more than INT_MAX elements");
+    TORCH_CHECK(num_items <= std::numeric_limits<long>::max(),
+                "cub ExclusiveSumByKey does not support more than LONG_MAX elements");
     CUB_WRAPPER(cub::DeviceScan::ExclusiveSumByKey, keys, input, output,
                 num_items, cub::Equality(), at::cuda::getCurrentCUDAStream());
 }
@@ -30,8 +30,8 @@ template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename V
 inline void exclusive_prod_by_key(
     KeysInputIteratorT keys, ValuesInputIteratorT input, ValuesOutputIteratorT output, int64_t num_items)
 {
-    TORCH_CHECK(num_items <= std::numeric_limits<int>::max(),
-                "cub ExclusiveScanByKey does not support more than INT_MAX elements");
+    TORCH_CHECK(num_items <= std::numeric_limits<long>::max(),
+                "cub ExclusiveScanByKey does not support more than LONG_MAX elements");
     CUB_WRAPPER(cub::DeviceScan::ExclusiveScanByKey, keys, input, output, Product(), 1.0f,
                 num_items, cub::Equality(), at::cuda::getCurrentCUDAStream());
 }
@@ -60,7 +60,7 @@ torch::Tensor transmittance_from_sigma_forward_cub(
     torch::Tensor sigmas_dt_cumsum = torch::empty_like(sigmas);
 #if CUB_SUPPORTS_SCAN_BY_KEY()
     exclusive_sum_by_key(
-        ray_indices.data_ptr<int>(),
+        ray_indices.data_ptr<long>(),
         sigmas_dt.data_ptr<float>(),
         sigmas_dt_cumsum.data_ptr<float>(),
         n_samples);
@@ -97,7 +97,7 @@ torch::Tensor transmittance_from_sigma_backward_cub(
     torch::Tensor sigmas_dt_grad = torch::empty_like(transmittance_grad);
 #if CUB_SUPPORTS_SCAN_BY_KEY()
     exclusive_sum_by_key(
-        thrust::make_reverse_iterator(ray_indices.data_ptr<int>() + n_samples),
+        thrust::make_reverse_iterator(ray_indices.data_ptr<long>() + n_samples),
         thrust::make_reverse_iterator(sigmas_dt_cumsum_grad.data_ptr<float>() + n_samples),
         thrust::make_reverse_iterator(sigmas_dt_grad.data_ptr<float>() + n_samples),
         n_samples);
@@ -123,7 +123,7 @@ torch::Tensor transmittance_from_alpha_forward_cub(
     torch::Tensor transmittance = torch::empty_like(alphas);
 #if CUB_SUPPORTS_SCAN_BY_KEY()
     exclusive_prod_by_key(
-        ray_indices.data_ptr<int>(),
+        ray_indices.data_ptr<long>(),
         (1.0f - alphas).data_ptr<float>(),
         transmittance.data_ptr<float>(),
         n_samples);
@@ -154,7 +154,7 @@ torch::Tensor transmittance_from_alpha_backward_cub(
     torch::Tensor sigmas_dt_grad = torch::empty_like(transmittance_grad);
 #if CUB_SUPPORTS_SCAN_BY_KEY()
     exclusive_sum_by_key(
-        thrust::make_reverse_iterator(ray_indices.data_ptr<int>() + n_samples),
+        thrust::make_reverse_iterator(ray_indices.data_ptr<long>() + n_samples),
         thrust::make_reverse_iterator(sigmas_dt_cumsum_grad.data_ptr<float>() + n_samples),
         thrust::make_reverse_iterator(sigmas_dt_grad.data_ptr<float>() + n_samples),
         n_samples);

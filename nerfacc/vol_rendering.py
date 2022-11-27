@@ -525,7 +525,7 @@ class _RenderingTransmittanceFromDensityCUB(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, ray_indices, t_starts, t_ends, sigmas):
-        ray_indices = ray_indices.int().contiguous()
+        ray_indices = ray_indices.contiguous()
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
@@ -577,7 +577,7 @@ class _RenderingTransmittanceFromAlphaCUB(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, ray_indices, alphas):
-        ray_indices = ray_indices.int().contiguous()
+        ray_indices = ray_indices.contiguous()
         alphas = alphas.contiguous()
         transmittance = _C.transmittance_from_alpha_forward_cub(
             ray_indices, alphas
