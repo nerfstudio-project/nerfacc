@@ -37,8 +37,8 @@ def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
     ), "mask must be with shape of (n_rays, n_samples)."
     assert mask.dtype == torch.bool, "mask must be a boolean tensor."
     packed_data = data[mask]
-    num_steps = mask.sum(dim=-1, dtype=torch.long)
-    cum_steps = num_steps.cumsum(dim=0, dtype=torch.long)
+    num_steps = mask.sum(dim=-1, dtype=torch.int32)
+    cum_steps = num_steps.cumsum(dim=0, dtype=torch.int32)
     packed_info = torch.stack([cum_steps - num_steps, num_steps], dim=-1)
     return packed_data, packed_info
 

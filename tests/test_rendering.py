@@ -18,7 +18,7 @@ eps = 1e-6
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_render_visibility():
     ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int32, device=device
+        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
     )  # (samples,)
     alphas = torch.tensor(
         [0.4, 0.3, 0.8, 0.8, 0.5], dtype=torch.float32, device=device
@@ -48,7 +48,7 @@ def test_render_visibility():
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_render_weight_from_alpha():
     ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int32, device=device
+        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
     )  # (samples,)
     alphas = torch.tensor(
         [0.4, 0.3, 0.8, 0.8, 0.5], dtype=torch.float32, device=device
@@ -71,7 +71,7 @@ def test_render_weight_from_alpha():
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_render_weight_from_density():
     ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int32, device=device
+        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
     )  # (samples,)
     sigmas = torch.rand(
         (ray_indices.shape[0], 1), device=device
@@ -92,7 +92,7 @@ def test_render_weight_from_density():
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_accumulate_along_rays():
     ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int32, device=device
+        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
     )  # (n_rays,)
     weights = torch.tensor(
         [0.4, 0.3, 0.8, 0.8, 0.5], dtype=torch.float32, device=device
@@ -116,7 +116,7 @@ def test_rendering():
         return torch.hstack([t_starts] * 3), t_starts
 
     ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int32, device=device
+        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
     )  # (samples,)
     sigmas = torch.rand(
         (ray_indices.shape[0], 1), device=device
@@ -136,7 +136,7 @@ def test_rendering():
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_grads():
     ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int32, device=device
+        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
     )  # (samples,)
     packed_info = torch.tensor(
         [[0, 1], [1, 0], [1, 4]], dtype=torch.int32, device=device

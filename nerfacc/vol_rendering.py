@@ -191,7 +191,9 @@ def accumulate_along_rays(
     # assert n_rays > ray_indices.max()
 
     index = ray_indices[:, None].expand(-1, src.shape[-1])
-    outputs = torch.zeros((n_rays, src.shape[-1]), device=src.device, dtype=src.dtype)
+    outputs = torch.zeros(
+        (n_rays, src.shape[-1]), device=src.device, dtype=src.dtype
+    )
     outputs.scatter_add_(0, index, src)
     return outputs
 
