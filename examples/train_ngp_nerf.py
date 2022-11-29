@@ -55,7 +55,7 @@ if __name__ == "__main__":
     dataset.camtoworlds = dataset.camtoworlds.to(device)
     dataset.K = dataset.K.to(device)
 
-    testPoses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp,numberOfFrames=8)
+    testPoses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp,numberOfFrames=240, downscale_factor=8)
     testPoses.camtoworlds = testPoses.camtoworlds.to(device)
     testPoses.K = testPoses.K.to(device)
 

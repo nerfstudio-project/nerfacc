@@ -42,7 +42,7 @@ def sphericalPoses(p0,numberOfFrames):
    poses = np.stack(poses, axis=0)
    return poses
 
-def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: int):
+def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: int, factor: int):
 
    if not root_fp.startswith("/"):
       root_fp = os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","..",root_fp) # e.g., "./data/nerf_synthetic/"
@@ -55,7 +55,6 @@ def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: in
    frame = meta["frames"][15]
    fname = os.path.join(data_dir, frame['file_path'][2:])
 
-   factor = 4
    #image intrinsics
    focal, cx, cy = frame['fl_x'], frame['cx'], frame['cy']
    K = np.array([[focal, 0, cx], [0, focal, cy], [0, 0, 1]])
@@ -72,12 +71,12 @@ def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: in
 class SubjectTestPoseLoader(torch.utils.data.Dataset):
 
    OPENGL_CAMERA = True
-   def __init__(self, subject_id: str, root_fp: str,color_bkgd_aug: str = "random", numberOfFrames: int = 120):
+   def __init__(self, subject_id: str, root_fp: str,color_bkgd_aug: str = "random", numberOfFrames: int = 120, downscale_factor: int = 4):
 
       super().__init__()
       
       self.color_bkgd_aug = color_bkgd_aug
-      self.camtoworlds, self.K, self.WIDTH, self.HEIGHT = generateSphericalTestPoses(root_fp, subject_id, numberOfFrames)
+      self.camtoworlds, self.K, self.WIDTH, self.HEIGHT = generateSphericalTestPoses(root_fp, subject_id, numberOfFrames, downscale_factor)
 
       self.camtoworlds = torch.from_numpy(self.camtoworlds).to(torch.float32)
       self.K = torch.from_numpy(self.K).to(torch.float32)
