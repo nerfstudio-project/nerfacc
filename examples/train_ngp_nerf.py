@@ -15,6 +15,7 @@ import torch.nn.functional as F
 import tqdm
 from radiance_fields.ngp import NGPradianceField
 from utils import render_image, set_random_seed
+from torch.utils.tensorboard import SummaryWriter
 
 from nerfacc import ContractionType, OccupancyGrid
 
@@ -47,7 +48,7 @@ if __name__ == "__main__":
     from datasets.generateTestPoses import SubjectTestPoseLoader
     data_root_fp = "/home/ubuntu/data/"
     target_sample_batch_size = 1 << 20
-    grid_resolution = 256
+    grid_resolution = [512, 512, 128]
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="train",num_rays=target_sample_batch_size // render_n_samples)
@@ -55,7 +56,7 @@ if __name__ == "__main__":
     dataset.camtoworlds = dataset.camtoworlds.to(device)
     dataset.K = dataset.K.to(device)
 
-    testPoses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp,numberOfFrames=240, downscale_factor=8)
+    testPoses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp,numberOfFrames=120, downscale_factor=8)
     testPoses.camtoworlds = testPoses.camtoworlds.to(device)
     testPoses.K = testPoses.K.to(device)
 
@@ -69,7 +70,7 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     contraction_type = ContractionType.AABB
-    args.aabb = [dataset.aabb[0][0], dataset.aabb[0][1], -30, dataset.aabb[1][0], dataset.aabb[1][1], 100]
+    args.aabb = [dataset.aabb[0][0], dataset.aabb[0][1], -30, dataset.aabb[1][0], dataset.aabb[1][1], 30]
     scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
     render_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
     render_aabb[5] = 30
@@ -151,7 +152,7 @@ if __name__ == "__main__":
 
                 # a colormap and a normalization instance
                 cmap = plt.cm.viridis
-                norm = plt.Normalize(vmin=1000, vmax=depthImage.max())
+                norm = plt.Normalize(vmin=depthImage.min(), vmax=depthImage.max())
 
                 # map the normalized data to colors
                 depthImage = (cmap(norm(depthImage)) * 255).astype(np.uint8)
@@ -165,6 +166,14 @@ if __name__ == "__main__":
 
         print("All test poses are rendered! Exiting from program...")
         exit()
+
+    #---------------------------------------------------------------------------------------------------------------------------------------
+    writer = SummaryWriter(savepath)
+    print(f'Tensorboard cmd: tensorboard --logdir {savepath}')
+    
+    writer.add_text('GridSize',str(grid_resolution))
+    writer.add_text('AABB',str(args.aabb))
+    writer.add_text('target_sample_batch_size',str(target_sample_batch_size))
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     # training
@@ -243,6 +252,10 @@ if __name__ == "__main__":
             if step % 100 == 0:
                 elapsed_time = time.time() - tic
                 loss = F.mse_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
+                psnr = -10.0 * torch.log(loss) / np.log(10.0)
+                writer.add_scalar("mse/train", loss, step)
+                writer.add_scalar("psnr/train", psnr, step)
+                
                 print(
                     f"elapsed_time={elapsed_time:.2f}s | step={step} | "
                     f"loss={loss:.5f} | "
@@ -279,7 +292,10 @@ if __name__ == "__main__":
 
             #==================================================================================
             if step == max_steps:
+                
                 print("training stops")
+                writer.flush()
+                writer.close()
                 exit()
 
             step += 1
