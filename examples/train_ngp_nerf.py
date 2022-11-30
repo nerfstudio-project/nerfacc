@@ -45,10 +45,10 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     from datasets.nerf_synthetic import SubjectLoader
-    from datasets.generateTestPoses import SubjectTestPoseLoader
+    from datasets.nerf_test_poses import SubjectTestPoseLoader
     data_root_fp = "/home/ubuntu/data/"
     target_sample_batch_size = 1 << 20
-    grid_resolution = [512, 512, 128]
+    grid_resolution = [256, 256, 256]
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="train",num_rays=target_sample_batch_size // render_n_samples)
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     testPoses.K = testPoses.K.to(device)
 
     #---------------------------------------------------------------------------------------------------------------------------------------
-    savepath = os.path.join(data_root_fp,args.scene+"_"+args.exp_name)
+    savepath = os.path.join(data_root_fp,args.scene,args.exp_name)
     if not os.path.exists(savepath):
         os.makedirs(savepath)
         print('Test results folder not found, creating new dir: ' + savepath)
@@ -159,10 +159,10 @@ if __name__ == "__main__":
                 depths.append(depthImage)
 
             rgbs = np.stack(rgbs, 0)
-            imageio.mimwrite(os.path.join(savepath,"rgb"+str(step)+".mp4"), rgbs, fps=30, quality=8)
+            imageio.mimwrite(os.path.join(savepath,"color.mp4"), rgbs, fps=30, quality=8)
             
             depths = np.stack(depths, 0)
-            imageio.mimwrite(os.path.join(savepath,"depth"+str(step)+".mp4"), depths, fps=30, quality=8)
+            imageio.mimwrite(os.path.join(savepath,"depth.mp4"), depths, fps=30, quality=8)
 
         print("All test poses are rendered! Exiting from program...")
         exit()
