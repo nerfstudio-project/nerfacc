@@ -21,7 +21,7 @@ def set_random_seed(seed):
 # gaussion computation from Nerf-Factory
 def lift_gaussian(d, t_mean, t_var, r_var):
 
-    mean = d[..., None, :] * t_mean[..., None]
+    mean = d * t_mean
 
     d_mag_sq = torch.sum(d**2, dim=-1, keepdim=True)
     thresholds = torch.ones_like(d_mag_sq) * 1e-10
@@ -29,8 +29,8 @@ def lift_gaussian(d, t_mean, t_var, r_var):
 
     d_outer_diag = d**2
     null_outer_diag = 1 - d_outer_diag / d_mag_sq
-    t_cov_diag = t_var[..., None] * d_outer_diag[..., None, :]
-    xy_cov_diag = r_var[..., None] * null_outer_diag[..., None, :]
+    t_cov_diag = t_var * d_outer_diag
+    xy_cov_diag = r_var * null_outer_diag
     cov_diag = t_cov_diag + xy_cov_diag
 
     return mean, cov_diag
@@ -70,7 +70,7 @@ def cast_rays(t_starts, t_ends, origins, directions, radii, ray_shape):
     else:
         assert False
     means, covs = gaussian_fn(directions, t_starts, t_ends, radii)
-    means = means + origins[..., None, :]
+    means = means + origins
     return means, covs
 
 
@@ -104,20 +104,18 @@ def render_image(
         num_rays, _ = rays_shape
 
     def sigma_fn(t_starts, t_ends, ray_indices):
-        print(t_starts, t_ends)
-        print(t_starts.shape)
-        print(ray_indices.shape)
-        assert False
-        t_origins = rays_o[ray_indices]  # (n_samples, 3)
-        t_dirs = rays_d[ray_indices]  # (n_samples, 3)
-        t_radii = rays_radii[ray_indices] # (n_samples,)
+        ray_indices = ray_indices.long()
+        t_origins = chunk_rays.origins[ray_indices]  # (n_samples, 3)
+        t_dirs = chunk_rays.viewdirs[ray_indices]  # (n_samples, 3)
+        t_radii = chunk_rays.radii[ray_indices] # (n_samples,)
         mean, cov = cast_rays(t_starts, t_ends, t_origins, t_dirs, t_radii, ray_shape)
         return radiance_field.query_density(mean, cov)
 
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         ray_indices = ray_indices.long()
-        t_origins = chunk_rays.origins[ray_indices]
-        t_dirs = chunk_rays.viewdirs[ray_indices]
+        t_origins = chunk_rays.origins[ray_indices]  # (n_samples, 3)
+        t_dirs = chunk_rays.viewdirs[ray_indices]  # (n_samples, 3)
+        t_radii = chunk_rays.radii[ray_indices] # (n_samples,)
         mean, cov = cast_rays(t_starts, t_ends, t_origins, t_dirs, t_radii, ray_shape)
         return radiance_field(mean, cov, t_dirs)
 

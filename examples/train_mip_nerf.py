@@ -128,7 +128,7 @@ if __name__ == "__main__":
         from datasets.nerf_synthetic import SubjectLoader
 
         data_root_fp = "/home/yaliu/NeRF-Factory/data/blender"
-        target_sample_batch_size = 1 << 15
+        target_sample_batch_size = 1 << 16
         grid_resolution = 128
 
     train_dataset = SubjectLoader(
@@ -212,7 +212,6 @@ if __name__ == "__main__":
                 # compute occupancy
                 density = radiance_field.query_density(x, xcov)
                 return density * step_size
-                # return torch.ones_like(occ_rays.radii)
 
             # update occupancy grid
             occupancy_grid.every_n_step(step=step, occ_eval_fn=occ_eval_fn)
