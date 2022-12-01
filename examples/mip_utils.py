@@ -20,7 +20,6 @@ def set_random_seed(seed):
 
 # gaussion computation from Nerf-Factory
 def lift_gaussian(d, t_mean, t_var, r_var):
-
     mean = d * t_mean
 
     d_mag_sq = torch.sum(d**2, dim=-1, keepdim=True)

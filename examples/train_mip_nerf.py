@@ -105,7 +105,7 @@ if __name__ == "__main__":
         ).item()
 
     # setup the radiance field we want to train.
-    max_steps = 50000
+    max_steps = 1 #50000
     grad_scaler = torch.cuda.amp.GradScaler(1)
     radiance_field = MipNeRFRadianceField().to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     if args.scene == "garden":
         from datasets.nerf_360_v2 import SubjectLoader
 
-        data_root_fp = pathlib.Path(args.data_root) / "360_v2"
+        data_root_fp = str(pathlib.Path(args.data_root) / "360_v2")
         target_sample_batch_size = 1 << 16
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     else:
         from datasets.nerf_synthetic import SubjectLoader
 
-        data_root_fp = pathlib.Path(args.data_root) / "nerf_synthetic"
+        data_root_fp = str(pathlib.Path(args.data_root) / "nerf_synthetic")
         target_sample_batch_size = 1 << 16
         grid_resolution = 128
 
@@ -294,6 +294,7 @@ if __name__ == "__main__":
                             cone_angle=args.cone_angle,
                             # test options
                             test_chunk_size=args.test_chunk_size,
+                            ray_shape=args.ray_shape,
                         )
                         mse = F.mse_loss(rgb, pixels)
                         psnr = -10.0 * torch.log(mse) / np.log(10.0)

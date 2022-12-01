@@ -213,15 +213,6 @@ class SubjectLoader(torch.utils.data.Dataset):
             directions, dim=-1, keepdims=True
         )
 
-        if self.training:
-            origins = torch.reshape(origins, (num_rays, 3))
-            viewdirs = torch.reshape(viewdirs, (num_rays, 3))
-            rgba = torch.reshape(rgba, (num_rays, 4))
-        else:
-            origins = torch.reshape(origins, (self.HEIGHT, self.WIDTH, 3))
-            viewdirs = torch.reshape(viewdirs, (self.HEIGHT, self.WIDTH, 3))
-            rgba = torch.reshape(rgba, (self.HEIGHT, self.WIDTH, 4))
-
         if self.get_radii:
             camera_dirs_cornor = F.pad(
                 torch.stack(
@@ -252,6 +243,17 @@ class SubjectLoader(torch.utils.data.Dataset):
                 torch.ones(origins.shape[0], 1, device=self.images.device)
                 * radii_value
             )
+
+        if self.training:
+            origins = torch.reshape(origins, (num_rays, 3))
+            viewdirs = torch.reshape(viewdirs, (num_rays, 3))
+            rgba = torch.reshape(rgba, (num_rays, 4))
+            radii = torch.reshape(radii, (num_rays, 1))
+        else:
+            origins = torch.reshape(origins, (self.HEIGHT, self.WIDTH, 3))
+            viewdirs = torch.reshape(viewdirs, (self.HEIGHT, self.WIDTH, 3))
+            rgba = torch.reshape(rgba, (self.HEIGHT, self.WIDTH, 4))
+            radii = torch.reshape(radii, (self.HEIGHT, self.WIDTH, 1))
 
         rays = Rays(origins=origins, viewdirs=viewdirs, radii=radii)
 

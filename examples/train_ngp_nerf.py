@@ -93,7 +93,7 @@ if __name__ == "__main__":
     if args.unbounded:
         from datasets.nerf_360_v2 import SubjectLoader
 
-        data_root_fp = pathlib.Path(args.data_root) / "360_v2"
+        data_root_fp = str(pathlib.Path(args.data_root) / "360_v2")
         target_sample_batch_size = 1 << 20
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     else:
         from datasets.nerf_synthetic import SubjectLoader
 
-        data_root_fp = pathlib.Path(args.data_root) / "nerf_synthetic"
+        data_root_fp = str(pathlib.Path(args.data_root) / "nerf_synthetic")
         target_sample_batch_size = 1 << 18
         grid_resolution = 128
 

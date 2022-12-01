@@ -97,7 +97,7 @@ if __name__ == "__main__":
         gamma=0.33,
     )
     # setup the dataset
-    data_root_fp = pathlib.Path(args.data_root) / "dnerf"
+    data_root_fp = str(pathlib.Path(args.data_root) / "dnerf")
     target_sample_batch_size = 1 << 16
     grid_resolution = 128
 
