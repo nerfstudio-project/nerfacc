@@ -105,7 +105,7 @@ if __name__ == "__main__":
         ).item()
 
     # setup the radiance field we want to train.
-    max_steps = 1 #50000
+    max_steps = 50000
     grad_scaler = torch.cuda.amp.GradScaler(1)
     radiance_field = MipNeRFRadianceField().to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
