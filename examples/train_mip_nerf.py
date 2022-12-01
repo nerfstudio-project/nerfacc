@@ -12,8 +12,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
-from radiance_fields.mlp import VanillaNeRFRadianceField
-from utils import render_image, set_random_seed
+from radiance_fields.mlp import MipNeRFRadianceField
+from mip_utils import render_image, set_random_seed, cast_rays
 
 from nerfacc import ContractionType, OccupancyGrid
 
@@ -48,6 +48,13 @@ if __name__ == "__main__":
             "garden",
         ],
         help="which scene to use",
+    )
+    parser.add_argument(
+        "--ray_shape",
+        type=str,
+        default="cone",
+        choices=["cone", "cylinder"],
+        help="the shape of the ray",
     )
     parser.add_argument(
         "--aabb",
@@ -93,7 +100,7 @@ if __name__ == "__main__":
     # setup the radiance field we want to train.
     max_steps = 50000
     grad_scaler = torch.cuda.amp.GradScaler(1)
-    radiance_field = VanillaNeRFRadianceField().to(device)
+    radiance_field = MipNeRFRadianceField().to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer,
@@ -121,7 +128,7 @@ if __name__ == "__main__":
         from datasets.nerf_synthetic import SubjectLoader
 
         data_root_fp = "/home/yaliu/NeRF-Factory/data/blender"
-        target_sample_batch_size = 1 << 16
+        target_sample_batch_size = 1 << 15
         grid_resolution = 128
 
     train_dataset = SubjectLoader(
@@ -129,6 +136,7 @@ if __name__ == "__main__":
         root_fp=data_root_fp,
         split=args.train_split,
         num_rays=target_sample_batch_size // render_n_samples,
+        get_radii=True,
         **train_dataset_kwargs,
     )
 
@@ -141,6 +149,7 @@ if __name__ == "__main__":
         root_fp=data_root_fp,
         split="test",
         num_rays=None,
+        get_radii=True,
         **test_dataset_kwargs,
     )
     test_dataset.images = test_dataset.images.to(device)
@@ -165,13 +174,48 @@ if __name__ == "__main__":
             rays = data["rays"]
             pixels = data["pixels"]
 
+            def occ_eval_fn(x):
+                # randomly sample a camera for computing step size.
+                camera_ids = torch.randint(
+                    0, len(train_dataset), (x.shape[0],), device=device
+                )
+                occ_rays = train_dataset.fetch_data_for_x(camera_ids, x)
+
+                # calculate distance between x and origins
+                origins = train_dataset.camtoworlds[camera_ids, :3, -1]
+                t = (origins - x).norm(dim=-1, keepdim=True)
+                # compute actual step size used in marching, based on the distance to the camera.
+                step_size = torch.clamp(
+                    t * args.cone_angle, min=render_step_size
+                )
+                # filter out the points that are not in the near far plane.
+                if (near_plane is not None) and (far_plane is not None):
+                    step_size = torch.where(
+                        (t > near_plane) & (t < far_plane),
+                        step_size,
+                        torch.zeros_like(step_size),
+                    )
+
+                # calculate t_starts, t_ends
+                t_starts, t_ends = t - step_size / 2, t + step_size / 2
+
+                # compute mean, cov of the samples.
+                x, xcov = cast_rays(
+                    t_starts,
+                    t_ends,
+                    occ_rays.origins,
+                    occ_rays.viewdirs,
+                    occ_rays.radii,
+                    args.ray_shape,
+                )
+
+                # compute occupancy
+                density = radiance_field.query_density(x, xcov)
+                return density * step_size
+                # return torch.ones_like(occ_rays.radii)
+
             # update occupancy grid
-            occupancy_grid.every_n_step(
-                step=step,
-                occ_eval_fn=lambda x: radiance_field.query_opacity(
-                    x, render_step_size
-                ),
-            )
+            occupancy_grid.every_n_step(step=step, occ_eval_fn=occ_eval_fn)
 
             # render
             rgb, acc, depth, n_rendering_samples = render_image(

@@ -5,6 +5,7 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 import collections
 import json
 import os
+import math
 
 import imageio.v2 as imageio
 import numpy as np
@@ -13,16 +14,15 @@ import torch.nn.functional as F
 
 from .utils import Rays
 
+radii_factor = 2 / math.sqrt(12)
+
 
 def _load_renderings(root_fp: str, subject_id: str, split: str):
     """Load images from disk."""
     if not root_fp.startswith("/"):
         # allow relative path. e.g., "./data/nerf_synthetic/"
         root_fp = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "..",
-            "..",
-            root_fp,
+            os.path.dirname(os.path.abspath(__file__)), "..", "..", root_fp,
         )
 
     data_dir = os.path.join(root_fp, subject_id)
@@ -79,6 +79,7 @@ class SubjectLoader(torch.utils.data.Dataset):
         near: float = None,
         far: float = None,
         batch_over_images: bool = True,
+        get_radii: bool = False,
     ):
         super().__init__()
         assert split in self.SPLITS, "%s" % split
@@ -93,6 +94,7 @@ class SubjectLoader(torch.utils.data.Dataset):
         )
         self.color_bkgd_aug = color_bkgd_aug
         self.batch_over_images = batch_over_images
+        self.get_radii = get_radii
         if split == "trainval":
             _images_train, _camtoworlds_train, _focal_train = _load_renderings(
                 root_fp, subject_id, "train"
@@ -220,9 +222,61 @@ class SubjectLoader(torch.utils.data.Dataset):
             viewdirs = torch.reshape(viewdirs, (self.HEIGHT, self.WIDTH, 3))
             rgba = torch.reshape(rgba, (self.HEIGHT, self.WIDTH, 4))
 
-        rays = Rays(origins=origins, viewdirs=viewdirs)
+        if self.get_radii:
+            camera_dirs_cornor = F.pad(
+                torch.stack(
+                    [
+                        (x - self.K[0, 2]) / self.K[0, 0],
+                        (y - self.K[1, 2])
+                        / self.K[1, 1]
+                        * (-1.0 if self.OPENGL_CAMERA else 1.0),
+                    ],
+                    dim=-1,
+                ),
+                (0, 1),
+                value=(-1.0 if self.OPENGL_CAMERA else 1.0),
+            )  # [num_rays, 3]
+            directions_cornor = (
+                camera_dirs_cornor[:, None, :] * c2w[:, :3, :3]
+            ).sum(dim=-1)
+            dx = torch.sqrt(
+                torch.sum((directions_cornor - directions) ** 2, -1)
+            )
+            radii = dx[:, None] * radii_factor
+        else:
+            radii_value = (
+                math.sqrt((0.5 / self.K[0, 0]) ** 2 + (0.5 / self.K[1, 1]) ** 2)
+                * radii_factor
+            )
+            radii = (
+                torch.ones(origins.shape[0], 1, device=self.images.device)
+                * radii_value
+            )
+
+        rays = Rays(origins=origins, viewdirs=viewdirs, radii=radii)
 
         return {
             "rgba": rgba,  # [h, w, 4] or [num_rays, 4]
             "rays": rays,  # [h, w, 3] or [num_rays, 3]
         }
+
+    def fetch_data_for_x(self, camera_ids, x):
+        """Fetch the data for a loc and camera (it maybe cached for multiple batches)."""
+        c2w = self.camtoworlds[camera_ids]  # (num_rays, 3, 4)
+
+        origins = torch.broadcast_to(c2w[:, :3, -1], x.shape)
+        directions = x - origins
+        viewdirs = directions / torch.linalg.norm(
+            directions, dim=-1, keepdims=True
+        )
+
+        # get fix value to simpliy the calculation
+        radii_value = (
+            math.sqrt((0.5 / self.K[0, 0]) ** 2 + (0.5 / self.K[1, 1]) ** 2)
+            * radii_factor
+        )
+        radii = (
+            torch.ones(origins.shape[0], 1, device=self.images.device)
+            * radii_value
+        )
+        return Rays(origins=origins, viewdirs=viewdirs, radii=radii)

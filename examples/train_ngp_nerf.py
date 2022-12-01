@@ -95,7 +95,7 @@ if __name__ == "__main__":
     else:
         from datasets.nerf_synthetic import SubjectLoader
 
-        data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
+        data_root_fp = "/home/yaliu/NeRF-Factory/data/blender"
         target_sample_batch_size = 1 << 18
         grid_resolution = 128
 
