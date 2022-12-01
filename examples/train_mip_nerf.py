@@ -6,6 +6,7 @@ import argparse
 import math
 import os
 import time
+import pathlib
 
 import imageio
 import numpy as np
@@ -23,6 +24,12 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--data_root",
+        type=str,
+        default=str(pathlib.Path.home() / "data"),
+        help="the root dir of the dataset",
+    )
     parser.add_argument(
         "--train_split",
         type=str,
@@ -119,7 +126,7 @@ if __name__ == "__main__":
     if args.scene == "garden":
         from datasets.nerf_360_v2 import SubjectLoader
 
-        data_root_fp = "/home/ruilongli/data/360_v2/"
+        data_root_fp = pathlib.Path(args.data_root) / "360_v2"
         target_sample_batch_size = 1 << 16
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
@@ -127,7 +134,7 @@ if __name__ == "__main__":
     else:
         from datasets.nerf_synthetic import SubjectLoader
 
-        data_root_fp = "/home/yaliu/NeRF-Factory/data/blender"
+        data_root_fp = pathlib.Path(args.data_root) / "nerf_synthetic"
         target_sample_batch_size = 1 << 16
         grid_resolution = 128
 
@@ -228,6 +235,7 @@ if __name__ == "__main__":
                 render_step_size=render_step_size,
                 render_bkgd=render_bkgd,
                 cone_angle=args.cone_angle,
+                ray_shape=args.ray_shape,
             )
             if n_rendering_samples == 0:
                 continue

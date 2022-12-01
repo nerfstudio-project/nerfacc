@@ -24,6 +24,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--data_root",
+        type=str,
+        default=str(pathlib.Path.home() / "data"),
+        help="the root dir of the dataset",
+    )
+    parser.add_argument(
         "--train_split",
         type=str,
         default="trainval",
@@ -112,7 +118,7 @@ if __name__ == "__main__":
     if args.scene == "garden":
         from datasets.nerf_360_v2 import SubjectLoader
 
-        data_root_fp = "/home/ruilongli/data/360_v2/"
+        data_root_fp = pathlib.Path(args.data_root) / "360_v2"
         target_sample_batch_size = 1 << 16
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
@@ -120,7 +126,7 @@ if __name__ == "__main__":
     else:
         from datasets.nerf_synthetic import SubjectLoader
 
-        data_root_fp = "/home/yaliu/NeRF-Factory/data/blender"
+        data_root_fp = pathlib.Path(args.data_root) / "nerf_synthetic"
         target_sample_batch_size = 1 << 16
         grid_resolution = 128
 

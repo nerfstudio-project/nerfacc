@@ -25,6 +25,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--data_root",
+        type=str,
+        default=str(pathlib.Path.home() / "data"),
+        help="the root dir of the dataset",
+    )
+    parser.add_argument(
         "--train_split",
         type=str,
         default="train",
@@ -91,7 +97,7 @@ if __name__ == "__main__":
         gamma=0.33,
     )
     # setup the dataset
-    data_root_fp = "/home/ruilongli/data/dnerf/"
+    data_root_fp = pathlib.Path(args.data_root) / "dnerf"
     target_sample_batch_size = 1 << 16
     grid_resolution = 128
 
