@@ -15,10 +15,6 @@ from .utils import Rays
 
 
 def _load_renderings(root_fp: str, subject_id: str, split: str):
-    """Load images from disk."""
-    if not root_fp.startswith("/"):
-        root_fp = os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","..",root_fp) # e.g., "./data/nerf_synthetic/"
-
     data_dir = os.path.join(root_fp, subject_id)
     
     with open(os.path.join(data_dir, 'transforms.json'), 'r') as fp:
@@ -27,13 +23,7 @@ def _load_renderings(root_fp: str, subject_id: str, split: str):
     images = []
     camtoworlds = []
     intrinsics = []
-    
-    if split == "test":
-        N = len(meta["frames"])
-    else:
-        N = len(meta["frames"])
-
-    for i in range(N):
+    for i in range(len(meta["frames"])):
         frame = meta["frames"][i]
         fname = os.path.join(data_dir, frame['file_path'][2:])
         rgba = imageio.imread(fname)
@@ -60,7 +50,7 @@ class SubjectLoader(torch.utils.data.Dataset):
     NEAR, FAR = 2.0, 6.0
     OPENGL_CAMERA = True
 
-    def __init__(   self,subject_id: str,root_fp: str,split: str,color_bkgd_aug: str = "random",
+    def __init__(   self,subject_id: str,root_fp: str,split: str,color_bkgd_aug: str = "black",
                     num_rays: int = None,near: float = None,far: float = None,batch_over_images: bool = True):
 
         super().__init__()
@@ -99,8 +89,7 @@ class SubjectLoader(torch.utils.data.Dataset):
         rgba, rays = data["rgba"], data["rays"]
         
         if self.color_bkgd_aug == "random":
-            color_bkgd = torch.tensor([0, 0, 0], device=self.images.device)
-            # color_bkgd = torch.rand(3, device=self.images.device)
+            color_bkgd = torch.rand(3, device=self.images.device)
         elif self.color_bkgd_aug == "white":
             color_bkgd = torch.ones(3, device=self.images.device)
         elif self.color_bkgd_aug == "black":
