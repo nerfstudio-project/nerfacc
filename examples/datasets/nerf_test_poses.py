@@ -71,7 +71,7 @@ def generateSphericalTestPoses(root_fp: str, subject_id: str, numberOfFrames: in
 class SubjectTestPoseLoader(torch.utils.data.Dataset):
 
    OPENGL_CAMERA = True
-   def __init__(self, subject_id: str, root_fp: str,color_bkgd_aug: str = "random", numberOfFrames: int = 120, downscale_factor: int = 4):
+   def __init__(self, subject_id: str, root_fp: str,color_bkgd_aug: str = "black", numberOfFrames: int = 120, downscale_factor: int = 4):
 
       super().__init__()
       
@@ -127,7 +127,12 @@ class SubjectTestPoseLoader(torch.utils.data.Dataset):
 
       rays = Rays(origins=origins, viewdirs=viewdirs)
 
-      color_bkgd = torch.tensor([0, 0, 0], device=self.camtoworlds.device)
+      if self.color_bkgd_aug == "random":
+         color_bkgd = torch.rand(3, device=self.camtoworlds.device)
+      elif self.color_bkgd_aug == "white":
+         color_bkgd = torch.ones(3, device=self.camtoworlds.device)
+      elif self.color_bkgd_aug == "black":
+         color_bkgd = torch.zeros(3, device=self.camtoworlds.device)
 
       return {
          "rays": rays,  # [h, w, 3] or [num_rays, 3]
