@@ -37,6 +37,7 @@ def sphericalPoses(p0,numberOfFrames):
       rotMatZ[0:3,0:3] = SR.from_euler('Z',angle).as_matrix()
 
       myPose = rotMatZ @ transMat
+      # myPose[1,3] += 130 #We needed this for non-masked shuttle imageset to move rotation center
       poses.append(myPose)
 
    poses = np.stack(poses, axis=0)

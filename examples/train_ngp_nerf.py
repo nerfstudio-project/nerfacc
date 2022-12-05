@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--test_chunk_size",type=int,default=8192)
     parser.add_argument("--max_steps",type=int,default=30000, help="Max number of training iterations")
     parser.add_argument("--cone_angle", type=float, default=0.0)
-    parser.add_argument("--i_ckpt",type=int, default=5000, help="Iterations to save model")
+    parser.add_argument("--i_ckpt",type=int, default=1000, help="Iterations to save model")
     parser.add_argument("--render_only",action="store_true",help="whether to only render images")
     
     #currently useless options
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     render_n_samples = 1024
 
     #---------------------------------------------------------------------------------------------------------------------------------------
-    from datasets.nerf_synthetic import SubjectLoader
+    from datasets.nerf_synthetic2 import SubjectLoader
     from datasets.nerf_test_poses import SubjectTestPoseLoader
     data_root_fp = "/home/ubuntu/data/"
     target_sample_batch_size = 1 << 20
@@ -52,11 +52,11 @@ if __name__ == "__main__":
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="train",num_rays=target_sample_batch_size // render_n_samples)
-    dataset.images = dataset.images.to(device)
+    # dataset.images = dataset.images.to(device)
     dataset.camtoworlds = dataset.camtoworlds.to(device)
     dataset.K = dataset.K.to(device)
 
-    testPoses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp,numberOfFrames=120, downscale_factor=8)
+    testPoses = SubjectTestPoseLoader(subject_id=args.scene,root_fp=data_root_fp,numberOfFrames=120, downscale_factor=4)
     testPoses.camtoworlds = testPoses.camtoworlds.to(device)
     testPoses.K = testPoses.K.to(device)
 
