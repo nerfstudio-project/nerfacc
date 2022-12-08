@@ -203,6 +203,53 @@ class SinusoidalEncoder(nn.Module):
         return latent
 
 
+class IntegrateSinusoidalEncoder(nn.Module):
+    """Integrate Sinusoidal Positional Encoder used in Nerf."""
+
+    def __init__(self, x_dim, min_deg, max_deg, use_identity: bool = True):
+        super().__init__()
+        self.x_dim = x_dim
+        self.min_deg = min_deg
+        self.max_deg = max_deg
+        self.use_identity = use_identity
+        self.register_buffer(
+            "scales", torch.tensor([2**i for i in range(min_deg, max_deg)])
+        )
+
+    @property
+    def latent_dim(self) -> int:
+        return (
+            int(self.use_identity) + (self.max_deg - self.min_deg) * 2
+        ) * self.x_dim
+
+    def forward(self, x: torch.Tensor, x_cov: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x: [..., x_dim]
+            x_cov: [..., x_dim]
+        Returns:
+            latent: [..., latent_dim]
+        """
+        if self.max_deg == self.min_deg:
+            return x
+        shape = list(x.shape[:-1]) + [
+            (self.max_deg - self.min_deg) * self.x_dim
+        ]
+        xb = torch.reshape(
+            (x[Ellipsis, None, :] * self.scales[:, None]),
+            shape,
+        )
+        xvar = torch.reshape(
+            x_cov[..., None, :] * self.scales[:, None] ** 2, shape
+        )
+        latent = torch.exp(-0.5 * torch.cat([xvar] * 2, dim=-1)) * torch.sin(
+            torch.cat([xb, xb + 0.5 * math.pi], dim=-1)
+        )
+        if self.use_identity:
+            latent = torch.cat([x] + [latent], dim=-1)
+        return latent
+
+
 class VanillaNeRFRadianceField(nn.Module):
     def __init__(
         self,
@@ -239,6 +286,41 @@ class VanillaNeRFRadianceField(nn.Module):
 
     def forward(self, x, condition=None):
         x = self.posi_encoder(x)
+        if condition is not None:
+            condition = self.view_encoder(condition)
+        rgb, sigma = self.mlp(x, condition=condition)
+        return torch.sigmoid(rgb), F.relu(sigma)
+
+
+class MipNeRFRadianceField(nn.Module):
+    def __init__(
+        self,
+        net_depth: int = 8,  # The depth of the MLP.
+        net_width: int = 256,  # The width of the MLP.
+        skip_layer: int = 4,  # The layer to add skip layers to.
+        net_depth_condition: int = 1,  # The depth of the second part of MLP.
+        net_width_condition: int = 128,  # The width of the second part of MLP.
+    ) -> None:
+        super().__init__()
+        self.posi_encoder = IntegrateSinusoidalEncoder(3, 0, 10, True)
+        self.view_encoder = SinusoidalEncoder(3, 0, 4, True)
+        self.mlp = NerfMLP(
+            input_dim=self.posi_encoder.latent_dim,
+            condition_dim=self.view_encoder.latent_dim,
+            net_depth=net_depth,
+            net_width=net_width,
+            skip_layer=skip_layer,
+            net_depth_condition=net_depth_condition,
+            net_width_condition=net_width_condition,
+        )
+
+    def query_density(self, x, x_conv):
+        x = self.posi_encoder(x, x_conv)
+        sigma = self.mlp.query_density(x)
+        return F.relu(sigma)
+
+    def forward(self, x, x_conv, condition=None):
+        x = self.posi_encoder(x, x_conv)
         if condition is not None:
             condition = self.view_encoder(condition)
         rgb, sigma = self.mlp(x, condition=condition)
