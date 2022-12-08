@@ -78,7 +78,7 @@ def rendering(
 
     # Query sigma/alpha and color with gradients
     if rgb_sigma_fn is not None:
-        rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices.long())
+        rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
         )
@@ -94,7 +94,7 @@ def rendering(
             n_rays=n_rays,
         )
     elif rgb_alpha_fn is not None:
-        rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices.long())
+        rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
         )
@@ -143,7 +143,7 @@ def accumulate_along_rays(
     Args:
         weights: Volumetric rendering weights for those samples. Tensor with shape \
             (n_samples,).
-        ray_indices: Ray index of each sample. IntTensor with shape (n_samples).
+        ray_indices: Ray index of each sample. LongTensor with shape (n_samples).
         values: The values to be accmulated. Tensor with shape (n_samples, D). If \
             None, the accumulated values are just weights. Default is None.
         n_rays: Total number of rays. This will decide the shape of the ouputs. If \
@@ -190,9 +190,10 @@ def accumulate_along_rays(
         n_rays = int(ray_indices.max()) + 1
     # assert n_rays > ray_indices.max()
 
-    ray_indices = ray_indices.int()
-    index = ray_indices[:, None].long().expand(-1, src.shape[-1])
-    outputs = torch.zeros((n_rays, src.shape[-1]), device=weights.device)
+    index = ray_indices[:, None].expand(-1, src.shape[-1])
+    outputs = torch.zeros(
+        (n_rays, src.shape[-1]), device=src.device, dtype=src.dtype
+    )
     outputs.scatter_add_(0, index, src)
     return outputs
 
@@ -524,7 +525,7 @@ class _RenderingTransmittanceFromDensityCUB(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, ray_indices, t_starts, t_ends, sigmas):
-        ray_indices = ray_indices.contiguous().int()
+        ray_indices = ray_indices.contiguous()
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
@@ -550,7 +551,7 @@ class _RenderingTransmittanceFromDensityNaive(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, packed_info, t_starts, t_ends, sigmas):
-        packed_info = packed_info.contiguous().int()
+        packed_info = packed_info.contiguous()
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
@@ -576,7 +577,7 @@ class _RenderingTransmittanceFromAlphaCUB(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, ray_indices, alphas):
-        ray_indices = ray_indices.contiguous().int()
+        ray_indices = ray_indices.contiguous()
         alphas = alphas.contiguous()
         transmittance = _C.transmittance_from_alpha_forward_cub(
             ray_indices, alphas
@@ -600,7 +601,7 @@ class _RenderingTransmittanceFromAlphaNaive(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, packed_info, alphas):
-        packed_info = packed_info.contiguous().int()
+        packed_info = packed_info.contiguous()
         alphas = alphas.contiguous()
         transmittance = _C.transmittance_from_alpha_forward_naive(
             packed_info, alphas
@@ -624,7 +625,7 @@ class _RenderingWeightFromDensityNaive(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, packed_info, t_starts, t_ends, sigmas):
-        packed_info = packed_info.contiguous().int()
+        packed_info = packed_info.contiguous()
         t_starts = t_starts.contiguous()
         t_ends = t_ends.contiguous()
         sigmas = sigmas.contiguous()
@@ -652,7 +653,7 @@ class _RenderingWeightFromAlphaNaive(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, packed_info, alphas):
-        packed_info = packed_info.contiguous().int()
+        packed_info = packed_info.contiguous()
         alphas = alphas.contiguous()
         weights = _C.weight_from_alpha_forward_naive(packed_info, alphas)
         if ctx.needs_input_grad[1]:

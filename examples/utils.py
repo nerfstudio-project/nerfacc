@@ -48,7 +48,6 @@ def render_image(
         num_rays, _ = rays_shape
 
     def sigma_fn(t_starts, t_ends, ray_indices):
-        ray_indices = ray_indices.long()
         t_origins = chunk_rays.origins[ray_indices]
         t_dirs = chunk_rays.viewdirs[ray_indices]
         positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
@@ -63,7 +62,6 @@ def render_image(
         return radiance_field.query_density(positions)
 
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
-        ray_indices = ray_indices.long()
         t_origins = chunk_rays.origins[ray_indices]
         t_dirs = chunk_rays.viewdirs[ray_indices]
         positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0

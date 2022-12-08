@@ -193,13 +193,13 @@ def ray_marching(
     if sigma_fn is not None or alpha_fn is not None:
         # Query sigma without gradients
         if sigma_fn is not None:
-            sigmas = sigma_fn(t_starts, t_ends, ray_indices.long())
+            sigmas = sigma_fn(t_starts, t_ends, ray_indices)
             assert (
                 sigmas.shape == t_starts.shape
             ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
             alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
         elif alpha_fn is not None:
-            alphas = alpha_fn(t_starts, t_ends, ray_indices.long())
+            alphas = alpha_fn(t_starts, t_ends, ray_indices)
             assert (
                 alphas.shape == t_starts.shape
             ), "alphas must have shape of (N, 1)! Got {}".format(alphas.shape)

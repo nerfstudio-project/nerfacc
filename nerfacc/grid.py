@@ -300,18 +300,14 @@ def _meshgrid3d(
     """Create 3D grid coordinates."""
     assert len(res) == 3
     res = res.tolist()
-    return (
-        torch.stack(
-            torch.meshgrid(
-                [
-                    torch.arange(res[0]),
-                    torch.arange(res[1]),
-                    torch.arange(res[2]),
-                ],
-                indexing="ij",
-            ),
-            dim=-1,
-        )
-        .long()
-        .to(device)
-    )
+    return torch.stack(
+        torch.meshgrid(
+            [
+                torch.arange(res[0], dtype=torch.long),
+                torch.arange(res[1], dtype=torch.long),
+                torch.arange(res[2], dtype=torch.long),
+            ],
+            indexing="ij",
+        ),
+        dim=-1,
+    ).to(device)

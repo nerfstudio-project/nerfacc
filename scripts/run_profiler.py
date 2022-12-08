@@ -97,7 +97,7 @@ def main():
     cpu_t, cuda_t, cuda_bytes = profiler(fn)
     print(f"{cpu_t:.2f} us, {cuda_t:.2f} us, {cuda_bytes / 1024 / 1024:.2f} MB")
 
-    packed_info = nerfacc.pack_info(ray_indices, n_rays=batch_size).int()
+    packed_info = nerfacc.pack_info(ray_indices, n_rays=batch_size)
     fn = (
         lambda: nerfacc.vol_rendering._RenderingDensity.apply(
             packed_info, t_starts, t_ends, sigmas, 0

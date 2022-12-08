@@ -95,7 +95,7 @@ __global__ void ray_marching_kernel(
     // first round outputs
     int *num_steps,
     // second round outputs
-    int *ray_indices,
+    long *ray_indices,
     float *t_starts,
     float *t_ends)
 {
@@ -259,7 +259,7 @@ std::vector<torch::Tensor> ray_marching(
     int total_steps = cum_steps[cum_steps.size(0) - 1].item<int>();
     torch::Tensor t_starts = torch::empty({total_steps, 1}, rays_o.options());
     torch::Tensor t_ends = torch::empty({total_steps, 1}, rays_o.options());
-    torch::Tensor ray_indices = torch::empty({total_steps}, cum_steps.options());
+    torch::Tensor ray_indices = torch::empty({total_steps}, cum_steps.options().dtype(torch::kLong));
 
     ray_marching_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         // rays
@@ -279,7 +279,7 @@ std::vector<torch::Tensor> ray_marching(
         packed_info.data_ptr<int>(),
         // outputs
         nullptr, /* num_steps */
-        ray_indices.data_ptr<int>(),
+        ray_indices.data_ptr<long>(),
         t_starts.data_ptr<float>(),
         t_ends.data_ptr<float>());
 
