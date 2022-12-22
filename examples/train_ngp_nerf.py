@@ -7,14 +7,16 @@ import math
 import os
 import time
 import glob
-
 import imageio
 import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
+import cv2
+
 from radiance_fields.ngp import NGPradianceField
 from utils import render_image, set_random_seed
+
 from torch.utils.tensorboard import SummaryWriter
 
 from nerfacc import ContractionType, OccupancyGrid
@@ -34,6 +36,7 @@ if __name__ == "__main__":
     parser.add_argument("--cone_angle", type=float, default=0.0)
     parser.add_argument("--i_ckpt",type=int, default=1000, help="Iterations to save model")
     parser.add_argument("--render_only",action="store_true",help="whether to only render images")
+    parser.add_argument("--visualize",action="store_true",help="visualize the nerf with nerfvis library at localhost:8888")
     
     #currently useless options
     parser.add_argument("--i_test",type=int, default=5000, help="Iterations to render test poses and create video") 
@@ -44,15 +47,16 @@ if __name__ == "__main__":
     render_n_samples = 1024
 
     #---------------------------------------------------------------------------------------------------------------------------------------
-    from datasets.nerf_synthetic2 import SubjectLoader
+    from datasets.nerf_synthetic import SubjectLoader
     from datasets.nerf_test_poses import SubjectTestPoseLoader
     data_root_fp = "/home/ubuntu/data/"
     target_sample_batch_size = 1 << 20
-    grid_resolution = [256, 256, 256]
+    # grid_resolution = [256, 256, 256]
+    grid_resolution = [400, 400, 100]
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     dataset = SubjectLoader(subject_id=args.scene,root_fp=data_root_fp,split="train",num_rays=target_sample_batch_size // render_n_samples)
-    # dataset.images = dataset.images.to(device)
+    dataset.images = dataset.images.to(device)
     dataset.camtoworlds = dataset.camtoworlds.to(device)
     dataset.K = dataset.K.to(device)
 
@@ -73,31 +77,23 @@ if __name__ == "__main__":
     args.aabb = [dataset.aabb[0][0], dataset.aabb[0][1], -30, dataset.aabb[1][0], dataset.aabb[1][1], 30]
     scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
     render_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
-    render_aabb[5] = 30
-    
-    near_plane = None
-    far_plane = None
+
     render_step_size = ((scene_aabb[3:] - scene_aabb[:3]).max() * math.sqrt(3) / render_n_samples).item()
     alpha_thre = 0.0
+    occ_thre = 0.1
     print("Using aabb", args.aabb, render_step_size)
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     # setup the radiance field we want to train.
+    step = 0
     max_steps = args.max_steps
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPradianceField(aabb=args.aabb,unbounded=False,).to(device)
     optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
-    
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer,
-        milestones=[max_steps // 2, max_steps * 3 // 4, max_steps * 9 // 10],
-        gamma=0.33,
-    )
-
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,milestones=[max_steps // 2, max_steps * 3 // 4, max_steps * 9 // 10],gamma=0.33)
     occupancy_grid = OccupancyGrid(roi_aabb=args.aabb,resolution=grid_resolution,contraction_type=contraction_type).to(device)
-    #---------------------------------------------------------------------------------------------------------------------------------------
 
-    step = 0
+    #---------------------------------------------------------------------------------------------------------------------------------------
     # Load checkpoints
     args.ckpt_path = os.path.join(savepath, "ckpts")
     load_ckpt = sorted(glob.glob(f'{args.ckpt_path}/*.ckpt'))
@@ -113,6 +109,40 @@ if __name__ == "__main__":
         print(f"Loaded checkpoint from: {load_ckpt}")
         print(f"Previous Training Loss: loss={model['loss']:.5f}")
 
+    #---------------------------------------------------------------------------------------------------------------------------------------
+    #Visualize the nerf with nerfvis and exit...
+    from datasets.utils import Rays
+    from nerfvis import scene
+
+    if step >= 0 and args.visualize:
+        radiance_field.eval()
+        
+        @torch.no_grad()
+        def nerf_func(points, dirs):
+            # points [B, 1, 3]
+            # dirs [1, sh_proj_sample_count, 3]
+            
+            rays = Rays(origins=points, viewdirs=dirs)
+            render_bkgd = torch.zeros(3, device=device)
+            rgb, acc, depth, _ = render_image(
+                    radiance_field,
+                    occupancy_grid,
+                    rays,
+                    render_aabb,
+                    render_step_size=render_step_size,
+                    render_bkgd=render_bkgd,
+                    cone_angle=args.cone_angle,
+                    alpha_thre=alpha_thre,
+                    # test options
+                    test_chunk_size=args.test_chunk_size,
+                )
+
+            return rgb, depth
+
+        scene.add_nerf(name="test", eval_fn = nerf_func, center=[0.0, 0.0, 0.0], radius=150, use_dirs=True)
+        scene.display()
+        exit()
+    
     #---------------------------------------------------------------------------------------------------------------------------------------
     #Render the test poses only and exit...
     if step >= 0 and args.render_only:
@@ -132,9 +162,6 @@ if __name__ == "__main__":
                     occupancy_grid,
                     rays,
                     render_aabb,
-                    # rendering options
-                    near_plane=near_plane,
-                    far_plane=far_plane,
                     render_step_size=render_step_size,
                     render_bkgd=render_bkgd,
                     cone_angle=args.cone_angle,
@@ -144,18 +171,23 @@ if __name__ == "__main__":
                 )
                 #save rgb image
                 rgbImage = (rgb.cpu().numpy() * 255).astype(np.uint8)
-                rgbs.append(rgbImage)
+                
                 
                 #save depth image (4000 is max depth)
                 depthImage = depth.cpu().numpy()
                 depthImage = depthImage[...,-1]
 
-                # a colormap and a normalization instance
-                cmap = plt.cm.viridis
-                norm = plt.Normalize(vmin=depthImage.min(), vmax=depthImage.max())
+                depthImage[depthImage < 2100] = 2100
 
-                # map the normalized data to colors
-                depthImage = (cmap(norm(depthImage)) * 255).astype(np.uint8)
+                depthImage = (depthImage-depthImage.min())/(depthImage.max()-depthImage.min())
+                depthImage = cv2.applyColorMap((depthImage*255).astype(np.uint8), cv2.COLORMAP_TURBO)
+
+                # # a colormap and a normalization instance
+                # cmap = plt.cm.turbo
+                # norm = plt.Normalize(vmin=depthImage.min(), vmax=depthImage.max())
+                # depthImage = (cmap(norm(depthImage)) * 255).astype(np.uint8)
+                
+                rgbs.append(rgbImage)
                 depths.append(depthImage)
 
             rgbs = np.stack(rgbs, 0)
@@ -174,20 +206,17 @@ if __name__ == "__main__":
     writer.add_text('GridSize',str(grid_resolution))
     writer.add_text('AABB',str(args.aabb))
     writer.add_text('target_sample_batch_size',str(target_sample_batch_size))
+    writer.add_text('occ_thre',str(occ_thre))
 
     #---------------------------------------------------------------------------------------------------------------------------------------
     # training
-    # step = 0
     tic = time.time()
     for epoch in range(10000000):
         for i in range(len(dataset)):
             radiance_field.train()
-        
+            
             data = dataset[i]
-
-            render_bkgd = data["color_bkgd"]
-            rays = data["rays"]
-            pixels = data["pixels"]
+            render_bkgd, rays, pixels = data["color_bkgd"], data["rays"], data["pixels"]
 
             def occ_eval_fn(x):
                 if args.cone_angle > 0.0:
@@ -214,7 +243,7 @@ if __name__ == "__main__":
                 return density * step_size
 
             # update occupancy grid
-            occupancy_grid.every_n_step(step=step, occ_eval_fn=occ_eval_fn)
+            occupancy_grid.every_n_step(step=step, occ_eval_fn=occ_eval_fn, occ_thre=occ_thre)
 
             # render
             rgb, acc, depth, n_rendering_samples = render_image(
@@ -223,13 +252,12 @@ if __name__ == "__main__":
                 rays,
                 scene_aabb,
                 # rendering options
-                near_plane=near_plane,
-                far_plane=far_plane,
                 render_step_size=render_step_size,
                 render_bkgd=render_bkgd,
                 cone_angle=args.cone_angle,
                 alpha_thre=alpha_thre,
             )
+
             if n_rendering_samples == 0:
                 continue
 
@@ -243,6 +271,7 @@ if __name__ == "__main__":
             # compute loss
             loss = F.smooth_l1_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
             optimizer.zero_grad()
+            
             # do not unscale it because we are using Adam.
             grad_scaler.scale(loss).backward()
             optimizer.step()
@@ -292,7 +321,6 @@ if __name__ == "__main__":
 
             #==================================================================================
             if step == max_steps:
-                
                 print("training stops")
                 writer.flush()
                 writer.close()
