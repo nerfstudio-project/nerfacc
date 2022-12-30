@@ -7,7 +7,15 @@
 #include <torch/extension.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <ATen/cuda/Exceptions.h>
-#include <ATen/cuda/cub_definitions.cuh>
+// #include <ATen/cuda/cub_definitions.cuh>
+
+// cub support for scan by key is added to cub 1.15
+// in https://github.com/NVIDIA/cub/pull/376
+#if CUB_VERSION >= 101500
+#define CUB_SUPPORTS_SCAN_BY_KEY() 1
+#else
+#define CUB_SUPPORTS_SCAN_BY_KEY() 0
+#endif
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) \
