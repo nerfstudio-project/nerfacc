@@ -208,6 +208,7 @@ def ray_marching(
         masks = render_visibility(
             alphas,
             ray_indices=ray_indices,
+            packed_info=packed_info,
             early_stop_eps=early_stop_eps,
             alpha_thre=alpha_thre,
             n_rays=rays_o.shape[0],
