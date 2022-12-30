@@ -169,9 +169,9 @@ class OccupancyGrid(Grid):
         grid_coords = _meshgrid3d(resolution).reshape(
             self.num_cells, self.NUM_DIM
         )
-        self.register_buffer("grid_coords", grid_coords)
+        self.register_buffer("grid_coords", grid_coords, persistent=False)
         grid_indices = torch.arange(self.num_cells)
-        self.register_buffer("grid_indices", grid_indices)
+        self.register_buffer("grid_indices", grid_indices, persistent=False)
 
     @torch.no_grad()
     def _get_all_cells(self) -> torch.Tensor:
