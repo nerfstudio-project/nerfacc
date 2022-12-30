@@ -75,6 +75,9 @@ if cuda_toolkit_available():
             extra_include_paths=extra_include_paths,
         )
     else:
+        # Build from scratch. Remove the build directory just to be safe: pytorch jit might stuck
+        # if the build directory exists.
+        shutil.rmtree(build_dir)
         with Console().status(
             "[bold yellow]NerfAcc: Setting up CUDA (This may take a few minutes the first time)",
             spinner="bouncingBall",
