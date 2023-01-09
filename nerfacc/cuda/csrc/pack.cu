@@ -9,7 +9,7 @@ __global__ void unpack_info_kernel(
     const int n_rays,
     const int *packed_info,
     // output
-    long *ray_indices)
+    int64_t *ray_indices)
 {
     CUDA_GET_THREAD_ID(i, n_rays);
 
@@ -97,7 +97,7 @@ torch::Tensor unpack_info(const torch::Tensor packed_info, const int n_samples)
     unpack_info_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
         n_rays,
         packed_info.data_ptr<int>(),
-        ray_indices.data_ptr<long>());
+        ray_indices.data_ptr<int64_t>());
     return ray_indices;
 }
 
