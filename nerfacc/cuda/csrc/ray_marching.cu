@@ -97,7 +97,7 @@ __global__ void ray_marching_kernel(
     // first round outputs
     int *num_steps,
     // second round outputs
-    long *ray_indices,
+    int64_t *ray_indices,
     float *t_starts,
     float *t_ends)
 {
@@ -281,7 +281,7 @@ std::vector<torch::Tensor> ray_marching(
         packed_info.data_ptr<int>(),
         // outputs
         nullptr, /* num_steps */
-        ray_indices.data_ptr<long>(),
+        ray_indices.data_ptr<int64_t>(),
         t_starts.data_ptr<float>(),
         t_ends.data_ptr<float>());
 
