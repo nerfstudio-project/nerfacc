@@ -64,9 +64,12 @@ if cuda_toolkit_available():
     #         f"download cub because the cuda version is {cuda_toolkit_version()}"
     #     )
 
-    if os.path.exists(os.path.join(build_dir, f"{name}.so")):
+    if os.listdir(build_dir) != []:
         # If the build exists, we assume the extension has been built
         # and we can load it.
+        Console().print(
+            "[yellow]NerfAcc: CUDA set up, loading (should be quick)[/yellow]"
+        )
         _C = load(
             name=name,
             sources=glob.glob(os.path.join(PATH, "csrc/*.cu")),
