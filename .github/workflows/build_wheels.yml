@@ -11,8 +11,8 @@ jobs:
       matrix:
         os: [windows-2019] # macos-11, ubuntu-18.04
         python-version: ['3.9']
-        torch-version: ['1.13.0', '1.11.0']
-        cuda-version: ['cu117', 'cu113']
+        torch-version: ['1.13.0']
+        cuda-version: ['cu117']
 
     steps:
       - name: Checkout repository
@@ -62,6 +62,7 @@ jobs:
           python -c "import torch; print('torch:', torch.__version__)"
           python -c "import nerfacc; print('nerfacc:', nerfacc.__version__)"
           cd ..
+        shell: bash
 
       # # Used to host cibuildwheel
       # - uses: actions/setup-python@v3
