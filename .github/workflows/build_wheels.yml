@@ -20,7 +20,7 @@ jobs:
           submodules: recursive
 
       - name: Install tools
-        run: apt-get update && apt-get install -y lsb-release && apt-get clean all
+        run: sudo apt-get update && apt-get install -y lsb-release && apt-get clean all
 
       - name: Setup packages
         uses: ./.github/actions/setup
