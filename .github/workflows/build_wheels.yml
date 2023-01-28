@@ -11,8 +11,8 @@ jobs:
       matrix:
         os: [ubuntu-18.04, windows-2019] # macos-11
         python-version: ['3.9']
-        torch-version: ['1.13.0']
-        cuda-version: ['cu117']
+        torch-version: ['1.10.0', '1.11.0', '1.12.0', '1.13.0']
+        cuda-version: ['cu102', 'cu113', 'cu115', 'cu116', 'cu117']
 
     steps:
       - name: Checkout repository
@@ -58,7 +58,6 @@ jobs:
       - name: Test wheel
         run: |
           cd dist
-          ls -lah
           pip install *.whl
           python -c "import torch; print('torch:', torch.__version__)"
           python -c "import nerfacc; print('nerfacc:', nerfacc.__version__)"
