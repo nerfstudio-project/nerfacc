@@ -26,6 +26,13 @@ runs:
         sudo rm -rf /usr/share/dotnet
       shell: bash
 
+    - name: Configure pagefile # Windows compatability fix
+      if: ${{ runner.os == 'Windows' }}
+      uses: al-cheb/configure-pagefile-action@v1.2
+      with:
+        minimum-size: 8GB
+      shell: bash
+      
     - name: Install CUDA ${{ inputs.cuda-version }}
       if: ${{ inputs.cuda-version != 'cpu' }}
       run: |
