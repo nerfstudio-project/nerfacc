@@ -148,12 +148,50 @@ Used by:
 
 #### Ubuntu-18.04
 
+PyTorch pre-built wheels:
+
+|              | `cu102` | `cu113` | `cu116` | `cu117` |
+|--------------|---------|---------|---------|---------|
+| torch 1.10.0 | ✅      | ✅      |         |         |
+| torch 1.11.0 | ✅      | ✅      |         |         |
+| torch 1.12.0 | ✅      | ✅      | ✅      |         |
+| torch 1.13.0 |         |         | ✅      | ✅      |
+
+Nerfacc pre-built wheels:
+
+|              | `cu102` | `cu113` | `cu116` | `cu117` |
+|--------------|---------|---------|---------|---------|
+| torch 1.10.0 | -       | -       |         |         |
+| torch 1.11.0 | x       | x       |         |         |
+| torch 1.12.0 | x       | x       | ✅      |         |
+| torch 1.13.0 |         |         | ✅      | ✅      |
+
+
+#### Ubuntu-18.04
+
 |              | `cu102` | `cu113` | `cu115` | `cu116` | `cu117` |
 |--------------|---------|---------|---------|---------|---------|
 | torch 1.10.0 | ✅      | ✅      |         |         |         |
 | torch 1.11.0 | ✅      | ✅      | ✅      |         |         |
 | torch 1.12.0 | ✅      | ✅      |         | ✅      |         |
 | torch 1.13.0 |         | ✅      | ✅      | ✅      | ✅      |
+
+|              | `cu102` | `cu113` | `cu116` | `cu117` |
+|--------------|---------|---------|---------|---------|
+| torch 1.11.0 | x       | x       | x       | x       |
+| torch 1.12.0 | x       | x       | y       | -       |
+| torch 1.13.0 | -       | -       | y       | y       |
+
+** Errors **:
+
+1. OSError: CUDA_HOME environment variable is not set. Please set it to your CUDA install root.
+- py3.7 + torch 1.11.0+cu102 + CUDA 10.2
+- py3.7 + torch 1.11.0+cu113 + CUDA 11.3
+
+2. The detected CUDA version mismatches the version that was used to compile.
+- 1.11.0+cu102 + 11.6
+- 
+
 
 #### Windows 2019
 
@@ -164,6 +202,11 @@ Used by:
 | torch 1.12.0 |         |         |         |         |
 | torch 1.13.0 |         |         | ✅      | ✅      |
 
+|              | `cu102` | `cu113` | `cu116` | `cu117` |
+|--------------|---------|---------|---------|---------|
+| torch 1.11.0 | -       | y       | x       | x       |
+| torch 1.12.0 | -       | y       | y       | -       |
+| torch 1.13.0 | -       | -       | y       | y       |
 
 ## Citation
 
