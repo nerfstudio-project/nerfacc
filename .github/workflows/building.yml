@@ -12,9 +12,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-18.04, windows-2019]
-        python-version: ['3.9']
-        torch-version: [1.13.0]
-        cuda-version: ['cu117']
+        python-version: ['3.7', '3.8', '3.9']
+        torch-version: [1.11.0, 1.12.0, 1.13.0]
+        cuda-version: ['cu102', 'cu113', 'cu116', 'cu117']
         exclude:
           - torch-version: 1.12.0
             cuda-version: 'cu117'
