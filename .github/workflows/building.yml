@@ -6,6 +6,7 @@ jobs:
 
   wheel:
     runs-on: ${{ matrix.os }}
+    environment: production
 
     strategy:
       fail-fast: false
