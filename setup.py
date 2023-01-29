@@ -98,9 +98,9 @@ if torch.cuda.is_available() and torch.version.hip:
 setup(
     name="nerfacc",
     version=__version__,
-    description="",
-    author="",
-    author_email="",
+    description="A General NeRF Acceleration Toolbox",
+    author="Ruilong",
+    author_email="ruilongli94@gmail.com",
     url=URL,
     download_url=f"{URL}/archive/{__version__}.tar.gz",
     keywords=[],

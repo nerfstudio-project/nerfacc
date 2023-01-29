@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nerfacc"
 version = "0.3.3"
-description = "A General NeRF Acceleration Toolbox."
+description = "A General NeRF Acceleration Toolbox"
 readme = "README.md"
 authors = [{name = "Ruilong", email = "ruilongli94@gmail.com"}]
 license = { text="MIT" }
