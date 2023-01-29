@@ -47,41 +47,16 @@ extra_cflags = ["-O3"]
 extra_cuda_cflags = ["-O3"]
 
 _C = None
-if cuda_toolkit_available():
-    # # we need cub >= 1.15.0 which is shipped with cuda >= 11.6, so download if
-    # # necessary. (compling does not garentee to success)
-    # if version.parse(cuda_toolkit_version()) < version.parse("11.6"):
-    #     target_path = os.path.join(build_dir, "cub-1.17.0")
-    #     if not os.path.exists(target_path):
-    #         zip_path, _ = urllib.request.urlretrieve(
-    #             "https://github.com/NVIDIA/cub/archive/1.17.0.tar.gz",
-    #             os.path.join(build_dir, "cub-1.17.0.tar.gz"),
-    #         )
-    #         shutil.unpack_archive(zip_path, build_dir)
-    #     extra_include_paths.append(target_path)
-    #     extra_cuda_cflags.append("-DTHRUST_IGNORE_CUB_VERSION_CHECK")
-    #     print(
-    #         f"download cub because the cuda version is {cuda_toolkit_version()}"
-    #     )
 
-    if os.path.exists(os.path.join(build_dir, f"{name}.so")):
-        # If the build exists, we assume the extension has been built
-        # and we can load it.
-        _C = load(
-            name=name,
-            sources=glob.glob(os.path.join(PATH, "csrc/*.cu")),
-            extra_cflags=extra_cflags,
-            extra_cuda_cflags=extra_cuda_cflags,
-            extra_include_paths=extra_include_paths,
-        )
-    else:
-        # Build from scratch. Remove the build directory just to be safe: pytorch jit might stuck
-        # if the build directory exists.
-        shutil.rmtree(build_dir)
-        with Console().status(
-            "[bold yellow]NerfAcc: Setting up CUDA (This may take a few minutes the first time)",
-            spinner="bouncingBall",
-        ):
+try:
+    # try to import the compiled module (via setup.py)
+    import nerfacc.csrc as _C
+except ImportError:
+    # if failed, try with JIT compilation
+    if cuda_toolkit_available():
+        if os.path.exists(os.path.join(build_dir, f"{name}.so")):
+            # If the build exists, we assume the extension has been built
+            # and we can load it.
             _C = load(
                 name=name,
                 sources=glob.glob(os.path.join(PATH, "csrc/*.cu")),
@@ -89,10 +64,25 @@ if cuda_toolkit_available():
                 extra_cuda_cflags=extra_cuda_cflags,
                 extra_include_paths=extra_include_paths,
             )
-else:
-    Console().print(
-        "[yellow]NerfAcc: No CUDA toolkit found. NerfAcc will be disabled.[/yellow]"
-    )
+        else:
+            # Build from scratch. Remove the build directory just to be safe: pytorch jit might stuck
+            # if the build directory exists.
+            shutil.rmtree(build_dir)
+            with Console().status(
+                "[bold yellow]NerfAcc: Setting up CUDA (This may take a few minutes the first time)",
+                spinner="bouncingBall",
+            ):
+                _C = load(
+                    name=name,
+                    sources=glob.glob(os.path.join(PATH, "csrc/*.cu")),
+                    extra_cflags=extra_cflags,
+                    extra_cuda_cflags=extra_cuda_cflags,
+                    extra_include_paths=extra_include_paths,
+                )
+    else:
+        Console().print(
+            "[yellow]NerfAcc: No CUDA toolkit found. NerfAcc will be disabled.[/yellow]"
+        )
 
 
 __all__ = ["_C"]
