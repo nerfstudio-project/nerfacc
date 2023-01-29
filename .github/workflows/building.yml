@@ -43,6 +43,7 @@ jobs:
       - name: Upgrade pip
         run: |
           pip install --upgrade setuptools
+          pip install ninja
 
       - name: Free up disk space
         if: ${{ runner.os == 'Linux' }}
