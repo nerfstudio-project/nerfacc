@@ -1,6 +1,6 @@
 name: Building Wheels
 
-on: [workflow_dispatch]
+on: [push] # workflow_dispatch
 
 jobs:
 
