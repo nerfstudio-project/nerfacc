@@ -162,7 +162,7 @@ Used by:
 | torch 1.10.0 |         |         |         |         |
 | torch 1.11.0 | ✅      |         |         |         |
 | torch 1.12.0 |         |         |         |         |
-| torch 1.13.0 |         |         |         | ✅      |
+| torch 1.13.0 |         |         | ✅      | ✅      |
 
 
 ## Citation
