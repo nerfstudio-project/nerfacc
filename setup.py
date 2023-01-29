@@ -114,7 +114,13 @@ import glob
 import os.path as osp
 
 from setuptools import setup
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+
+try:
+    from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+except ImportError:
+    # Accomodate for sdist build
+    from setuptools.command.build_ext import build_ext as BuildExtension
+    from setuptools.extension import Extension as CUDAExtension
 
 ROOT_DIR = osp.dirname(osp.abspath(__file__))
 

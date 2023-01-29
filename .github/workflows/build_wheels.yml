@@ -62,7 +62,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          path: ./dist/*.whl
+          path: dist/*.whl
 
   build_sdist:
     name: Build source distribution
@@ -70,8 +70,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
       - name: Build sdist
-        run: pipx run build --sdist
+        run: |
+          python -m pip install build
+          python -m build --sdist
 
       - uses: actions/upload-artifact@v3
         with:
