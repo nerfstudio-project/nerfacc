@@ -1,6 +1,6 @@
 name: Building Wheels
 
-on: [workflow_dispatch]
+on: [push] # workflow_dispatch
 
 jobs:
 
@@ -12,9 +12,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-18.04, windows-2019]
-        python-version: ['3.7', '3.8', '3.9']
-        torch-version: [1.10.0, 1.11.0, 1.12.0, 1.13.0]
-        cuda-version: ['cu102', 'cu113', 'cu116', 'cu117']
+        # python-version: ['3.7', '3.8', '3.9']
+        # torch-version: [1.10.0, 1.11.0, 1.12.0, 1.13.0]
+        # cuda-version: ['cu102', 'cu113', 'cu116', 'cu117']
+        python-version: ['3.9']
+        torch-version: [1.13.0]
+        cuda-version: ['cu117']
         exclude:
           - torch-version: 1.10.0
             cuda-version: 'cu116'
@@ -125,3 +128,5 @@ jobs:
       - name: Upload wheel
         run: |
           aws s3 sync dist s3://nerfacc-bucket/whl/torch-${{ matrix.torch-version }}+${{ matrix.cuda-version }} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+          python scripts/run_wheel_page.py --pt ${{ matrix.torch-version }} --cu ${{ matrix.cuda-version }}
+          aws s3 cp index.html s3://nerfacc-bucket/whl/index.html --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
