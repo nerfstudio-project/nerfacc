@@ -47,10 +47,11 @@ pip install nerfacc -f https://nerfacc-bucket.s3.us-west-2.amazonaws.com/whl/tor
 |              | `cu102` | `cu113` | `cu116` | `cu117` |
 |--------------|---------|---------|---------|---------|
 | torch 1.10.0 | ✅      | ✅      |         |         |
-| torch 1.11.0 | ✅      | ✅      |         |         |
-| torch 1.12.0 | ✅      | ✅      | ✅      |         |
+| torch 1.11.0 | ✅*     | ✅      |         |         |
+| torch 1.12.0 | ✅*     | ✅      | ✅      |         |
 | torch 1.13.0 |         |         | ✅      | ✅      |
 
+* These combinations do not support Windows built by Pytorch thus is not supported by us as well.
 
 ## Usage
 

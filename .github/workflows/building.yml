@@ -34,6 +34,12 @@ jobs:
             cuda-version: 'cu102'
           - torch-version: 1.13.0
             cuda-version: 'cu113'
+          - os: windows-2019
+            torch-version: 1.11.0
+            cuda-version: 'cu102'
+          - os: windows-2019
+            torch-version: 1.12.0
+            cuda-version: 'cu102'
           # - os: macos-10.15
           #   cuda-version: 'cu102'
           # - os: macos-10.15
@@ -42,11 +48,10 @@ jobs:
           #   cuda-version: 'cu116'
           # - os: macos-10.15
           #   cuda-version: 'cu117'
-          # - os: windows-2019
-          #   cuda-version: 'cu102'
 
     steps:
       - uses: actions/checkout@v2
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
@@ -129,3 +134,37 @@ jobs:
       - name: Upload wheel
         run: |
           aws s3 sync dist s3://nerfacc-bucket/whl/torch-${{ matrix.torch-version }}_${{ matrix.cuda-version }} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+
+  update_aws_listing:
+    needs: [wheel]
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Upgrade pip
+        run: |
+          pip install --upgrade setuptools
+          pip install boto3
+      
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Update AWS listing
+        run: |
+          python scripts/run_aws_listing.py \
+            --access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }} \
+            --secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+            --bucket="nerfacc-bucket" \
+            --region="us-west-2"
+
