@@ -41,7 +41,7 @@ We also provide pre-build wheels that covers major combination of Pytorch + CUDA
 
 ```
 # e.g., torch 1.13.0 + cu117
-pip install nerfacc -f https://nerfacc-bucket/whl/torch-1.13.0+cu117.html
+pip install nerfacc -f https://nerfacc-bucket.s3.us-west-2.amazonaws.com/whl/torch-1.13.0_cu117.html
 ```
 
 |              | `cu102` | `cu113` | `cu116` | `cu117` |
