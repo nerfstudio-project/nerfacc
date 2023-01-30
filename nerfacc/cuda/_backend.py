@@ -6,11 +6,8 @@ import glob
 import json
 import os
 import shutil
-import urllib.request
-import zipfile
 from subprocess import DEVNULL, call
 
-from packaging import version
 from rich.console import Console
 from torch.utils.cpp_extension import _get_build_directory, load
 
@@ -50,7 +47,7 @@ _C = None
 
 try:
     # try to import the compiled module (via setup.py)
-    import nerfacc.csrc as _C
+    from nerfacc import csrc as _C
 except ImportError:
     # if failed, try with JIT compilation
     if cuda_toolkit_available():

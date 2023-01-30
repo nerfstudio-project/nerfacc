@@ -4,24 +4,29 @@ import os.path as osp
 import platform
 import sys
 
-import torch
 from setuptools import find_packages, setup
-from torch.__config__ import parallel_info
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 __version__ = None
 exec(open("nerfacc/version.py", "r").read())
 
 URL = "https://github.com/KAIR-BAIR/nerfacc"
 
-# VMs will fail on this check but the build will still work.
-# assert torch.cuda.is_available(), "CUDA is required to build the package"
-
-BUILD_DOCS = os.getenv("BUILD_DOCS", "0") == "1"
+BUILD_NO_CUDA = os.getenv("BUILD_NO_CUDA", "0") == "1"
 WITH_SYMBOLS = os.getenv("WITH_SYMBOLS", "0") == "1"
 
 
+def get_ext():
+    from torch.utils.cpp_extension import BuildExtension
+
+    return BuildExtension.with_options(
+        no_python_abi_suffix=True, use_ninja=False
+    )
+
+
 def get_extensions():
+    import torch
+    from torch.__config__ import parallel_info
+    from torch.utils.cpp_extension import CUDAExtension
 
     extensions_dir = osp.join("nerfacc", "cuda", "csrc")
     sources = glob.glob(osp.join(extensions_dir, "*.cu"))
@@ -92,8 +97,8 @@ test_requires = [
 
 # work-around hipify abs paths
 include_package_data = True
-if torch.cuda.is_available() and torch.version.hip:
-    include_package_data = False
+# if torch.cuda.is_available() and torch.version.hip:
+#     include_package_data = False
 
 setup(
     name="nerfacc",
@@ -109,12 +114,8 @@ setup(
     extras_require={
         "test": test_requires,
     },
-    ext_modules=get_extensions() if not BUILD_DOCS else [],
-    cmdclass={
-        "build_ext": BuildExtension.with_options(
-            no_python_abi_suffix=True, use_ninja=False
-        )
-    },
+    ext_modules=get_extensions() if not BUILD_NO_CUDA else [],
+    cmdclass={"build_ext": get_ext()} if not BUILD_NO_CUDA else {},
     packages=find_packages(),
     include_package_data=include_package_data,
 )

@@ -37,10 +37,10 @@ The easist way is to install from PyPI, and it will build itself on the first ru
 pip install nerfacc
 ```
 
-We also provide pre-build wheels that covers major combination of Pytorch + CUDA, that are supported by [official Pytorch](https://pytorch.org/get-started/previous-versions/).
+We also provide pre-built wheels covering major combinations of Pytorch + CUDA supported by [official Pytorch](https://pytorch.org/get-started/previous-versions/).
 
 ```
-# e.g., torch 1.13.0 + cu117
+# e.g., Windows & Linux, torch 1.13.0 + cu117
 pip install nerfacc -f https://nerfacc-bucket.s3.us-west-2.amazonaws.com/whl/torch-1.13.0_cu117.html
 ```
 
@@ -51,7 +51,7 @@ pip install nerfacc -f https://nerfacc-bucket.s3.us-west-2.amazonaws.com/whl/tor
 | torch 1.12.0 | ✅*     | ✅      | ✅      |         |
 | torch 1.13.0 |         |         | ✅      | ✅      |
 
-* These combinations do not support Windows built by Pytorch thus is not supported by us as well.
+\* Pytorch does not support Windows pre-built wheels for those combinations thus we do not support as well.
 
 ## Usage
 
