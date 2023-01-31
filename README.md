@@ -32,24 +32,32 @@ Using NerfAcc,
 
 ## Installation
 
-The easist way is to install from PyPI, and it will build itself on the first run.
+The easist way is to install from PyPI. In this way it will build the CUDA code **on the first run** (JIT).
 ```
 pip install nerfacc
+```
+
+Or install from source.
+```
+# build CUDA during installation
+pip install git+https://github.com/KAIR-BAIR/nerfacc.git
+# build CUDA on the first run (JIT)
+BUILD_NO_CUDA=1 pip install git+https://github.com/KAIR-BAIR/nerfacc.git
 ```
 
 We also provide pre-built wheels covering major combinations of Pytorch + CUDA supported by [official Pytorch](https://pytorch.org/get-started/previous-versions/).
 
 ```
-# e.g., Windows & Linux, torch 1.13.0 + cu117
+# e.g., torch 1.13.0 + cu117
 pip install nerfacc -f https://nerfacc-bucket.s3.us-west-2.amazonaws.com/whl/torch-1.13.0_cu117.html
 ```
 
-|              | `cu102` | `cu113` | `cu116` | `cu117` |
-|--------------|---------|---------|---------|---------|
-| torch 1.10.0 | ✅      | ✅      |         |         |
-| torch 1.11.0 | ✅*     | ✅      |         |         |
-| torch 1.12.0 | ✅*     | ✅      | ✅      |         |
-| torch 1.13.0 |         |         | ✅      | ✅      |
+| Windows & Linux | `cu102` | `cu113` | `cu116` | `cu117` |
+|-----------------|---------|---------|---------|---------|
+| torch 1.10.0    | ✅      | ✅      |         |         |
+| torch 1.11.0    | ✅*     | ✅      |         |         |
+| torch 1.12.0    | ✅*     | ✅      | ✅      |         |
+| torch 1.13.0    |         |         | ✅      | ✅      |
 
 \* Pytorch does not support Windows pre-built wheels for those combinations thus we do not support as well.
 
