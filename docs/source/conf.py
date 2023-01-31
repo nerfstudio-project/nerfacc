@@ -1,6 +1,7 @@
 import pytorch_sphinx_theme
 
-from nerfacc import __version__
+__version__ = None
+exec(open("../../nerfacc/version.py", "r").read())
 
 # -- Project information
 

@@ -1,0 +1,170 @@
+name: Building Wheels
+
+on: [workflow_dispatch]
+
+jobs:
+
+  wheel:
+    runs-on: ${{ matrix.os }}
+    environment: production
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-18.04, windows-2019]
+        python-version: ['3.7', '3.8', '3.9']
+        torch-version: [1.10.0, 1.11.0, 1.12.0, 1.13.0]
+        cuda-version: ['cu102', 'cu113', 'cu116', 'cu117']
+        # os: [ubuntu-18.04]
+        # python-version: ['3.9']
+        # torch-version: [1.10.0]
+        # cuda-version: ['cu102']
+        exclude:
+          - torch-version: 1.10.0
+            cuda-version: 'cu116'
+          - torch-version: 1.10.0
+            cuda-version: 'cu117'
+          - torch-version: 1.11.0
+            cuda-version: 'cu116'
+          - torch-version: 1.11.0
+            cuda-version: 'cu117'
+          - torch-version: 1.12.0
+            cuda-version: 'cu117'
+          - torch-version: 1.13.0
+            cuda-version: 'cu102'
+          - torch-version: 1.13.0
+            cuda-version: 'cu113'
+          - os: windows-2019
+            torch-version: 1.11.0
+            cuda-version: 'cu102'
+          - os: windows-2019
+            torch-version: 1.12.0
+            cuda-version: 'cu102'
+          # - os: macos-10.15
+          #   cuda-version: 'cu102'
+          # - os: macos-10.15
+          #   cuda-version: 'cu113'
+          # - os: macos-10.15
+          #   cuda-version: 'cu116'
+          # - os: macos-10.15
+          #   cuda-version: 'cu117'
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Upgrade pip
+        run: |
+          pip install --upgrade setuptools
+          pip install ninja
+
+      - name: Free up disk space
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          sudo rm -rf /usr/share/dotnet
+
+      - name: Install CUDA ${{ matrix.cuda-version }}
+        if: ${{ matrix.cuda-version != 'cpu' }}
+        run: |
+          bash .github/workflows/cuda/${{ matrix.cuda-version }}-${{ runner.os }}.sh
+
+      - name: Install PyTorch ${{ matrix.torch-version }}+${{ matrix.cuda-version }}
+        run: |
+          pip install torch==${{ matrix.torch-version }} --extra-index-url https://download.pytorch.org/whl/${{ matrix.cuda-version }}
+          python -c "import torch; print('PyTorch:', torch.__version__)"
+          python -c "import torch; print('CUDA:', torch.version.cuda)"
+          python -c "import torch; print('CUDA Available:', torch.cuda.is_available())"
+
+      - name: Patch PyTorch static constexpr on Windows
+        if: ${{ runner.os == 'Windows' }}
+        run: |
+          Torch_DIR=`python -c 'import os; import torch; print(os.path.dirname(torch.__file__))'`
+          sed -i '31,38c\
+          TORCH_API void lazy_init_num_threads();' ${Torch_DIR}/include/ATen/Parallel.h
+        shell: bash
+
+      - name: Set version
+        if: ${{ runner.os != 'macOS' }}
+        run: |
+          VERSION=`sed -n 's/^__version__ = "\(.*\)"/\1/p' nerfacc/version.py`
+          TORCH_VERSION=`echo "pt${{ matrix.torch-version }}" | sed "s/..$//" | sed "s/\.//g"`
+          CUDA_VERSION=`echo ${{ matrix.cuda-version }}`
+          echo "New version name: $VERSION+$TORCH_VERSION$CUDA_VERSION"
+          sed -i "s/$VERSION/$VERSION+$TORCH_VERSION$CUDA_VERSION/" nerfacc/version.py
+        shell:
+          bash
+
+      - name: Install main package for CPU
+        if: ${{ matrix.cuda-version == 'cpu' }}
+        run: |
+          FORCE_ONLY_CPU=1 pip install -e .
+        shell:
+          bash
+
+      - name: Install main package for GPU
+        if: ${{ matrix.cuda-version != 'cpu' }}
+        run: |
+          source .github/workflows/cuda/${{ matrix.cuda-version }}-${{ runner.os }}-env.sh
+          pip install .
+        shell:
+          bash
+
+      - name: Test installation
+        run: |
+          python -c "import nerfacc; print('nerfacc:', nerfacc.__version__)"
+
+      - name: Build wheel
+        run: |
+          pip install wheel
+          source .github/workflows/cuda/${{ matrix.cuda-version }}-${{ runner.os }}-env.sh
+          python setup.py bdist_wheel --dist-dir=dist
+        shell: bash
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Upload wheel
+        run: |
+          aws s3 sync dist s3://nerfacc-bucket/whl/torch-${{ matrix.torch-version }}_${{ matrix.cuda-version }} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+
+  update_aws_listing:
+    needs: [wheel]
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Upgrade pip
+        run: |
+          pip install --upgrade setuptools
+          pip install boto3
+      
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Update AWS listing
+        run: |
+          python scripts/run_aws_listing.py \
+            --access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }} \
+            --secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+            --bucket="nerfacc-bucket" \
+            --region="us-west-2"
+
