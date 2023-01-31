@@ -25,7 +25,7 @@ jobs:
           key: ${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}
       - name: Install dependencies
         run: |
-          pip install --upgrade --upgrade-strategy eager -e .[dev]
+          pip install isort black
       - name: Run isort
         run: isort docs/ nerfacc/ scripts/ examples/ tests/ --profile black --skip examples/pycolmap --check
       - name: Run Black

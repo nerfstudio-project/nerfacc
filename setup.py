@@ -88,13 +88,6 @@ def get_extensions():
     return [extension]
 
 
-install_requires = []
-
-test_requires = [
-    "pytest",
-    "pytest-cov",
-]
-
 # work-around hipify abs paths
 include_package_data = True
 # if torch.cuda.is_available() and torch.version.hip:
@@ -110,9 +103,20 @@ setup(
     download_url=f"{URL}/archive/{__version__}.tar.gz",
     keywords=[],
     python_requires=">=3.7",
-    install_requires=install_requires,
+    install_requires=["rich>=12"],
     extras_require={
-        "test": test_requires,
+        # dev dependencies. Install them by `pip install nerfacc[dev]`
+        "dev": [
+            "black[jupyter]==22.3.0",
+            "isort==5.10.1",
+            "pylint==2.13.4",
+            "pytest==7.1.2",
+            "pytest-xdist==2.5.0",
+            "typeguard>=2.13.3",
+            "pyyaml==6.0",
+            "build",
+            "twine",
+        ],
     },
     ext_modules=get_extensions() if not BUILD_NO_CUDA else [],
     cmdclass={"build_ext": get_ext()} if not BUILD_NO_CUDA else {},
