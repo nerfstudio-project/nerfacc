@@ -12,7 +12,7 @@ sphinx:
 python:
   install:
     # Equivalent to 'pip install .'
-    - method: setuptools
+    - method: pip
       path: .
     # Equivalent to 'pip install -r docs/requirements.txt'
     - requirements: docs/requirements.txt
