@@ -1,6 +1,6 @@
 import pytorch_sphinx_theme
 
-from nerfacc import __version__
+from nerfacc.version import __version__
 
 # -- Project information
 
