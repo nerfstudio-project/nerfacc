@@ -51,9 +51,10 @@ try:
 except ImportError:
     # if failed, try with JIT compilation
     if cuda_toolkit_available():
-        if os.path.exists(os.path.join(build_dir, f"{name}.so")):
+        if os.listdir(build_dir) != []:
             # If the build exists, we assume the extension has been built
             # and we can load it.
+
             _C = load(
                 name=name,
                 sources=glob.glob(os.path.join(PATH, "csrc/*.cu")),
