@@ -37,12 +37,9 @@ The easist way is to install from PyPI. In this way it will build the CUDA code 
 pip install nerfacc
 ```
 
-Or install from source.
+Or install from source. In this way it will build the CUDA code during installation.
 ```
-# build CUDA during installation
 pip install git+https://github.com/KAIR-BAIR/nerfacc.git
-# build CUDA on the first run (JIT)
-BUILD_NO_CUDA=1 pip install git+https://github.com/KAIR-BAIR/nerfacc.git
 ```
 
 We also provide pre-built wheels covering major combinations of Pytorch + CUDA supported by [official Pytorch](https://pytorch.org/get-started/previous-versions/).
@@ -169,12 +166,13 @@ Used by:
 - [instant-nsr-pl](https://github.com/bennyguo/instant-nsr-pl): NeuS in 10 minutes.
 
 
-## Build Status
+## Common Installation Issues
 
-We 
 
-#### Linux & Windows
-
+<details>
+    <summary>ImportError: .../csrc.so: undefined symbol</summary>
+    If you are installing a pre-built wheel, make sure the Pytorch and CUDA version matchs with the nerfacc version (nerfacc.__version__).
+</details>
 
 ## Citation
 
