@@ -27,9 +27,9 @@ jobs:
         run: |
           pip install isort black
       - name: Run isort
-        run: isort docs/ nerfacc/ scripts/ examples/ tests/ --profile black --skip examples/pycolmap --check
+        run: isort docs/ nerfacc/ scripts/ examples/ tests/ --profile black --skip examples/pycolmap --line-length 80 --check
       - name: Run Black
-        run: black docs/ nerfacc/ scripts/ examples/ tests/ --exclude examples/pycolmap --check
+        run: black docs/ nerfacc/ scripts/ examples/ tests/ --exclude examples/pycolmap --line-length 80 --check
       # - name: Python Pylint
       #   run: |
       #     pylint nerfacc/ tests/ scripts/ examples/
