@@ -1,5 +1,7 @@
 # Visual Studio Code configs.
 .vscode/
+# Vim configs.
+.exrc
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
