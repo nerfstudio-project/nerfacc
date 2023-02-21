@@ -7,8 +7,8 @@ Benchmarks
 ------------
 *updated on 2022-11-07*
 
-Here we trained a `Instant-NGP Nerf`_  on the `MipNerf360`_ dataset. We used train 
-split for training and test split for evaluation. Our experiments are conducted on a 
+Here we trained a `Instant-NGP Nerf`_  on the `MipNerf360`_ dataset. We used train
+split for training and test split for evaluation. Our experiments are conducted on a
 single NVIDIA TITAN RTX GPU. The training memory footprint is about 6-9GB.
 
 The main difference between working with unbounded scenes and bounded scenes, is that
@@ -17,10 +17,10 @@ We have difference options provided for this (see :ref:`Occupancy Grid`). The ex
 here is basically the Instant-NGP experiments (see :ref:`Instant-NGP Example`) with a contraction method
 that takes from `MipNerf360`_.
 
-.. note:: 
+.. note::
     Even though we are comparing with `Nerf++`_ and `MipNerf360`_, the model and everything are
     totally different with them. There are plenty of ideas from those papers that would be very
-    helpful for the performance, but we didn't adopt them. As this is just a simple example to 
+    helpful for the performance, but we didn't adopt them. As this is just a simple example to
     show how to use the library, we didn't want to make it too complicated.
 
 
@@ -36,6 +36,20 @@ that takes from `MipNerf360`_.
 +----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
 | Ours (Training time) | 25min | 17min | 19min | 23min | 28min | 20min | 17min | 21min |
 +----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+
+With multi-scale Occ Grid.
+
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| Ours                 | 24.60 | 22.30 | 30.04 | 26.82 | 28.11 | 30.56 | 22.94 | --    |
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| Ours (Training time) | 310s  | 292s  | 286s  | 325s  | 342s  | 308s  | 306s  | --    |
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+
++--------------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| Proposal                 | 25.41 | 23.12 | 30.18 | 26.32 | 30.13 | 30.65 | 25.15 | 27.28 |
++--------------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| Proposal (Training time) | 423s  | 426s  | 430s  | 440s  | 429s  | 407s  | 426s  | 426s  |
++--------------------------+-------+-------+-------+-------+-------+-------+-------+-------+
 
 .. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
 .. _`MipNerf360`: https://arxiv.org/abs/2111.12077

@@ -4,15 +4,13 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 
 import argparse
 import math
-import os
 import time
 
-import imageio
 import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
-from radiance_fields.ngp import NGPradianceField
+from radiance_fields.ngp import NGPRadianceField
 from utils import render_image, set_random_seed
 
 from nerfacc import ContractionType, OccupancyGrid
@@ -156,7 +154,7 @@ if __name__ == "__main__":
     # setup the radiance field we want to train.
     max_steps = 20000
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
-    radiance_field = NGPradianceField(
+    radiance_field = NGPRadianceField(
         aabb=args.aabb,
         unbounded=args.unbounded,
     ).to(device)
