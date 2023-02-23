@@ -121,6 +121,5 @@ setup(
     ext_modules=get_extensions() if not BUILD_NO_CUDA else [],
     cmdclass={"build_ext": get_ext()} if not BUILD_NO_CUDA else {},
     packages=find_packages(),
-    package_data={"*": ["*.cu", "*.cpp", "*.h"]},
     include_package_data=include_package_data,
 )
