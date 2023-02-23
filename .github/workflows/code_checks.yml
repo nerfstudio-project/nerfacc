@@ -21,7 +21,7 @@ jobs:
           python-version: "3.8.12"
       - name: Install dependencies
         run: |
-          pip install isort black
+          pip install isort==5.10.1 black[jupyter]==22.3.0
       - name: Run isort
         run: isort docs/ nerfacc/ scripts/ examples/ tests/ --profile black --skip examples/pycolmap --line-length 80 --check
       - name: Run Black

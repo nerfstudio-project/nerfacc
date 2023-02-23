@@ -7,15 +7,15 @@ repos:
     -   id: check-yaml
     -   id: check-merge-conflict
     -   id: requirements-txt-fixer
-# -   repo: https://github.com/psf/black
-#     rev: 22.10.0
-#     hooks:
-#       - id: black
-#         language_version: python3.8.12
-#         args: # arguments to configure black
-#           - --line-length=80
+-   repo: https://github.com/psf/black
+    rev: 22.10.0
+    hooks:
+      - id: black
+        language_version: python3.8.12
+        args: # arguments to configure black
+          - --line-length=80
 
-# -   repo: https://github.com/pycqa/isort
-#     rev: 5.10.1
-#     hooks:
-#       - id: isort
+-   repo: https://github.com/pycqa/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
