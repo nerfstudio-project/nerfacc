@@ -18,9 +18,7 @@ WITH_SYMBOLS = os.getenv("WITH_SYMBOLS", "0") == "1"
 def get_ext():
     from torch.utils.cpp_extension import BuildExtension
 
-    return BuildExtension.with_options(
-        no_python_abi_suffix=True, use_ninja=False
-    )
+    return BuildExtension.with_options(no_python_abi_suffix=True, use_ninja=False)
 
 
 def get_extensions():
@@ -120,6 +118,8 @@ setup(
     },
     ext_modules=get_extensions() if not BUILD_NO_CUDA else [],
     cmdclass={"build_ext": get_ext()} if not BUILD_NO_CUDA else {},
-    packages=find_packages(),
+    packages=find_packages(
+        include=["nerfacc/cuda/csrc/include/*", "nerfacc/cuda/csrc/*"]
+    ),
     include_package_data=include_package_data,
 )

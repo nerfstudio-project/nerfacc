@@ -1,2 +1,0 @@
-include nerfacc/cuda/csrc/include/*
-include nerfacc/cuda/csrc/*
