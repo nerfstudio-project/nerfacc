@@ -5,15 +5,66 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 import argparse
 import math
 import time
+from typing import List
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
-from radiance_fields.ngp import NGPRadianceField
+from radiance_fields.tensorf import TensorEncoder, TensorRadianceField
+from torch import nn
 from utils import render_image, set_random_seed
 
 from nerfacc import ContractionType, OccupancyGrid
+
+
+def get_param_groups(module: nn.Module, lr: float, tensor_lr: float):
+    param_groups = [
+        {"params": [], "lr": lr},
+        {"params": [], "lr": tensor_lr},
+    ]
+    for m in module.modules():
+        if isinstance(m, TensorEncoder):
+            param_groups[1]["params"] += list(m.parameters(recurse=False))
+        else:
+            param_groups[0]["params"] += list(m.parameters(recurse=False))
+    return param_groups
+
+
+def get_may_upsample_radiance_field_fn(
+    radiance_field: nn.Module,
+    max_resolution: int,
+    upsample_steps: List[int],
+):
+    resolutions = (
+        np.round(
+            np.exp(
+                np.linspace(
+                    np.log(radiance_field.resolution),
+                    np.log(max_resolution),
+                    len(upsample_steps) + 1,
+                )
+            )
+        ).astype(np.int64)
+    ).tolist()[1:]
+
+    def may_upsample_radiance_field_fn(
+        optimizer: torch.optim.Optimizer, step: int
+    ):
+        if step in upsample_steps:
+            i = upsample_steps.index(step)
+            #  print(
+            #      f"{step}: upsample radiance field to resolution {resolutions[i]}"
+            #  )
+            radiance_field.upsample(resolutions[i])
+            optimizer = torch.optim.Adam(
+                get_param_groups(radiance_field, 1e-3, 2e-2),
+                eps=1e-15,
+            )
+        return optimizer
+
+    return may_upsample_radiance_field_fn
+
 
 device = "cuda:0"
 set_random_seed(42)
@@ -88,6 +139,9 @@ if args.unbounded:
     train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
     test_dataset_kwargs = {"factor": 4}
     grid_resolution = 256
+    # TODO(Hang Gao @ 02/20): Copy-paste from other scripts should just
+    # work but it is not the priority now.
+    raise NotImplementedError("Unbounded rendering is not implemented yet")
 else:
     from datasets.nerf_synthetic import SubjectLoader
 
@@ -100,7 +154,8 @@ train_dataset = SubjectLoader(
     subject_id=args.scene,
     root_fp=data_root_fp,
     split=args.train_split,
-    num_rays=target_sample_batch_size // render_n_samples,
+    #  num_rays=target_sample_batch_size // render_n_samples,
+    num_rays=4096,
     **train_dataset_kwargs,
 )
 
@@ -151,17 +206,19 @@ else:
     alpha_thre = 0.0
 
 # setup the radiance field we want to train.
-max_steps = 20000
-grad_scaler = torch.cuda.amp.GradScaler(2**10)
-radiance_field = NGPRadianceField(
+#  max_steps = 30000
+max_steps = 15000
+base_resolution = 128
+max_resolution = 300
+upsample_steps = [2000, 3000, 4000, 5500, 7000]
+radiance_field = TensorRadianceField(
     aabb=args.aabb,
+    resolution=base_resolution,
     unbounded=args.unbounded,
 ).to(device)
-optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(
-    optimizer,
-    milestones=[max_steps // 2, max_steps * 3 // 4, max_steps * 9 // 10],
-    gamma=0.33,
+optimizer = torch.optim.Adam(
+    get_param_groups(radiance_field, 1e-3, 2e-2),
+    eps=1e-15,
 )
 
 occupancy_grid = OccupancyGrid(
@@ -169,6 +226,10 @@ occupancy_grid = OccupancyGrid(
     resolution=grid_resolution,
     contraction_type=contraction_type,
 ).to(device)
+
+may_upsample_radiance_field_fn = get_may_upsample_radiance_field_fn(
+    radiance_field, max_resolution, upsample_steps
+)
 
 # training
 step = 0
@@ -232,20 +293,21 @@ for epoch in range(10000000):
         num_rays = int(
             num_rays * (target_sample_batch_size / float(n_rendering_samples))
         )
-        train_dataset.update_num_rays(num_rays)
+        #  train_dataset.update_num_rays(num_rays)
         alive_ray_mask = acc.squeeze(-1) > 0
 
         # compute loss
         loss = F.smooth_l1_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
 
         optimizer.zero_grad()
-        # do not unscale it because we are using Adam.
-        grad_scaler.scale(loss).backward()
+        loss.backward()
         optimizer.step()
-        scheduler.step()
+
+        # upsample radiance field if needed
+        optimizer = may_upsample_radiance_field_fn(optimizer, step)
 
         #  if (step % 10000 == 0 and step > 0) or step == max_steps:
-        if (step % 100 == 0 and step > 0) or step == max_steps:
+        if (step % 1000 == 0 and step > 0) or step == max_steps:
             elapsed_time = time.time() - tic
             psnr = -10.0 * torch.log(F.mse_loss(rgb, pixels)) / np.log(10.0)
             print(
@@ -257,6 +319,8 @@ for epoch in range(10000000):
             )
 
         if step == max_steps:
+            #  if step % 1000 == 0 and step > 0:
+            #  if step % 7500 == 0 and step > 0:
             # evaluation
             radiance_field.eval()
 
@@ -287,15 +351,19 @@ for epoch in range(10000000):
                     mse = F.mse_loss(rgb, pixels)
                     psnr = -10.0 * torch.log(mse) / np.log(10.0)
                     psnrs.append(psnr.item())
-                    # imageio.imwrite(
-                    #     "acc_binary_test.png",
-                    #     ((acc > 0).float().cpu().numpy() * 255).astype(np.uint8),
-                    # )
-                    # imageio.imwrite(
-                    #     "rgb_test.png",
-                    #     (rgb.cpu().numpy() * 255).astype(np.uint8),
-                    # )
-                    # break
+                    #  import imageio
+
+                    #  #  imageio.imwrite(
+                    #  #      "acc_binary_test.png",
+                    #  #      ((acc > 0).float().cpu().numpy() * 255).astype(
+                    #  #          np.uint8
+                    #  #      ),
+                    #  #  )
+                    #  imageio.imwrite(
+                    #      "rgb_test.png",
+                    #      (rgb.cpu().numpy() * 255).astype(np.uint8),
+                    #  )
+                    #  break
             psnr_avg = sum(psnrs) / len(psnrs)
             print(f"evaluation: psnr_avg={psnr_avg}")
             train_dataset.training = True

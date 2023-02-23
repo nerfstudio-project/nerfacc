@@ -15,7 +15,7 @@ evaluation. All experiments are conducted on a single NVIDIA TITAN RTX GPU. The 
 memory footprint is about 3GB.
 
 .. note::
-    
+
     The Instant-NGP paper makes use of the alpha channel in the images to apply random background
     augmentation during training. For fair comparision, we rerun their code with a constant white
     background during both training and testing. Also it is worth to mention that we didn't strictly
@@ -34,6 +34,14 @@ memory footprint is about 3GB.
 +-----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
 |(training time)        | 287s  | 274s  | 269s    | 317s  | 269s  | 244s  | 249s  | 257s  | 271s  |
 +-----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
+
+First test only.
+
++-------------------------+-------+
+| TensoRF (3k)            | 28.48 |
++-------------------------+-------+
+| TensoRF (Training time) | 116s  |
++-------------------------+-------+
 
 .. _`Instant-NGP Nerf`: https://github.com/NVlabs/instant-ngp/tree/51e4107edf48338e9ab0316d56a222e0adf87143
 .. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/tree/76c0f9817da4c9c8b5ccf827eb069ee2ce854b75

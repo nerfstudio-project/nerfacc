@@ -26,7 +26,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--train_split",
         type=str,
-        default="trainval",
+        default="train",
         choices=["train", "trainval"],
         help="which train split to use",
     )
@@ -81,7 +81,9 @@ if __name__ == "__main__":
         render_step_size = 1e-2
     else:
         contraction_type = ContractionType.AABB
-        scene_aabb = torch.tensor(args.aabb, dtype=torch.float32, device=device)
+        scene_aabb = torch.tensor(
+            args.aabb, dtype=torch.float32, device=device
+        )
         near_plane = None
         far_plane = None
         render_step_size = (
@@ -199,7 +201,9 @@ if __name__ == "__main__":
             alive_ray_mask = acc.squeeze(-1) > 0
 
             # compute loss
-            loss = F.smooth_l1_loss(rgb[alive_ray_mask], pixels[alive_ray_mask])
+            loss = F.smooth_l1_loss(
+                rgb[alive_ray_mask], pixels[alive_ray_mask]
+            )
 
             optimizer.zero_grad()
             # do not unscale it because we are using Adam.

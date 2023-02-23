@@ -49,6 +49,7 @@ set_random_seed(42)
 # hyperparameters
 device = "cuda:0"
 max_steps = 30000
+#  max_steps = 4500  # 1 min.
 batch_size = 4096
 scene_aabb = None
 near_plane = 0.2
@@ -171,8 +172,7 @@ for epoch in range(10000000):
         grad_scaler.scale(loss).backward()
         optimizer.step()
 
-        if step % 10000 == 0:
-            #  if step % 100 == 0:
+        if (step % 10000 == 0 and step > 0) or step == max_steps:
             elapsed_time = time.time() - tic
             psnr = -10.0 * torch.log(F.mse_loss(rgb, pixels)) / np.log(10.0)
             print(
@@ -182,9 +182,7 @@ for epoch in range(10000000):
                 f"n_rendering_samples={n_rendering_samples:d} |"
             )
 
-        if step % max_steps == 0 and step > 0:
-            #  if step % 1000 == 0 and step > 0:
-            #  if step % 10000 == 0 and step > 0:
+        if step == max_steps:
             # evaluation
             radiance_field.eval()
             for p in proposal_networks:
