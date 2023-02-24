@@ -220,6 +220,9 @@ optimizer = torch.optim.Adam(
     get_param_groups(radiance_field, 1e-3, 2e-2),
     eps=1e-15,
 )
+lr_mult = 0.1 ** (1 / max_steps)
+#  render_step_size *= 5
+#  render_step_size_mult = 1 / 5 ** (1 / max_steps)
 
 occupancy_grid = OccupancyGrid(
     roi_aabb=args.aabb,
@@ -233,7 +236,8 @@ may_upsample_radiance_field_fn = get_may_upsample_radiance_field_fn(
 
 # training
 step = 0
-tic = time.time()
+run_tic = step_tic = time.time()
+num_rays_per_sec = num_samples_per_sec = 0
 for epoch in range(10000000):
     for i in range(len(train_dataset)):
         radiance_field.train()
@@ -285,6 +289,8 @@ for epoch in range(10000000):
             cone_angle=args.cone_angle,
             alpha_thre=alpha_thre,
         )
+        num_rays_per_sec += len(pixels)
+        num_samples_per_sec += n_rendering_samples
         if n_rendering_samples == 0:
             continue
 
@@ -303,20 +309,29 @@ for epoch in range(10000000):
         loss.backward()
         optimizer.step()
 
+        for param_group in optimizer.param_groups:
+            param_group["lr"] *= lr_mult
+        #  render_step_size *= render_step_size_mult
+
         # upsample radiance field if needed
         optimizer = may_upsample_radiance_field_fn(optimizer, step)
 
-        #  if (step % 10000 == 0 and step > 0) or step == max_steps:
-        if (step % 1000 == 0 and step > 0) or step == max_steps:
-            elapsed_time = time.time() - tic
+        if (step % 10000 == 0 and step > 0) or step == max_steps:
+            #  if (step % 1000 == 0 and step > 0) or step == max_steps:
+            #  if (step % 100 == 0 and step > 0) or step == max_steps:
+            elapsed_time = time.time() - run_tic
+            delta_time = time.time() - step_tic
             psnr = -10.0 * torch.log(F.mse_loss(rgb, pixels)) / np.log(10.0)
             print(
                 f"elapsed_time={elapsed_time:.2f}s | step={step} | "
                 f"loss={loss:.4f} | "
                 f"psnr={psnr:.4f} | "
                 f"alive_ray_mask={alive_ray_mask.long().sum():d} | "
-                f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
+                #  f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
+                f"num_rays_per_sec={num_rays_per_sec/delta_time:.2e} | num_samples_per_sec={num_samples_per_sec/delta_time:.2e} |"
             )
+            num_rays_per_sec = num_samples_per_sec = 0
+            step_tic = time.time()
 
         if step == max_steps:
             #  if step % 1000 == 0 and step > 0:

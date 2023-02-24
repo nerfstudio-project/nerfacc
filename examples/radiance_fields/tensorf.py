@@ -111,7 +111,9 @@ class TensorRadianceField(nn.Module):
         aabb: Union[torch.Tensor, List[float]],
         num_dim: int = 3,
         use_viewdirs: bool = True,
-        density_activation: Callable = lambda x: F.softplus(x - 10),
+        # Scale by 25 is the `distance_scale` parameter used in the original
+        # TensoRF repo.
+        density_activation: Callable = lambda x: F.softplus(x - 10) * 25,
         rgb_activation: Callable = torch.sigmoid,
         unbounded: bool = False,
         num_density_components: int = 16,

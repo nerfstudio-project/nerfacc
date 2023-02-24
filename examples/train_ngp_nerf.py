@@ -244,8 +244,8 @@ for epoch in range(10000000):
         optimizer.step()
         scheduler.step()
 
-        #  if (step % 10000 == 0 and step > 0) or step == max_steps:
-        if (step % 100 == 0 and step > 0) or step == max_steps:
+        if (step % 10000 == 0 and step > 0) or step == max_steps:
+            #  if (step % 100 == 0 and step > 0) or step == max_steps:
             elapsed_time = time.time() - tic
             psnr = -10.0 * torch.log(F.mse_loss(rgb, pixels)) / np.log(10.0)
             print(
