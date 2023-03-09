@@ -4,7 +4,7 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 
 import argparse
 import math
-import os
+import pathlib
 import time
 
 import imageio
@@ -24,6 +24,12 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--data_root",
+        type=str,
+        default=str(pathlib.Path.cwd() / "data/dnerf"),
+        help="the root dir of the dataset",
+    )
     parser.add_argument(
         "--train_split",
         type=str,
@@ -91,31 +97,22 @@ if __name__ == "__main__":
         gamma=0.33,
     )
     # setup the dataset
-    data_root_fp = "/home/ruilongli/data/dnerf/"
     target_sample_batch_size = 1 << 16
     grid_resolution = 128
 
     train_dataset = SubjectLoader(
         subject_id=args.scene,
-        root_fp=data_root_fp,
+        root_fp=args.data_root,
         split=args.train_split,
         num_rays=target_sample_batch_size // render_n_samples,
     )
-    train_dataset.images = train_dataset.images.to(device)
-    train_dataset.camtoworlds = train_dataset.camtoworlds.to(device)
-    train_dataset.K = train_dataset.K.to(device)
-    train_dataset.timestamps = train_dataset.timestamps.to(device)
 
     test_dataset = SubjectLoader(
         subject_id=args.scene,
-        root_fp=data_root_fp,
+        root_fp=args.data_root,
         split="test",
         num_rays=None,
     )
-    test_dataset.images = test_dataset.images.to(device)
-    test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
-    test_dataset.K = test_dataset.K.to(device)
-    test_dataset.timestamps = test_dataset.timestamps.to(device)
 
     occupancy_grid = OccupancyGrid(
         roi_aabb=args.aabb,
@@ -191,7 +188,7 @@ if __name__ == "__main__":
                     f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
                 )
 
-            if step >= 0 and step % max_steps == 0 and step > 0:
+            if step > 0 and step % max_steps == 0:
                 # evaluation
                 radiance_field.eval()
 

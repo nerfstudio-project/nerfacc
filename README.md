@@ -132,7 +132,7 @@ optimizer.step()
 
 ## Examples: 
 
-Before running those example scripts, please check the script about which dataset it is needed, and download the dataset first.
+Before running those example scripts, please check the script about which dataset is needed, and download the dataset first. You could use `--data_root` to specify the path.
 
 ```bash
 # clone the repo with submodules.
