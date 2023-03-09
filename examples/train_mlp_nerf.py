@@ -26,7 +26,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_root",
         type=str,
-        default=str(pathlib.Path.home() / "data/nerf_synthetic"),
+        default=str(pathlib.Path.cwd() / "data/nerf_synthetic"),
         help="the root dir of the dataset",
     )
     parser.add_argument(

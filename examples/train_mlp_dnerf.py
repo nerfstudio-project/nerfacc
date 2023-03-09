@@ -27,7 +27,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_root",
         type=str,
-        default=str(pathlib.Path.home() / "data/dnerf"),
+        default=str(pathlib.Path.cwd() / "data/dnerf"),
         help="the root dir of the dataset",
     )
     parser.add_argument(
