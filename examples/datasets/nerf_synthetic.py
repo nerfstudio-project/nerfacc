@@ -111,7 +111,9 @@ class SubjectLoader(torch.utils.data.Dataset):
                 root_fp, subject_id, split
             )
         self.images = torch.from_numpy(self.images).to(device).to(torch.uint8)
-        self.camtoworlds = torch.from_numpy(self.camtoworlds).to(device).to(torch.float32)
+        self.camtoworlds = (
+            torch.from_numpy(self.camtoworlds).to(device).to(torch.float32)
+        )
         self.K = torch.tensor(
             [
                 [self.focal, 0, self.WIDTH / 2.0],
@@ -119,7 +121,7 @@ class SubjectLoader(torch.utils.data.Dataset):
                 [0, 0, 1],
             ],
             dtype=torch.float32,
-            device=device
+            device=device,
         )  # (3, 3)
         assert self.images.shape[1:3] == (self.HEIGHT, self.WIDTH)
 

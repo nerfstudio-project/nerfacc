@@ -188,7 +188,9 @@ class SubjectLoader(torch.utils.data.Dataset):
             root_fp, subject_id, split, factor
         )
         self.images = torch.from_numpy(self.images).to(device).to(torch.uint8)
-        self.camtoworlds = torch.from_numpy(self.camtoworlds).to(device).to(torch.float32)
+        self.camtoworlds = (
+            torch.from_numpy(self.camtoworlds).to(device).to(torch.float32)
+        )
         self.K = torch.tensor(self.K).to(device).to(torch.float32)
         self.height, self.width = self.images.shape[1:3]
 
