@@ -169,6 +169,7 @@ class SubjectLoader(torch.utils.data.Dataset):
         far: float = None,
         batch_over_images: bool = True,
         factor: int = 1,
+        device: str = "cuda:0",
     ):
         super().__init__()
         assert split in self.SPLITS, "%s" % split
@@ -186,9 +187,9 @@ class SubjectLoader(torch.utils.data.Dataset):
         self.images, self.camtoworlds, self.K = _load_colmap(
             root_fp, subject_id, split, factor
         )
-        self.images = torch.from_numpy(self.images).to(torch.uint8)
-        self.camtoworlds = torch.from_numpy(self.camtoworlds).to(torch.float32)
-        self.K = torch.tensor(self.K).to(torch.float32)
+        self.images = torch.from_numpy(self.images).to(device).to(torch.uint8)
+        self.camtoworlds = torch.from_numpy(self.camtoworlds).to(device).to(torch.float32)
+        self.K = torch.tensor(self.K).to(device).to(torch.float32)
         self.height, self.width = self.images.shape[1:3]
 
     def __len__(self):

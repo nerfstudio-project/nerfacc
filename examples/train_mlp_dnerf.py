@@ -4,8 +4,8 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 
 import argparse
 import math
-import os
 import time
+import pathlib
 
 import imageio
 import numpy as np
@@ -24,6 +24,12 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--data_root",
+        type=str,
+        default=str(pathlib.Path.home() / "data/dnerf"),
+        help="the root dir of the dataset",
+    )
     parser.add_argument(
         "--train_split",
         type=str,
@@ -91,7 +97,7 @@ if __name__ == "__main__":
         gamma=0.33,
     )
     # setup the dataset
-    data_root_fp = "/home/ruilongli/data/dnerf/"
+    data_root_fp = str(pathlib.Path(args.data_root))
     target_sample_batch_size = 1 << 16
     grid_resolution = 128
 
@@ -101,10 +107,6 @@ if __name__ == "__main__":
         split=args.train_split,
         num_rays=target_sample_batch_size // render_n_samples,
     )
-    train_dataset.images = train_dataset.images.to(device)
-    train_dataset.camtoworlds = train_dataset.camtoworlds.to(device)
-    train_dataset.K = train_dataset.K.to(device)
-    train_dataset.timestamps = train_dataset.timestamps.to(device)
 
     test_dataset = SubjectLoader(
         subject_id=args.scene,
@@ -112,10 +114,6 @@ if __name__ == "__main__":
         split="test",
         num_rays=None,
     )
-    test_dataset.images = test_dataset.images.to(device)
-    test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
-    test_dataset.K = test_dataset.K.to(device)
-    test_dataset.timestamps = test_dataset.timestamps.to(device)
 
     occupancy_grid = OccupancyGrid(
         roi_aabb=args.aabb,

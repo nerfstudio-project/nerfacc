@@ -4,8 +4,8 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 
 import argparse
 import math
-import os
 import time
+import pathlib
 
 import imageio
 import numpy as np
@@ -23,6 +23,12 @@ if __name__ == "__main__":
     set_random_seed(42)
 
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--data_root",
+        type=str,
+        default=str(pathlib.Path.home() / "data/nerf_synthetic"),
+        help="the root dir of the dataset",
+    )
     parser.add_argument(
         "--train_split",
         type=str,
@@ -112,7 +118,6 @@ if __name__ == "__main__":
     if args.scene == "garden":
         from datasets.nerf_360_v2 import SubjectLoader
 
-        data_root_fp = "/home/ruilongli/data/360_v2/"
         target_sample_batch_size = 1 << 16
         train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
         test_dataset_kwargs = {"factor": 4}
@@ -120,32 +125,24 @@ if __name__ == "__main__":
     else:
         from datasets.nerf_synthetic import SubjectLoader
 
-        data_root_fp = "/home/ruilongli/data/nerf_synthetic/"
         target_sample_batch_size = 1 << 16
         grid_resolution = 128
 
     train_dataset = SubjectLoader(
         subject_id=args.scene,
-        root_fp=data_root_fp,
+        root_fp=args.data_root,
         split=args.train_split,
         num_rays=target_sample_batch_size // render_n_samples,
         **train_dataset_kwargs,
     )
 
-    train_dataset.images = train_dataset.images.to(device)
-    train_dataset.camtoworlds = train_dataset.camtoworlds.to(device)
-    train_dataset.K = train_dataset.K.to(device)
-
     test_dataset = SubjectLoader(
         subject_id=args.scene,
-        root_fp=data_root_fp,
+        root_fp=args.data_root,
         split="test",
         num_rays=None,
         **test_dataset_kwargs,
     )
-    test_dataset.images = test_dataset.images.to(device)
-    test_dataset.camtoworlds = test_dataset.camtoworlds.to(device)
-    test_dataset.K = test_dataset.K.to(device)
 
     occupancy_grid = OccupancyGrid(
         roi_aabb=args.aabb,
@@ -217,7 +214,7 @@ if __name__ == "__main__":
                     f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
                 )
 
-            if step >= 0 and step % max_steps == 0 and step > 0:
+            if step > 0 and step % max_steps == 0:
                 # evaluation
                 radiance_field.eval()
 
