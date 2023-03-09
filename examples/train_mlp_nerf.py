@@ -4,8 +4,8 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 
 import argparse
 import math
-import time
 import pathlib
+import time
 
 import imageio
 import numpy as np
