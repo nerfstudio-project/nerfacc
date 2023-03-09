@@ -97,20 +97,19 @@ if __name__ == "__main__":
         gamma=0.33,
     )
     # setup the dataset
-    data_root_fp = str(pathlib.Path(args.data_root))
     target_sample_batch_size = 1 << 16
     grid_resolution = 128
 
     train_dataset = SubjectLoader(
         subject_id=args.scene,
-        root_fp=data_root_fp,
+        root_fp=args.data_root,
         split=args.train_split,
         num_rays=target_sample_batch_size // render_n_samples,
     )
 
     test_dataset = SubjectLoader(
         subject_id=args.scene,
-        root_fp=data_root_fp,
+        root_fp=args.data_root,
         split="test",
         num_rays=None,
     )
