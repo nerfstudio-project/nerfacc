@@ -188,7 +188,7 @@ if __name__ == "__main__":
                     f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} |"
                 )
 
-            if step >= 0 and step % max_steps == 0 and step > 0:
+            if step > 0 and step % max_steps == 0:
                 # evaluation
                 radiance_field.eval()
 
