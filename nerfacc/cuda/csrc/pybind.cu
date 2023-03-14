@@ -51,13 +51,6 @@ torch::Tensor contract_inv(
     const torch::Tensor roi,
     const ContractionType type);
 
-std::vector<torch::Tensor> ray_resampling(
-    torch::Tensor packed_info,
-    torch::Tensor starts,
-    torch::Tensor ends,
-    torch::Tensor weights,
-    const int steps);
-
 torch::Tensor unpack_data(
     torch::Tensor packed_info,
     torch::Tensor data,
@@ -129,6 +122,25 @@ torch::Tensor weight_from_alpha_backward_naive(
     torch::Tensor packed_info,
     torch::Tensor alphas);
 
+// pdf
+torch::Tensor pdf_sampling(
+    torch::Tensor ts,      // [n_rays, n_samples_in]
+    torch::Tensor weights, // [n_rays, n_samples_in - 1]
+    int64_t n_samples,     // n_samples_out
+    float padding,
+    bool stratified,
+    bool single_jitter,
+    c10::optional<torch::Tensor> masks_opt);  // [n_rays]
+
+torch::Tensor pdf_readout(
+    // keys
+    torch::Tensor ts,          // [n_rays, n_samples_in]
+    torch::Tensor weights,     // [n_rays, n_bins_in]
+    c10::optional<torch::Tensor> masks_opt, // [n_rays]
+    // query
+    torch::Tensor ts_out,
+    c10::optional<torch::Tensor> masks_out_opt);      // [n_rays, n_samples_out]
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
@@ -145,7 +157,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     // marching
     m.def("ray_aabb_intersect", &ray_aabb_intersect);
     m.def("ray_marching", &ray_marching);
-    m.def("ray_resampling", &ray_resampling);
 
     // rendering
     m.def("is_cub_available", is_cub_available);
@@ -168,4 +179,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("unpack_data", &unpack_data);
     m.def("unpack_info", &unpack_info);
     m.def("unpack_info_to_mask", &unpack_info_to_mask);
+
+    // pdf
+    m.def("pdf_sampling", &pdf_sampling);
+    m.def("pdf_readout", &pdf_readout);
 }
