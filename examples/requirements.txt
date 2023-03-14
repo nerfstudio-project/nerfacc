@@ -4,3 +4,4 @@ imageio
 numpy
 tqdm
 scipy
+lpips

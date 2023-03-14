@@ -126,7 +126,8 @@ torch::Tensor unpack_info_to_mask(
 torch::Tensor unpack_data(
     torch::Tensor packed_info,
     torch::Tensor data,
-    int n_samples_per_ray)
+    int n_samples_per_ray,
+    float pad_value)
 {
     DEVICE_GUARD(packed_info);
 
@@ -143,8 +144,8 @@ torch::Tensor unpack_data(
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
 
-    torch::Tensor unpacked_data = torch::zeros(
-        {n_rays, n_samples_per_ray, data_dim}, data.options());
+    torch::Tensor unpacked_data = torch::full(
+        {n_rays, n_samples_per_ray, data_dim}, pad_value, data.options());
 
     AT_DISPATCH_ALL_TYPES(
         data.scalar_type(),

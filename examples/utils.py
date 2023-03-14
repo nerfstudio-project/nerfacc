@@ -11,11 +11,37 @@ from datasets.utils import Rays, namedtuple_map
 
 from nerfacc import OccupancyGrid, ray_marching, rendering
 
+NERF_SYNTHETIC_SCENES = [
+    "chair",
+    "drums",
+    "ficus",
+    "hotdog",
+    "lego",
+    "materials",
+    "mic",
+    "ship",
+]
+MIPNERF360_UNBOUNDED_SCENES = [
+    "garden",
+    "bicycle",
+    "bonsai",
+    "counter",
+    "kitchen",
+    "room",
+    "stump",
+]
+
 
 def set_random_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+
+
+def enlarge_aabb(aabb, factor: float) -> torch.Tensor:
+    center = (aabb[:3] + aabb[3:]) / 2
+    extent = (aabb[3:] - aabb[:3]) / 2
+    return torch.cat([center - extent * factor, center + extent * factor])
 
 
 def render_image(

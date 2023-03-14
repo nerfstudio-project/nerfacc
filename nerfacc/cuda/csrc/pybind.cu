@@ -61,7 +61,8 @@ std::vector<torch::Tensor> ray_resampling(
 torch::Tensor unpack_data(
     torch::Tensor packed_info,
     torch::Tensor data,
-    int n_samples_per_ray);
+    int n_samples_per_ray,
+    float pad_value);
 
 // cub implementations: parallel across samples
 bool is_cub_available() {
