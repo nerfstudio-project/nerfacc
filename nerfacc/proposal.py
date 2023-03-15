@@ -99,7 +99,7 @@ def sample_from_weighted(
         dim=-1,
     )
 
-    return samples
+    return samples, centers
 
 
 def render_weight_from_density(
@@ -271,7 +271,7 @@ def rendering(
 
         annealed_weights = torch.pow(weights, proposal_annealing)
         # (N, S + 1).
-        s_vals = sample_from_weighted(
+        s_vals, _ = sample_from_weighted(
             s_vals,
             annealed_weights,
             level_samples,

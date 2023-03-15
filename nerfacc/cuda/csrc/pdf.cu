@@ -351,3 +351,184 @@ torch::Tensor pdf_readout(
 
   return weights_out; // [n_rays, n_bins_out]
 }
+
+
+__global__ void importance_sampling_kernel_naive(
+    const int64_t n_rays,
+    const float *sdists_in,   // [all_samples]
+    const float *Ts_in,       // [all_samples]
+    const int64_t *info_in,   // [n_rays, 2]
+    const float T_eps,        // e.g., 1e-4 for skipping constant transmittances
+    const int64_t *expected_samples_per_ray, // The expected number of samples per ray.
+    const bool stratified,
+    at::PhiloxCudaState philox_args,
+    // outputs
+    const int64_t *info_out,   // [n_rays, 2]
+    int64_t *cnts_out,         // [n_rays]
+    float *sdists_out)
+{
+  // parallelize over rays
+  for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_rays; tid += blockDim.x * gridDim.x)
+  {
+    int64_t ray_id = tid;
+
+    int64_t expected_samples = expected_samples_per_ray[ray_id];
+    if (expected_samples == 0) {
+      return;
+    }
+
+    int64_t base_out, cnt_out;
+    if (info_out != nullptr) {
+      base_out = info_out[ray_id * 2];
+      cnt_out = info_out[ray_id * 2 + 1];
+      if (cnt_out == 0) {
+        return;
+      }
+    }
+
+    int64_t base_in = info_in[ray_id * 2];
+    int64_t cnt_in = info_in[ray_id * 2 + 1];
+    int64_t last_in = base_in + cnt_in - 1;
+    if (cnt_in == 0) {
+      return;
+    }
+
+    // Sampling will happen between [u_start, u_end]
+    float u_ceil = min(Ts_in[base_in], 1.0f - T_eps); // near to 1.0
+    float u_floor = max(Ts_in[last_in], T_eps); // near to 0.0
+
+    // If the ray has a constant trans, we skip it.
+    if (u_ceil <= u_floor) {
+      return;
+    }
+    
+    // Divide [u_ceil, u_floor] into `expected_samples` equal intervals, and
+    // put samples at all centers.
+    float u_step = (u_ceil - u_floor) / expected_samples;
+    
+    float u_shift;
+    if (stratified) {
+      auto seeds = at::cuda::philox::unpack(philox_args);
+      curandStatePhilox4_32_10_t state;
+      int64_t rand_seq_id = ray_id;
+      curand_init(std::get<0>(seeds), rand_seq_id, std::get<1>(seeds), &state);
+      float rand = curand_uniform(&state);
+      u_shift = rand * u_step;
+    } else {
+      u_shift = 0.5f * u_step;
+    }
+
+    // Draw samples
+    int64_t i_interval = 0;
+    int64_t n_samples = 0;
+    for (int64_t sid = 0; sid < expected_samples; ++sid) {
+      float u = u_ceil - u_shift - sid * u_step;
+
+      // find the interval that contains u: T_upper >= u > T_lower
+      // equavalent to: searchsorted with "right" on PDF_lower <= u < PDF_upper
+      float T_upper = Ts_in[base_in + i_interval];
+      float T_lower = Ts_in[base_in + i_interval + 1];
+      while (u <= T_lower) {
+        i_interval += 1;
+        T_upper = Ts_in[base_in + i_interval];
+        T_lower = Ts_in[base_in + i_interval + 1];
+      }
+
+      // linearly interpolate the sample
+      float s_left = sdists_in[base_in + i_interval];
+      float s_right = sdists_in[base_in + i_interval + 1];
+
+      // write out the sample
+      if (sdists_out != nullptr) {
+        sdists_out[base_out + n_samples] = 
+          s_right - (u - T_lower) / (T_upper - T_lower) * (s_right - s_left);
+      }
+
+      n_samples += 1;
+    }
+
+    if (cnts_out != nullptr) {
+      cnts_out[ray_id] = n_samples;
+    }
+  }
+}
+
+
+std::vector<torch::Tensor> importance_sampling(
+    torch::Tensor sdists,   // [all_samples]
+    torch::Tensor Ts,       // [all_samples]
+    torch::Tensor info,     // [n_rays, 2]
+    torch::Tensor expected_samples_per_ray, // [n_rays]
+    bool stratified,
+    float T_eps)
+{
+  DEVICE_GUARD(sdists);
+
+  CHECK_INPUT(sdists);
+  CHECK_INPUT(Ts);
+  CHECK_INPUT(info);
+
+  TORCH_CHECK(sdists.ndimension() == 1);
+  TORCH_CHECK(Ts.ndimension() == 1);
+  TORCH_CHECK(info.ndimension() == 2);
+  TORCH_CHECK(sdists.size(0) == Ts.size(0));
+
+  int64_t all_samples = sdists.size(0);
+  int64_t n_rays = info.size(0);
+
+  int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+  int64_t maxGrid = 1024;
+  at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+  dim3 block, grid;
+
+  // For jittering
+  auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
+      c10::nullopt, at::cuda::detail::getDefaultCUDAGenerator());
+  at::PhiloxCudaState rng_engine_inputs;
+  {
+    // See Note [Acquire lock when using random generators]
+    std::lock_guard<std::mutex> lock(gen->mutex_);
+    rng_engine_inputs = gen->philox_cuda_state(4);
+  }
+
+  // The first pass: count the number of samples for each ray
+  torch::Tensor cnts_out = torch::zeros({n_rays}, info.options());
+  block = dim3(min(maxThread, n_rays));
+  grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+  importance_sampling_kernel_naive<<<grid, block, 0, stream>>>(
+      n_rays,
+      sdists.data_ptr<float>(),
+      Ts.data_ptr<float>(),
+      info.data_ptr<int64_t>(),
+      T_eps,
+      expected_samples_per_ray.data_ptr<int64_t>(),
+      stratified,
+      rng_engine_inputs,
+      nullptr, // info_out
+      cnts_out.data_ptr<int64_t>(),
+      nullptr); // sdists_out
+
+  // Compute the offset for each ray
+  torch::Tensor info_out = torch::stack(
+    {cnts_out.cumsum(0, torch::kLong) - cnts_out, cnts_out}, 1);
+
+  // The second pass: allocate memory for samples
+  int64_t total_samples = cnts_out.sum().item<int64_t>();
+  torch::Tensor sdists_out = torch::empty({total_samples}, sdists.options());
+  block = dim3(min(maxThread, n_rays));
+  grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+  importance_sampling_kernel_naive<<<grid, block, 0, stream>>>(
+      n_rays,
+      sdists.data_ptr<float>(),
+      Ts.data_ptr<float>(),
+      info.data_ptr<int64_t>(),
+      T_eps,
+      expected_samples_per_ray.data_ptr<int64_t>(),
+      stratified,
+      rng_engine_inputs,
+      info_out.data_ptr<int64_t>(),
+      nullptr, // cnts_out
+      sdists_out.data_ptr<float>()); // sdists_out
+
+  return {sdists_out, info_out};
+}

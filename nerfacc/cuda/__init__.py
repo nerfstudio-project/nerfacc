@@ -70,3 +70,4 @@ unpack_info_to_mask = _make_lazy_cuda_func("unpack_info_to_mask")
 
 pdf_readout = _make_lazy_cuda_func("pdf_readout")
 pdf_sampling = _make_lazy_cuda_func("pdf_sampling")
+importance_sampling = _make_lazy_cuda_func("importance_sampling")

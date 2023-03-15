@@ -141,6 +141,14 @@ torch::Tensor pdf_readout(
     torch::Tensor ts_out,
     c10::optional<torch::Tensor> masks_out_opt);      // [n_rays, n_samples_out]
 
+std::vector<torch::Tensor> importance_sampling(
+    torch::Tensor sdists,   // [all_samples]
+    torch::Tensor Ts,       // [all_samples]
+    torch::Tensor info,     // [n_rays, 2]
+    torch::Tensor expected_samples_per_ray, // [n_rays]
+    bool stratified,
+    float T_eps);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
@@ -183,4 +191,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     // pdf
     m.def("pdf_sampling", &pdf_sampling);
     m.def("pdf_readout", &pdf_readout);
+    m.def("importance_sampling", &importance_sampling);
 }
