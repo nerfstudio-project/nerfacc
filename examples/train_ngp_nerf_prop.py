@@ -63,7 +63,7 @@ if args.scene in MIPNERF360_UNBOUNDED_SCENES:
     from datasets.nerf_360_v2 import SubjectLoader
 
     # training parameters
-    max_steps = 100000
+    max_steps = 20000
     init_batch_size = 4096
     weight_decay = 0.0
     # scene parameters
