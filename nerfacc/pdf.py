@@ -106,3 +106,25 @@ def importance_sampling(
         ts, Ts, info, expected_samples_per_ray, stratified, T_eps
     )
     return samples_packed, samples_info
+
+
+@torch.no_grad()
+def compute_intervals(
+    samples: Tensor,
+    info: Tensor,
+    max_step_size: float = torch.finfo(torch.float32).max,
+) -> Tensor:
+    """Compute intervals from samples.
+
+    Args:
+        samples: packed samples. (all_bins,)
+        info: packed info. (n_rays, 2)
+
+    Returns:
+        intervals: packed intervals. (all_bins, 2)
+    """
+    assert samples.numel() == info[:, 1].sum()
+    samples = samples.contiguous()
+    info = info.contiguous()
+    intervals = _C.compute_intervals(samples, info, max_step_size)
+    return intervals

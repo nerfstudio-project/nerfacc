@@ -64,6 +64,20 @@ __device__ int64_t upper_bound(const scalar_t *data_ss, int64_t start, int64_t e
 }
 
 
+__device__ int64_t unpack_upper_bound(
+  const int64_t *packed_info, int64_t start, int64_t end, const int64_t id_out)
+{
+  while (start < end)
+  {
+    const int64_t mid = start + ((end - start) >> 1);
+    const int64_t mid_val = packed_info[mid * 2];
+    if (!(mid_val > id_out)) start = mid + 1;
+    else end = mid;
+  }
+  return start;
+}
+
+
 template <typename scalar_t>
 __global__ void pdf_sampling_kernel(
     at::PhiloxCudaState philox_args,
@@ -531,4 +545,76 @@ std::vector<torch::Tensor> importance_sampling(
       sdists_out.data_ptr<float>()); // sdists_out
 
   return {sdists_out, info_out};
+}
+
+
+__global__ void compute_intervals_kernel(
+    const int64_t n_rays,
+    const float *sdists,    // [all_samples]
+    const int64_t *info,    // [n_rays, 2]
+    const int64_t all_samples,
+    const float max_step_size,
+    // outputs
+    float *intervals)      // [all_samples, 2]
+{
+  // parallelize over all samples
+  for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < all_samples; tid += blockDim.x * gridDim.x)
+  {
+    int64_t ray_id = unpack_upper_bound(info, 0, n_rays, tid) - 1;
+
+    int64_t base = info[ray_id * 2];
+    int64_t cnt = info[ray_id * 2 + 1];
+    int64_t last = base + cnt - 1;
+
+    // printf("tid: %lld, ray_id: %lld, base: %lld, cnt: %lld, last: %lld\n", tid, ray_id, base, cnt, last);
+    
+    float left, right;
+    if (tid == base) {
+      right = (sdists[tid + 1] - sdists[tid]) * 0.5f;
+      left = min(sdists[tid] - 0.f, right);
+    } else if (tid == last) {
+      left = (sdists[tid] - sdists[tid - 1]) * 0.5f;
+      right = min(1.f - sdists[tid], left);
+    } else {
+      left = (sdists[tid] - sdists[tid - 1]) * 0.5f;
+      right = (sdists[tid + 1] - sdists[tid]) * 0.5f;
+    }
+    intervals[tid * 2] = sdists[tid] - min(left, max_step_size * 0.5f);
+    intervals[tid * 2 + 1] = sdists[tid] + min(right, max_step_size * 0.5f);
+  }
+}
+
+
+torch::Tensor compute_intervals(
+    torch::Tensor sdists,   // [all_samples]
+    torch::Tensor info,     // [n_rays, 2]
+    float max_step_size)
+{
+    DEVICE_GUARD(sdists);
+    CHECK_INPUT(sdists);
+    CHECK_INPUT(info);
+    TORCH_CHECK(sdists.ndimension() == 1);
+    TORCH_CHECK(info.ndimension() == 2);
+
+    int64_t n_rays = info.size(0);
+
+    int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int64_t maxGrid = 1024;
+    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+    dim3 block, grid;
+
+    torch::Tensor intervals = torch::empty({sdists.size(0), 2}, sdists.options());
+    int64_t all_samples = sdists.numel();
+    block = dim3(min(maxThread, all_samples));
+    grid = dim3(min(maxGrid, ceil_div<int64_t>(all_samples, block.x)));
+
+    compute_intervals_kernel<<<grid, block, 0, stream>>>(
+        n_rays,
+        sdists.data_ptr<float>(),
+        info.data_ptr<int64_t>(),
+        all_samples,
+        max_step_size,
+        intervals.data_ptr<float>());
+
+    return intervals;
 }

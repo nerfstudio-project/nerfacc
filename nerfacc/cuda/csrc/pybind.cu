@@ -149,6 +149,11 @@ std::vector<torch::Tensor> importance_sampling(
     bool stratified,
     float T_eps);
 
+torch::Tensor compute_intervals(
+    torch::Tensor sdists,   // [all_samples]
+    torch::Tensor info,     // [n_rays, 2]
+    float max_step_size);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
@@ -192,4 +197,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("pdf_sampling", &pdf_sampling);
     m.def("pdf_readout", &pdf_readout);
     m.def("importance_sampling", &importance_sampling);
+    m.def("compute_intervals", &compute_intervals);
 }

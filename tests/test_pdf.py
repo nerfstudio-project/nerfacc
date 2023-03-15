@@ -8,7 +8,7 @@ device = "cuda:0"
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_importance_sampling():
-    from nerfacc.pdf import importance_sampling
+    from nerfacc.pdf import compute_intervals, importance_sampling
     from nerfacc.proposal import sample_from_weighted
 
     torch.manual_seed(42)
@@ -40,11 +40,17 @@ def test_importance_sampling():
         ts_packed, Ts_packed, info, expected_samples_per_ray, stratified, 0.0
     )
 
+    intervals_packed = compute_intervals(samples_packed, samples_info)
+
     torch.manual_seed(10)
-    _, samples = sample_from_weighted(
+    tdists, samples = sample_from_weighted(
         ts, weights, S_expected, stratified, 0.0, 1.0
     )
+    intervals = torch.stack(
+        [tdists[:, :-1].flatten(), tdists[:, 1:].flatten()], dim=-1
+    )
     assert torch.allclose(samples_packed, samples.flatten(), atol=1e-5)
+    assert torch.allclose(intervals_packed, intervals, atol=1e-5)
 
 
 if __name__ == "__main__":
