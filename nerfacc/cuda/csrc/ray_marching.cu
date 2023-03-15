@@ -13,6 +13,32 @@ inline __device__ __host__ float calc_dt(
     return clamp(t * cone_angle, dt_min, dt_max);
 }
 
+inline __device__ __host__ int mip_level(
+    const float3 xyz,
+    const float3 roi_min, const float3 roi_max,
+    const ContractionType type)
+{
+    if (type != ContractionType::AABB)
+    {
+        // mip level should be always zero if not using AABB
+        return 0;
+    }
+    float3 xyz_unit = apply_contraction(
+        xyz, roi_min, roi_max, ContractionType::AABB);
+
+    float3 scale = fabs(xyz_unit - 0.5);
+    float maxval = fmaxf(fmaxf(scale.x, scale.y), scale.z);
+
+    // if maxval is almost zero, it will trigger frexpf to output 0
+    // for exponent, which is not what we want.
+    maxval = fmaxf(maxval, 0.1);
+
+    int exponent;
+    frexpf(maxval, &exponent);
+    int mip = max(0, exponent + 1);
+    return mip;
+}
+
 inline __device__ __host__ int grid_idx_at(
     const float3 xyz_unit, const int3 grid_res)
 {
@@ -28,43 +54,49 @@ template <typename scalar_t>
 inline __device__ __host__ scalar_t grid_occupied_at(
     const float3 xyz,
     const float3 roi_min, const float3 roi_max,
-    ContractionType type,
-    const int3 grid_res, const scalar_t *grid_value)
+    ContractionType type, int mip,
+    const int grid_nlvl, const int3 grid_res, const scalar_t *grid_value)
 {
-    if (type == ContractionType::AABB &&
-        (xyz.x < roi_min.x || xyz.x > roi_max.x ||
-         xyz.y < roi_min.y || xyz.y > roi_max.y ||
-         xyz.z < roi_min.z || xyz.z > roi_max.z))
+    if (type == ContractionType::AABB && mip >= grid_nlvl)
     {
         return false;
     }
+
     float3 xyz_unit = apply_contraction(
         xyz, roi_min, roi_max, type);
-    int idx = grid_idx_at(xyz_unit, grid_res);
+
+    xyz_unit = (xyz_unit - 0.5) * scalbnf(1.0f, -mip) + 0.5;
+    int idx = grid_idx_at(xyz_unit, grid_res) + mip * grid_res.x * grid_res.y * grid_res.z;
     return grid_value[idx];
 }
 
 // dda like step
 inline __device__ __host__ float distance_to_next_voxel(
-    const float3 xyz, const float3 dir, const float3 inv_dir,
+    const float3 xyz, const float3 dir, const float3 inv_dir, int mip,
     const float3 roi_min, const float3 roi_max, const int3 grid_res)
 {
+    float scaling = scalbnf(1.0f, mip);
+    float3 _roi_mid = (roi_min + roi_max) * 0.5;
+    float3 _roi_rad = (roi_max - roi_min) * 0.5;
+    float3 _roi_min = _roi_mid - _roi_rad * scaling;
+    float3 _roi_max = _roi_mid + _roi_rad * scaling;
+
     float3 _occ_res = make_float3(grid_res);
-    float3 _xyz = roi_to_unit(xyz, roi_min, roi_max) * _occ_res;
-    float3 txyz = ((floorf(_xyz + 0.5f + 0.5f * sign(dir)) - _xyz) * inv_dir) / _occ_res * (roi_max - roi_min);
+    float3 _xyz = roi_to_unit(xyz, _roi_min, _roi_max) * _occ_res;
+    float3 txyz = ((floorf(_xyz + 0.5f + 0.5f * sign(dir)) - _xyz) * inv_dir) / _occ_res * (_roi_max - _roi_min);
     float t = min(min(txyz.x, txyz.y), txyz.z);
     return fmaxf(t, 0.0f);
 }
 
 inline __device__ __host__ float advance_to_next_voxel(
     const float t, const float dt_min,
-    const float3 xyz, const float3 dir, const float3 inv_dir,
+    const float3 xyz, const float3 dir, const float3 inv_dir, int mip,
     const float3 roi_min, const float3 roi_max, const int3 grid_res, const float far)
 {
     // Regular stepping (may be slower but matches non-empty space)
     float t_target = t + distance_to_next_voxel(
-                             xyz, dir, inv_dir, roi_min, roi_max, grid_res);
-    
+                             xyz, dir, inv_dir, mip, roi_min, roi_max, grid_res);
+
     t_target = min(t_target, far);
     float _t = t;
     do
@@ -87,6 +119,7 @@ __global__ void ray_marching_kernel(
     const float *t_max,  // shape (n_rays,)
     // occupancy grid & contraction
     const float *roi,
+    const int grid_nlvl,
     const int3 grid_res,
     const bool *grid_binary, // shape (reso_x, reso_y, reso_z)
     const ContractionType type,
@@ -132,9 +165,20 @@ __global__ void ray_marching_kernel(
     const float3 roi_min = make_float3(roi[0], roi[1], roi[2]);
     const float3 roi_max = make_float3(roi[3], roi[4], roi[5]);
 
+    const float grid_cell_scale = fmaxf(fmaxf(
+        (roi_max.x - roi_min.x) / grid_res.x * scalbnf(1.732f, grid_nlvl - 1), 
+        (roi_max.y - roi_min.y) / grid_res.y * scalbnf(1.732f, grid_nlvl - 1)),
+        (roi_max.z - roi_min.z) / grid_res.z * scalbnf(1.732f, grid_nlvl - 1));
+
     // TODO: compute dt_max from occ resolution.
     float dt_min = step_size;
-    float dt_max = 1e10f;
+    float dt_max;
+    if (type == ContractionType::AABB) {
+        // compute dt_max from occ grid resolution.
+        dt_max = grid_cell_scale;
+    } else {
+        dt_max = 1e10f;
+    }
 
     int j = 0;
     float t0 = near;
@@ -146,7 +190,13 @@ __global__ void ray_marching_kernel(
     {
         // current center
         const float3 xyz = origin + t_mid * dir;
-        if (grid_occupied_at(xyz, roi_min, roi_max, type, grid_res, grid_binary))
+        // current mip level
+        const int mip = mip_level(xyz, roi_min, roi_max, type);
+        if (mip >= grid_nlvl) {
+            // out of grid
+            break;
+        }
+        if (grid_occupied_at(xyz, roi_min, roi_max, type, mip, grid_nlvl, grid_res, grid_binary))
         {
             if (!is_first_round)
             {
@@ -168,7 +218,7 @@ __global__ void ray_marching_kernel(
             case ContractionType::AABB:
                 // no contraction
                 t_mid = advance_to_next_voxel(
-                    t_mid, dt_min, xyz, dir, inv_dir, roi_min, roi_max, grid_res, far);
+                    t_mid, dt_min, xyz, dir, inv_dir, mip, roi_min, roi_max, grid_res, far);
                 dt = calc_dt(t_mid, cone_angle, dt_min, dt_max);
                 t0 = t_mid - dt * 0.5f;
                 t1 = t_mid + dt * 0.5f;
@@ -218,11 +268,12 @@ std::vector<torch::Tensor> ray_marching(
     TORCH_CHECK(t_min.ndimension() == 1)
     TORCH_CHECK(t_max.ndimension() == 1)
     TORCH_CHECK(roi.ndimension() == 1 & roi.size(0) == 6)
-    TORCH_CHECK(grid_binary.ndimension() == 3)
+    TORCH_CHECK(grid_binary.ndimension() == 4)
 
     const int n_rays = rays_o.size(0);
+    const int grid_nlvl = grid_binary.size(0);
     const int3 grid_res = make_int3(
-        grid_binary.size(0), grid_binary.size(1), grid_binary.size(2));
+        grid_binary.size(1), grid_binary.size(2), grid_binary.size(3));
 
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
@@ -241,6 +292,7 @@ std::vector<torch::Tensor> ray_marching(
         t_max.data_ptr<float>(),
         // occupancy grid & contraction
         roi.data_ptr<float>(),
+        grid_nlvl,
         grid_res,
         grid_binary.data_ptr<bool>(),
         type,
@@ -272,6 +324,7 @@ std::vector<torch::Tensor> ray_marching(
         t_max.data_ptr<float>(),
         // occupancy grid & contraction
         roi.data_ptr<float>(),
+        grid_nlvl,
         grid_res,
         grid_binary.data_ptr<bool>(),
         type,
@@ -299,6 +352,7 @@ __global__ void query_occ_kernel(
     const float *samples, // shape (n_samples, 3)
     // occupancy grid & contraction
     const float *roi,
+    const int grid_nlvl,
     const int3 grid_res,
     const scalar_t *grid_value, // shape (reso_x, reso_y, reso_z)
     const ContractionType type,
@@ -314,8 +368,9 @@ __global__ void query_occ_kernel(
     const float3 roi_min = make_float3(roi[0], roi[1], roi[2]);
     const float3 roi_max = make_float3(roi[3], roi[4], roi[5]);
     const float3 xyz = make_float3(samples[0], samples[1], samples[2]);
+    const int mip = mip_level(xyz, roi_min, roi_max, type);
 
-    *occs = grid_occupied_at(xyz, roi_min, roi_max, type, grid_res, grid_value);
+    *occs = grid_occupied_at(xyz, roi_min, roi_max, type, mip, grid_nlvl, grid_res, grid_value);
     return;
 }
 
@@ -330,8 +385,9 @@ torch::Tensor grid_query(
     CHECK_INPUT(samples);
 
     const int n_samples = samples.size(0);
+    const int grid_nlvl = grid_value.size(0);
     const int3 grid_res = make_int3(
-        grid_value.size(0), grid_value.size(1), grid_value.size(2));
+        grid_value.size(1), grid_value.size(2), grid_value.size(3));
 
     const int threads = 256;
     const int blocks = CUDA_N_BLOCKS_NEEDED(n_samples, threads);
@@ -348,6 +404,7 @@ torch::Tensor grid_query(
                samples.data_ptr<float>(),
                // grid
                roi.data_ptr<float>(),
+               grid_nlvl,
                grid_res,
                grid_value.data_ptr<scalar_t>(),
                type,

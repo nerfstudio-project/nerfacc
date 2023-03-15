@@ -5,7 +5,7 @@ See code `examples/train_ngp_nerf.py` at our `github repository`_ for details.
 
 Benchmarks
 ------------
-*updated on 2022-11-07*
+*updated on 2023-03-14*
 
 Here we trained a `Instant-NGP Nerf`_  on the `MipNerf360`_ dataset. We used train 
 split for training and test split for evaluation. Our experiments are conducted on a 
@@ -32,12 +32,19 @@ that takes from `MipNerf360`_.
 +----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
 | MipNerf360 (~days)   | 26.98 | 24.37 | 33.46 | 29.55 | 32.23 | 31.63 | 26.40 | 29.23 |
 +----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
-| Ours (~20 mins)      | 25.41 | 22.97 | 30.71 | 27.34 | 30.32 | 31.00 | 23.43 | 27.31 |
+| Ours (occ)           | 24.76 | 22.38 | 29.72 | 26.80 | 28.02 | 30.67 | 22.39 | 26.39 |
 +----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
-| Ours (Training time) | 25min | 17min | 19min | 23min | 28min | 20min | 17min | 21min |
+| Ours (Training time) | 323s  | 302s  | 300s  | 337s  | 347s  | 320s  | 322s  | 322s  |
 +----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| Ours (prop)          | 25.44 | 23.21 | 30.62 | 26.75 | 30.63 | 30.93 | 25.20 | 27.54 |
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+| Ours (Training time) | 308s  | 304s  | 308s  | 306s  | 313s  | 301s  | 287s  | 304s  |
++----------------------+-------+-------+-------+-------+-------+-------+-------+-------+
+
+Note `Ours (prop)` is basically a `Nerfacto_` model.
 
 .. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
 .. _`MipNerf360`: https://arxiv.org/abs/2111.12077
 .. _`Nerf++`: https://arxiv.org/abs/2010.07492
-.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/tree/76c0f9817da4c9c8b5ccf827eb069ee2ce854b75
+.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/
+.. _`Nerfacto`: https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/nerfacto.py

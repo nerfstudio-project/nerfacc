@@ -86,7 +86,7 @@ class SubjectLoader(torch.utils.data.Dataset):
         near: float = None,
         far: float = None,
         batch_over_images: bool = True,
-        device: str = "cuda:0",
+        device: str = "cpu",
     ):
         super().__init__()
         assert split in self.SPLITS, "%s" % split

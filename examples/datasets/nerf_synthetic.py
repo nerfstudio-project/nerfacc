@@ -79,7 +79,7 @@ class SubjectLoader(torch.utils.data.Dataset):
         near: float = None,
         far: float = None,
         batch_over_images: bool = True,
-        device: str = "cuda:0",
+        device: torch.device = torch.device("cpu"),
     ):
         super().__init__()
         assert split in self.SPLITS, "%s" % split
@@ -110,10 +110,8 @@ class SubjectLoader(torch.utils.data.Dataset):
             self.images, self.camtoworlds, self.focal = _load_renderings(
                 root_fp, subject_id, split
             )
-        self.images = torch.from_numpy(self.images).to(device).to(torch.uint8)
-        self.camtoworlds = (
-            torch.from_numpy(self.camtoworlds).to(device).to(torch.float32)
-        )
+        self.images = torch.from_numpy(self.images).to(torch.uint8)
+        self.camtoworlds = torch.from_numpy(self.camtoworlds).to(torch.float32)
         self.K = torch.tensor(
             [
                 [self.focal, 0, self.WIDTH / 2.0],
@@ -121,8 +119,10 @@ class SubjectLoader(torch.utils.data.Dataset):
                 [0, 0, 1],
             ],
             dtype=torch.float32,
-            device=device,
         )  # (3, 3)
+        self.images = self.images.to(device)
+        self.camtoworlds = self.camtoworlds.to(device)
+        self.K = self.K.to(device)
         assert self.images.shape[1:3] == (self.HEIGHT, self.WIDTH)
 
     def __len__(self):

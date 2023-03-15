@@ -3,7 +3,7 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
 
 import argparse
-import math
+import itertools
 import pathlib
 import time
 
@@ -13,16 +13,19 @@ import torch
 import torch.nn.functional as F
 import tqdm
 from lpips import LPIPS
-from radiance_fields.ngp import NGPRadianceField
+from radiance_fields.ngp import NGPDensityField, NGPRadianceField
 from utils import (
     MIPNERF360_UNBOUNDED_SCENES,
     NERF_SYNTHETIC_SCENES,
-    enlarge_aabb,
-    render_image,
+    render_image_proposal,
     set_random_seed,
 )
 
-from nerfacc import OccupancyGrid
+from nerfacc.proposal import (
+    compute_prop_loss,
+    get_proposal_annealing_fn,
+    get_proposal_requires_grad_fn,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -61,48 +64,68 @@ if args.scene in MIPNERF360_UNBOUNDED_SCENES:
 
     # training parameters
     max_steps = 100000
-    init_batch_size = 1024
-    target_sample_batch_size = 1 << 18
+    init_batch_size = 4096
     weight_decay = 0.0
     # scene parameters
+    unbounded = True
     aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device)
-    near_plane = 0.02
-    far_plane = None
+    near_plane = 0.2  # TODO: Try 0.02
+    far_plane = 1e3
     # dataset parameters
     train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
     test_dataset_kwargs = {"factor": 4}
     # model parameters
-    grid_resolution = 128
-    grid_nlvl = 4
+    proposal_networks = [
+        NGPDensityField(
+            aabb=aabb,
+            unbounded=unbounded,
+            n_levels=5,
+            max_resolution=128,
+        ).to(device),
+        NGPDensityField(
+            aabb=aabb,
+            unbounded=unbounded,
+            n_levels=5,
+            max_resolution=256,
+        ).to(device),
+    ]
     # render parameters
-    render_step_size = 1e-3
-    alpha_thre = 1e-2
-    cone_angle = 0.004
+    num_samples = 48
+    num_samples_per_prop = [256, 96]
+    sampling_type = "lindisp"
+    opaque_bkgd = True
 
 else:
     from datasets.nerf_synthetic import SubjectLoader
 
     # training parameters
     max_steps = 20000
-    init_batch_size = 1024
-    target_sample_batch_size = 1 << 18
+    init_batch_size = 4096
     weight_decay = (
         1e-5 if args.scene in ["materials", "ficus", "drums"] else 1e-6
     )
     # scene parameters
+    unbounded = False
     aabb = torch.tensor([-1.5, -1.5, -1.5, 1.5, 1.5, 1.5], device=device)
-    near_plane = None
-    far_plane = None
+    near_plane = 2.0
+    far_plane = 6.0
     # dataset parameters
     train_dataset_kwargs = {}
     test_dataset_kwargs = {}
     # model parameters
-    grid_resolution = 128
-    grid_nlvl = 1
+    proposal_networks = [
+        NGPDensityField(
+            aabb=aabb,
+            unbounded=unbounded,
+            n_levels=5,
+            max_resolution=128,
+        ).to(device),
+    ]
     # render parameters
-    render_step_size = 5e-3
-    alpha_thre = 0.0
-    cone_angle = 0.0
+    num_samples = 64
+    num_samples_per_prop = [128]
+    sampling_type = "uniform"
+    opaque_bkgd = False
 
 train_dataset = SubjectLoader(
     subject_id=args.scene,
@@ -122,14 +145,17 @@ test_dataset = SubjectLoader(
     **test_dataset_kwargs,
 )
 
-# setup scene aabb
-scene_aabb = enlarge_aabb(aabb, 1 << (grid_nlvl - 1))
-
 # setup the radiance field we want to train.
 grad_scaler = torch.cuda.amp.GradScaler(2**10)
-radiance_field = NGPRadianceField(aabb=scene_aabb).to(device)
+radiance_field = NGPRadianceField(aabb=aabb, unbounded=unbounded).to(device)
 optimizer = torch.optim.Adam(
-    radiance_field.parameters(), lr=1e-2, eps=1e-15, weight_decay=weight_decay
+    itertools.chain(
+        radiance_field.parameters(),
+        *[p.parameters() for p in proposal_networks],
+    ),
+    lr=1e-2,
+    eps=1e-15,
+    weight_decay=weight_decay,
 )
 scheduler = torch.optim.lr_scheduler.ChainedScheduler(
     [
@@ -147,9 +173,8 @@ scheduler = torch.optim.lr_scheduler.ChainedScheduler(
         ),
     ]
 )
-occupancy_grid = OccupancyGrid(
-    roi_aabb=aabb, resolution=grid_resolution, levels=grid_nlvl
-).to(device)
+proposal_requires_grad_fn = get_proposal_requires_grad_fn()
+proposal_annealing_fn = get_proposal_annealing_fn()
 
 lpips_net = LPIPS(net="vgg").to(device)
 lpips_norm_fn = lambda x: x[None, ...].permute(0, 3, 1, 2) * 2 - 1
@@ -159,6 +184,8 @@ lpips_fn = lambda x, y: lpips_net(lpips_norm_fn(x), lpips_norm_fn(y)).mean()
 tic = time.time()
 for step in range(max_steps + 1):
     radiance_field.train()
+    for p in proposal_networks:
+        p.train()
 
     i = torch.randint(0, len(train_dataset), (1,)).item()
     data = train_dataset[i]
@@ -167,43 +194,35 @@ for step in range(max_steps + 1):
     rays = data["rays"]
     pixels = data["pixels"]
 
-    def occ_eval_fn(x):
-        density = radiance_field.query_density(x)
-        return density * render_step_size
-
-    # update occupancy grid
-    occupancy_grid.every_n_step(
-        step=step,
-        occ_eval_fn=occ_eval_fn,
-        occ_thre=1e-2,
-    )
-
     # render
-    rgb, acc, depth, n_rendering_samples = render_image(
+    (
+        rgb,
+        acc,
+        depth,
+        weights_per_level,
+        s_vals_per_level,
+    ) = render_image_proposal(
         radiance_field,
-        occupancy_grid,
+        proposal_networks,
         rays,
-        scene_aabb=scene_aabb,
+        scene_aabb=None,
         # rendering options
+        num_samples=num_samples,
+        num_samples_per_prop=num_samples_per_prop,
         near_plane=near_plane,
-        render_step_size=render_step_size,
+        far_plane=far_plane,
+        sampling_type=sampling_type,
+        opaque_bkgd=opaque_bkgd,
         render_bkgd=render_bkgd,
-        cone_angle=cone_angle,
-        alpha_thre=alpha_thre,
+        # train options
+        proposal_requires_grad=proposal_requires_grad_fn(step),
+        proposal_annealing=proposal_annealing_fn(step),
     )
-    if n_rendering_samples == 0:
-        continue
-
-    if target_sample_batch_size > 0:
-        # dynamic batch size for rays to keep sample batch size constant.
-        num_rays = len(pixels)
-        num_rays = int(
-            num_rays * (target_sample_batch_size / float(n_rendering_samples))
-        )
-        train_dataset.update_num_rays(num_rays)
 
     # compute loss
     loss = F.smooth_l1_loss(rgb, pixels)
+    loss_prop = compute_prop_loss(s_vals_per_level, weights_per_level)
+    loss = loss + loss_prop
 
     optimizer.zero_grad()
     # do not unscale it because we are using Adam.
@@ -218,13 +237,15 @@ for step in range(max_steps + 1):
         print(
             f"elapsed_time={elapsed_time:.2f}s | step={step} | "
             f"loss={loss:.5f} | psnr={psnr:.2f} | "
-            f"n_rendering_samples={n_rendering_samples:d} | num_rays={len(pixels):d} | "
+            f"num_rays={len(pixels):d} | "
             f"max_depth={depth.max():.3f} | "
         )
 
     if step > 0 and step % max_steps == 0:
         # evaluation
         radiance_field.eval()
+        for p in proposal_networks:
+            p.eval()
 
         psnrs = []
         lpips = []
@@ -236,17 +257,20 @@ for step in range(max_steps + 1):
                 pixels = data["pixels"]
 
                 # rendering
-                rgb, acc, depth, _ = render_image(
+                rgb, acc, depth, _, _, = render_image_proposal(
                     radiance_field,
-                    occupancy_grid,
+                    proposal_networks,
                     rays,
-                    scene_aabb=scene_aabb,
+                    scene_aabb=None,
                     # rendering options
+                    num_samples=num_samples,
+                    num_samples_per_prop=num_samples_per_prop,
                     near_plane=near_plane,
-                    render_step_size=render_step_size,
+                    far_plane=far_plane,
+                    sampling_type=sampling_type,
+                    opaque_bkgd=opaque_bkgd,
                     render_bkgd=render_bkgd,
-                    cone_angle=cone_angle,
-                    alpha_thre=alpha_thre,
+                    proposal_annealing=proposal_annealing_fn(step),
                     # test options
                     test_chunk_size=args.test_chunk_size,
                 )

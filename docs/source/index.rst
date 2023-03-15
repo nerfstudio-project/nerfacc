@@ -123,7 +123,7 @@ Links:
 .. toctree::
    :glob:
    :maxdepth: 1
-   :caption: Example Usages
+   :caption: Example Usages and Benchmarks
 
    examples/*
 

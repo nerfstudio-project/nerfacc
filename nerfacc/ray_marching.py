@@ -169,7 +169,7 @@ def ray_marching(
             device=rays_o.device,
         )
         grid_binary = torch.ones(
-            [1, 1, 1], dtype=torch.bool, device=rays_o.device
+            [1, 1, 1, 1], dtype=torch.bool, device=rays_o.device
         )
         contraction_type = ContractionType.AABB.to_cpp_version()
 
@@ -190,7 +190,9 @@ def ray_marching(
     )
 
     # skip invisible space
-    if sigma_fn is not None or alpha_fn is not None:
+    if (alpha_thre > 0.0 or early_stop_eps > 0.0) and (
+        sigma_fn is not None or alpha_fn is not None
+    ):
         # Query sigma without gradients
         if sigma_fn is not None:
             sigmas = sigma_fn(t_starts, t_ends, ray_indices)
@@ -203,6 +205,9 @@ def ray_marching(
             assert (
                 alphas.shape == t_starts.shape
             ), "alphas must have shape of (N, 1)! Got {}".format(alphas.shape)
+
+        if grid is not None:
+            alpha_thre = min(alpha_thre, grid.occs.mean().item())
 
         # Compute visibility of the samples, and filter out invisible samples
         masks = render_visibility(

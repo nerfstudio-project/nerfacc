@@ -28,7 +28,7 @@ def query_grid(
         samples: (n_samples, 3) tensor of coordinates.
         grid_roi: (6,) region of interest of the grid. Usually it should be
             accquired from the grid itself using `grid.roi_aabb`.
-        grid_values: A 3D tensor of grid values in the shape of (resx, resy, resz).
+        grid_values: A 4D tensor of grid values in the shape of (nlvl, resx, resy, resz).
         grid_type: Contraction type of the grid. Usually it should be
             accquired from the grid itself using `grid.contraction_type`.
 
@@ -37,7 +37,7 @@ def query_grid(
     """
     assert samples.dim() == 2 and samples.size(-1) == 3
     assert grid_roi.dim() == 1 and grid_roi.size(0) == 6
-    assert grid_values.dim() == 3
+    assert grid_values.dim() == 4
     assert isinstance(grid_type, ContractionType)
     return _C.grid_query(
         samples.contiguous(),
@@ -58,7 +58,7 @@ class Grid(nn.Module):
     To work with :func:`nerfacc.ray_marching`, three attributes must exist:
 
         - :attr:`roi_aabb`: The axis-aligned bounding box of the region of interest.
-        - :attr:`binary`: A 3D binarized tensor of shape {resx, resy, resz}, \
+        - :attr:`binary`: A 4D binarized tensor of shape {nlvl, resx, resy, resz}, \
             with torch.bool data type.
         - :attr:`contraction_type`: The contraction type of the grid, indicating how \
             the 3D space is mapped to the grid.
@@ -85,9 +85,9 @@ class Grid(nn.Module):
 
     @property
     def binary(self) -> torch.Tensor:
-        """A 3D binarized tensor with torch.bool data type.
+        """A 4-dim binarized tensor with torch.bool data type.
 
-        The tensor is of shape (resx, resy, resz), in which each boolen value
+        The tensor is of shape (nlvl, resx, resy, resz), in which each boolen value
         represents whether the corresponding voxel should be kept or not.
         """
         if hasattr(self, "_binary"):
@@ -120,6 +120,7 @@ class OccupancyGrid(Grid):
             be a cube. Otherwise, a list or a tensor of shape (3,) is expected. Default: 128.
         contraction_type: The contraction type of the grid. See :class:`nerfacc.ContractionType`
             for more details. Default: :attr:`nerfacc.ContractionType.AABB`.
+        levels: The number of levels of the grid. Default: 1.
     """
 
     NUM_DIM: int = 3
@@ -129,6 +130,7 @@ class OccupancyGrid(Grid):
         roi_aabb: Union[List[int], torch.Tensor],
         resolution: Union[int, List[int], torch.Tensor] = 128,
         contraction_type: ContractionType = ContractionType.AABB,
+        levels: int = 1,
     ) -> None:
         super().__init__()
         if isinstance(resolution, int):
@@ -151,47 +153,59 @@ class OccupancyGrid(Grid):
             [self.NUM_DIM * 2]
         ), f"Invalid shape: {roi_aabb.shape}"
 
+        if levels > 1:
+            assert (
+                contraction_type == ContractionType.AABB
+            ), "For multi-res occupancy grid, contraction is not supported yet."
+
         # total number of voxels
-        self.num_cells = int(resolution.prod().item())
+        self.num_cells_per_lvl = int(resolution.prod().item())
+        self.levels = levels
 
         # required attributes
         self.register_buffer("_roi_aabb", roi_aabb)
         self.register_buffer(
-            "_binary", torch.zeros(resolution.tolist(), dtype=torch.bool)
+            "_binary",
+            torch.zeros([levels] + resolution.tolist(), dtype=torch.bool),
         )
         self._contraction_type = contraction_type
 
         # helper attributes
         self.register_buffer("resolution", resolution)
-        self.register_buffer("occs", torch.zeros(self.num_cells))
+        self.register_buffer(
+            "occs", torch.zeros(self.levels * self.num_cells_per_lvl)
+        )
 
         # Grid coords & indices
         grid_coords = _meshgrid3d(resolution).reshape(
-            self.num_cells, self.NUM_DIM
+            self.num_cells_per_lvl, self.NUM_DIM
         )
         self.register_buffer("grid_coords", grid_coords, persistent=False)
-        grid_indices = torch.arange(self.num_cells)
+        grid_indices = torch.arange(self.num_cells_per_lvl)
         self.register_buffer("grid_indices", grid_indices, persistent=False)
 
     @torch.no_grad()
-    def _get_all_cells(self) -> torch.Tensor:
+    def _get_all_cells(self) -> List[torch.Tensor]:
         """Returns all cells of the grid."""
-        return self.grid_indices
+        return [self.grid_indices] * self.levels
 
     @torch.no_grad()
-    def _sample_uniform_and_occupied_cells(self, n: int) -> torch.Tensor:
+    def _sample_uniform_and_occupied_cells(self, n: int) -> List[torch.Tensor]:
         """Samples both n uniform and occupied cells."""
-        uniform_indices = torch.randint(
-            self.num_cells, (n,), device=self.device
-        )
-        occupied_indices = torch.nonzero(self._binary.flatten())[:, 0]
-        if n < len(occupied_indices):
-            selector = torch.randint(
-                len(occupied_indices), (n,), device=self.device
+        lvl_indices = []
+        for lvl in range(self.levels):
+            uniform_indices = torch.randint(
+                self.num_cells_per_lvl, (n,), device=self.device
             )
-            occupied_indices = occupied_indices[selector]
-        indices = torch.cat([uniform_indices, occupied_indices], dim=0)
-        return indices
+            occupied_indices = torch.nonzero(self._binary[lvl].flatten())[:, 0]
+            if n < len(occupied_indices):
+                selector = torch.randint(
+                    len(occupied_indices), (n,), device=self.device
+                )
+                occupied_indices = occupied_indices[selector]
+            indices = torch.cat([uniform_indices, occupied_indices], dim=0)
+            lvl_indices.append(indices)
+        return lvl_indices
 
     @torch.no_grad()
     def _update(
@@ -205,35 +219,38 @@ class OccupancyGrid(Grid):
         """Update the occ field in the EMA way."""
         # sample cells
         if step < warmup_steps:
-            indices = self._get_all_cells()
+            lvl_indices = self._get_all_cells()
         else:
-            N = self.num_cells // 4
-            indices = self._sample_uniform_and_occupied_cells(N)
+            N = self.num_cells_per_lvl // 4
+            lvl_indices = self._sample_uniform_and_occupied_cells(N)
 
-        # infer occupancy: density * step_size
-        grid_coords = self.grid_coords[indices]
-        x = (
-            grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
-        ) / self.resolution
-        if self._contraction_type == ContractionType.UN_BOUNDED_SPHERE:
-            # only the points inside the sphere are valid
-            mask = (x - 0.5).norm(dim=1) < 0.5
-            x = x[mask]
-            indices = indices[mask]
-        # voxel coordinates [0, 1]^3 -> world
-        x = contract_inv(
-            x,
-            roi=self._roi_aabb,
-            type=self._contraction_type,
-        )
-        occ = occ_eval_fn(x).squeeze(-1)
-
-        # ema update
-        self.occs[indices] = torch.maximum(self.occs[indices] * ema_decay, occ)
-        # suppose to use scatter max but emperically it is almost the same.
-        # self.occs, _ = scatter_max(
-        #     occ, indices, dim=0, out=self.occs * ema_decay
-        # )
+        for lvl, indices in enumerate(lvl_indices):
+            # infer occupancy: density * step_size
+            grid_coords = self.grid_coords[indices]
+            x = (
+                grid_coords + torch.rand_like(grid_coords, dtype=torch.float32)
+            ) / self.resolution
+            if self._contraction_type == ContractionType.UN_BOUNDED_SPHERE:
+                # only the points inside the sphere are valid
+                mask = (x - 0.5).norm(dim=1) < 0.5
+                x = x[mask]
+                indices = indices[mask]
+            # voxel coordinates [0, 1]^3 -> world
+            x = contract_inv(
+                (x - 0.5) * (2**lvl) + 0.5,
+                roi=self._roi_aabb,
+                type=self._contraction_type,
+            )
+            occ = occ_eval_fn(x).squeeze(-1)
+            # ema update
+            cell_ids = lvl * self.num_cells_per_lvl + indices
+            self.occs[cell_ids] = torch.maximum(
+                self.occs[cell_ids] * ema_decay, occ
+            )
+            # suppose to use scatter max but emperically it is almost the same.
+            # self.occs, _ = scatter_max(
+            #     occ, indices, dim=0, out=self.occs * ema_decay
+            # )
         self._binary = (
             self.occs > torch.clamp(self.occs.mean(), max=occ_thre)
         ).view(self._binary.shape)

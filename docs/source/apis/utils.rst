@@ -17,7 +17,6 @@ Utils
    render_weight_from_alpha
    render_visibility
 
-   ray_resampling
    pack_data
    unpack_data
    

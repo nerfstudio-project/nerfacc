@@ -22,7 +22,7 @@ sys.path.insert(
 from scene_manager import SceneManager
 
 
-def _load_colmap(root_fp: str, subject_id: str, split: str, factor: int = 1):
+def _load_colmap(root_fp: str, subject_id: str, factor: int = 1):
     assert factor in [1, 2, 4, 8]
 
     data_dir = os.path.join(root_fp, subject_id)
@@ -134,12 +134,66 @@ def _load_colmap(root_fp: str, subject_id: str, split: str, factor: int = 1):
         "test": all_indices[all_indices % 8 == 0],
         "train": all_indices[all_indices % 8 != 0],
     }
-    indices = split_indices[split]
-    # All per-image quantities must be re-indexed using the split indices.
-    images = images[indices]
-    camtoworlds = camtoworlds[indices]
+    return images, camtoworlds, K, split_indices
 
-    return images, camtoworlds, K
+
+def similarity_from_cameras(c2w, strict_scaling):
+    """
+    reference: nerf-factory
+    Get a similarity transform to normalize dataset
+    from c2w (OpenCV convention) cameras
+    :param c2w: (N, 4)
+    :return T (4,4) , scale (float)
+    """
+    t = c2w[:, :3, 3]
+    R = c2w[:, :3, :3]
+
+    # (1) Rotate the world so that z+ is the up axis
+    # we estimate the up axis by averaging the camera up axes
+    ups = np.sum(R * np.array([0, -1.0, 0]), axis=-1)
+    world_up = np.mean(ups, axis=0)
+    world_up /= np.linalg.norm(world_up)
+
+    up_camspace = np.array([0.0, -1.0, 0.0])
+    c = (up_camspace * world_up).sum()
+    cross = np.cross(world_up, up_camspace)
+    skew = np.array(
+        [
+            [0.0, -cross[2], cross[1]],
+            [cross[2], 0.0, -cross[0]],
+            [-cross[1], cross[0], 0.0],
+        ]
+    )
+    if c > -1:
+        R_align = np.eye(3) + skew + (skew @ skew) * 1 / (1 + c)
+    else:
+        # In the unlikely case the original data has y+ up axis,
+        # rotate 180-deg about x axis
+        R_align = np.array([[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+
+    #  R_align = np.eye(3) # DEBUG
+    R = R_align @ R
+    fwds = np.sum(R * np.array([0, 0.0, 1.0]), axis=-1)
+    t = (R_align @ t[..., None])[..., 0]
+
+    # (2) Recenter the scene using camera center rays
+    # find the closest point to the origin for each camera's center ray
+    nearest = t + (fwds * -t).sum(-1)[:, None] * fwds
+
+    # median for more robustness
+    translate = -np.median(nearest, axis=0)
+
+    #  translate = -np.mean(t, axis=0)  # DEBUG
+
+    transform = np.eye(4)
+    transform[:3, 3] = translate
+    transform[:3, :3] = R_align
+
+    # (3) Rescale the scene using camera distances
+    scale_fn = np.max if strict_scaling else np.median
+    scale = 1.0 / scale_fn(np.linalg.norm(t + translate, axis=-1))
+
+    return transform, scale
 
 
 class SubjectLoader(torch.utils.data.Dataset):
@@ -169,7 +223,7 @@ class SubjectLoader(torch.utils.data.Dataset):
         far: float = None,
         batch_over_images: bool = True,
         factor: int = 1,
-        device: str = "cuda:0",
+        device: str = "cpu",
     ):
         super().__init__()
         assert split in self.SPLITS, "%s" % split
@@ -184,14 +238,25 @@ class SubjectLoader(torch.utils.data.Dataset):
         )
         self.color_bkgd_aug = color_bkgd_aug
         self.batch_over_images = batch_over_images
-        self.images, self.camtoworlds, self.K = _load_colmap(
-            root_fp, subject_id, split, factor
+        self.images, self.camtoworlds, self.K, split_indices = _load_colmap(
+            root_fp, subject_id, factor
         )
-        self.images = torch.from_numpy(self.images).to(device).to(torch.uint8)
+        # normalize the scene
+        T, sscale = similarity_from_cameras(
+            self.camtoworlds, strict_scaling=False
+        )
+        self.camtoworlds = np.einsum("nij, ki -> nkj", self.camtoworlds, T)
+        self.camtoworlds[:, :3, 3] *= sscale
+        # split
+        indices = split_indices[split]
+        self.images = self.images[indices]
+        self.camtoworlds = self.camtoworlds[indices]
+        # to tensor
+        self.images = torch.from_numpy(self.images).to(torch.uint8).to(device)
         self.camtoworlds = (
-            torch.from_numpy(self.camtoworlds).to(device).to(torch.float32)
+            torch.from_numpy(self.camtoworlds).to(torch.float32).to(device)
         )
-        self.K = torch.tensor(self.K).to(device).to(torch.float32)
+        self.K = torch.tensor(self.K).to(torch.float32).to(device)
         self.height, self.width = self.images.shape[1:3]
 
     def __len__(self):
@@ -275,7 +340,7 @@ class SubjectLoader(torch.utils.data.Dataset):
             value=(-1.0 if self.OPENGL_CAMERA else 1.0),
         )  # [num_rays, 3]
 
-        # [n_cams, height, width, 3]
+        # [num_rays, 3]
         directions = (camera_dirs[:, None, :] * c2w[:, :3, :3]).sum(dim=-1)
         origins = torch.broadcast_to(c2w[:, :3, -1], directions.shape)
         viewdirs = directions / torch.linalg.norm(

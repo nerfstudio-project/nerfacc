@@ -125,6 +125,7 @@ def unpack_data(
     packed_info: Tensor,
     data: Tensor,
     n_samples: Optional[int] = None,
+    pad_value: float = 0.0,
 ) -> Tensor:
     """Unpack packed data (all_samples, D) to per-ray data (n_rays, n_samples, D).
 
@@ -134,6 +135,7 @@ def unpack_data(
         data: Packed data to unpack. Tensor with shape (n_samples, D).
         n_samples (int): Optional Number of samples per ray. If not provided, it \
             will be inferred from the packed_info.
+        pad_value: Value to pad the unpacked data.
 
     Returns:
         Unpacked data (n_rays, n_samples, D).
@@ -164,21 +166,27 @@ def unpack_data(
     ), "data must be a 2D tensor with shape (n_samples, D)."
     if n_samples is None:
         n_samples = packed_info[:, 1].max().item()
-    return _UnpackData.apply(packed_info, data, n_samples)
+    return _UnpackData.apply(packed_info, data, n_samples, pad_value)
 
 
 class _UnpackData(torch.autograd.Function):
     """Unpack packed data (all_samples, D) to per-ray data (n_rays, n_samples, D)."""
 
     @staticmethod
-    def forward(ctx, packed_info: Tensor, data: Tensor, n_samples: int):
+    def forward(
+        ctx,
+        packed_info: Tensor,
+        data: Tensor,
+        n_samples: int,
+        pad_value: float = 0.0,
+    ) -> Tensor:
         # shape of the data should be (all_samples, D)
         packed_info = packed_info.contiguous()
         data = data.contiguous()
         if ctx.needs_input_grad[1]:
             ctx.save_for_backward(packed_info)
             ctx.n_samples = n_samples
-        return _C.unpack_data(packed_info, data, n_samples)
+        return _C.unpack_data(packed_info, data, n_samples, pad_value)
 
     @staticmethod
     def backward(ctx, grad: Tensor):
@@ -187,4 +195,4 @@ class _UnpackData(torch.autograd.Function):
         n_samples = ctx.n_samples
         mask = _C.unpack_info_to_mask(packed_info, n_samples)
         packed_grad = grad[mask].contiguous()
-        return None, packed_grad, None
+        return None, packed_grad, None, None
