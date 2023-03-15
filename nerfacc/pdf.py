@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -70,3 +70,39 @@ def pdf_sampling(
         masks.contiguous() if masks is not None else None,
     )
     return t_new  # [n_ray, n_samples+1]
+
+
+@torch.no_grad()
+def importance_sampling(
+    ts: Tensor,
+    Ts: Tensor,
+    info: Tensor,
+    expected_samples_per_ray: Tensor,
+    stratified: bool = False,
+    T_eps: float = 0.0,
+) -> Tuple[Tensor, Tensor]:
+    """Importance sampling from a Transmittance.
+
+    Args:
+        ts: packed intervals. (all_samples,)
+        Ts: packed Transmittance. (all_samples,)
+        info: packed info. (n_rays, 2)
+        expected_samples_per_ray: (n_rays,)
+        stratified: whether to use stratified sampling
+        T_eps: epsilon for Transmittance
+
+    Returns:
+        samples_packed: packed new samples.
+        samples_info: packed info for the new samples.
+    """
+    assert ts.shape == Ts.shape
+    assert ts.numel() == info[:, 1].sum()
+    assert info.shape[0] == expected_samples_per_ray.shape[0]
+    ts = ts.contiguous()
+    Ts = Ts.contiguous()
+    info = info.contiguous()
+    expected_samples_per_ray = expected_samples_per_ray.contiguous()
+    samples_packed, samples_info = _C.importance_sampling(
+        ts, Ts, info, expected_samples_per_ray, stratified, T_eps
+    )
+    return samples_packed, samples_info

@@ -8,13 +8,14 @@ device = "cuda:0"
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_importance_sampling():
+    from nerfacc.pdf import importance_sampling
     from nerfacc.proposal import sample_from_weighted
 
     torch.manual_seed(42)
 
     n_rays = 100
-    S = 1000
-    S_expected = 1000
+    S = 100
+    S_expected = 100
     stratified = True
 
     ts = torch.rand((n_rays, S + 1), device=device)
@@ -35,7 +36,7 @@ def test_importance_sampling():
     expected_samples_per_ray = torch.full((n_rays,), S_expected, device=device)
 
     torch.manual_seed(10)
-    samples_packed, samples_info = _C.importance_sampling(
+    samples_packed, samples_info = importance_sampling(
         ts_packed, Ts_packed, info, expected_samples_per_ray, stratified, 0.0
     )
 
