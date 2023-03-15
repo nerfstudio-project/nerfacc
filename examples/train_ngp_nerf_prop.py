@@ -63,8 +63,9 @@ if args.scene in MIPNERF360_UNBOUNDED_SCENES:
     from datasets.nerf_360_v2 import SubjectLoader
 
     # training parameters
-    max_steps = 20000
+    max_steps = 100000
     init_batch_size = 4096
+    weight_decay = 0.0
     # scene parameters
     unbounded = True
     aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device)
@@ -100,6 +101,9 @@ else:
     # training parameters
     max_steps = 20000
     init_batch_size = 4096
+    weight_decay = (
+        1e-5 if args.scene in ["materials", "ficus", "drums"] else 1e-6
+    )
     # scene parameters
     unbounded = False
     aabb = torch.tensor([-1.5, -1.5, -1.5, 1.5, 1.5, 1.5], device=device)
@@ -151,6 +155,7 @@ optimizer = torch.optim.Adam(
     ),
     lr=1e-2,
     eps=1e-15,
+    weight_decay=weight_decay,
 )
 scheduler = torch.optim.lr_scheduler.ChainedScheduler(
     [

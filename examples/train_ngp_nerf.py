@@ -60,9 +60,10 @@ if args.scene in MIPNERF360_UNBOUNDED_SCENES:
     from datasets.nerf_360_v2 import SubjectLoader
 
     # training parameters
-    max_steps = 20000
+    max_steps = 100000
     init_batch_size = 1024
     target_sample_batch_size = 1 << 18
+    weight_decay = 0.0
     # scene parameters
     aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device)
     near_plane = 0.02
@@ -85,6 +86,9 @@ else:
     max_steps = 20000
     init_batch_size = 1024
     target_sample_batch_size = 1 << 18
+    weight_decay = (
+        1e-5 if args.scene in ["materials", "ficus", "drums"] else 1e-6
+    )
     # scene parameters
     aabb = torch.tensor([-1.5, -1.5, -1.5, 1.5, 1.5, 1.5], device=device)
     near_plane = None
@@ -124,7 +128,9 @@ scene_aabb = enlarge_aabb(aabb, 1 << (grid_nlvl - 1))
 # setup the radiance field we want to train.
 grad_scaler = torch.cuda.amp.GradScaler(2**10)
 radiance_field = NGPRadianceField(aabb=scene_aabb).to(device)
-optimizer = torch.optim.Adam(radiance_field.parameters(), lr=1e-2, eps=1e-15)
+optimizer = torch.optim.Adam(
+    radiance_field.parameters(), lr=1e-2, eps=1e-15, weight_decay=weight_decay
+)
 scheduler = torch.optim.lr_scheduler.ChainedScheduler(
     [
         torch.optim.lr_scheduler.LinearLR(

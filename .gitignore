@@ -119,4 +119,4 @@ venv.bak/
 
 benchmarks/
 outputs/
-data/
+data
