@@ -40,5 +40,5 @@ memory footprint is about 3GB.
 +-----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
 
 .. _`Instant-NGP Nerf`: https://github.com/NVlabs/instant-ngp/tree/51e4107edf48338e9ab0316d56a222e0adf87143
-.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/tree/76c0f9817da4c9c8b5ccf827eb069ee2ce854b75
+.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/
 .. _`Nerf-Synthetic dataset`: https://drive.google.com/drive/folders/1JDdLGDruGNXWnM1eqY1FNL9PlStjaKWi

@@ -120,6 +120,7 @@ class OccupancyGrid(Grid):
             be a cube. Otherwise, a list or a tensor of shape (3,) is expected. Default: 128.
         contraction_type: The contraction type of the grid. See :class:`nerfacc.ContractionType`
             for more details. Default: :attr:`nerfacc.ContractionType.AABB`.
+        levels: The number of levels of the grid. Default: 1.
     """
 
     NUM_DIM: int = 3
