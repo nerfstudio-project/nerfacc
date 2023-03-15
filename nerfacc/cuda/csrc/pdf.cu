@@ -565,8 +565,6 @@ __global__ void compute_intervals_kernel(
     int64_t base = info[ray_id * 2];
     int64_t cnt = info[ray_id * 2 + 1];
     int64_t last = base + cnt - 1;
-
-    // printf("tid: %lld, ray_id: %lld, base: %lld, cnt: %lld, last: %lld\n", tid, ray_id, base, cnt, last);
     
     float left, right;
     if (tid == base) {
@@ -617,4 +615,144 @@ torch::Tensor compute_intervals(
         intervals.data_ptr<float>());
 
     return intervals;
+}
+
+
+__global__ void compute_intervals_v2_native_kernel(
+    const int64_t n_rays,
+    const float *sdists,    // [all_samples]
+    const int64_t *info,    // [n_rays, 2]
+    const float max_step_size,
+    // outputs
+    const int64_t *info_out,       // [n_rays, 2]
+    int64_t *cnts_out,             // [n_rays]
+    float *sdists_out,             // [all_bins]
+    bool *masks_l_out,             // [all_bins]
+    bool *masks_r_out)             // [all_bins]
+{
+  // parallelize over all rays
+  for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_rays; tid += blockDim.x * gridDim.x)
+  {
+    int64_t ray_id = tid;
+
+    int64_t base = info[ray_id * 2];
+    int64_t cnt = info[ray_id * 2 + 1];
+    int64_t last = base + cnt - 1;
+    if (cnt == 0) {
+      if (cnts_out != nullptr)
+        cnts_out[ray_id] = 0;
+      continue;
+    }
+
+    int64_t base_out;
+    if (info_out != nullptr) {
+      base_out = info_out[ray_id * 2];
+    }
+
+    int64_t cnt_out = 0;
+    float last_s = -1e10f;
+    for (int64_t i = base; i <= last; i++) {
+      float left, right;
+      if (i == base) {
+        right = (sdists[i + 1] - sdists[i]) * 0.5f;
+        left = min(sdists[i] - 0.f, right);
+      } else if (i == last) {
+        left = (sdists[i] - sdists[i - 1]) * 0.5f;
+        right = min(1.f - sdists[i], left);
+      } else {
+        left = (sdists[i] - sdists[i - 1]) * 0.5f;
+        right = (sdists[i + 1] - sdists[i]) * 0.5f;
+      }
+      left = min(left, max_step_size * 0.5f);
+      right = min(right, max_step_size * 0.5f);
+
+      if (sdists[i] - left > last_s + 1e-6f) {
+        // there is a gap so stores new [left_s, right_s]
+        if (sdists_out != nullptr)
+          sdists_out[base_out + cnt_out] = sdists[i] - left;
+        if (masks_l_out != nullptr)
+          masks_l_out[base_out + cnt_out] = true;
+        cnt_out += 1;
+
+        if (sdists_out != nullptr)
+          sdists_out[base_out + cnt_out] = sdists[i] + right;
+        if (masks_r_out != nullptr)
+          masks_r_out[base_out + cnt_out] = true;
+        cnt_out += 1;
+      } else {
+        // it is continuous so stores new [right_s]
+        if (masks_l_out != nullptr)
+          masks_l_out[base_out + cnt_out - 1] = true;
+
+        if (sdists_out != nullptr)
+          sdists_out[base_out + cnt_out] = sdists[i] + right;
+        if (masks_r_out != nullptr)
+          masks_r_out[base_out + cnt_out] = true;
+        cnt_out += 1;
+      }
+      last_s = sdists[i] + right;
+    }
+    if (cnts_out != nullptr)
+      cnts_out[ray_id] = cnt_out;
+  }
+}
+
+
+std::vector<torch::Tensor> compute_intervals_v2(
+    torch::Tensor sdists,   // [all_samples]
+    torch::Tensor info,     // [n_rays, 2]
+    float max_step_size)
+{
+    DEVICE_GUARD(sdists);
+    CHECK_INPUT(sdists);
+    CHECK_INPUT(info);
+    TORCH_CHECK(sdists.ndimension() == 1);
+    TORCH_CHECK(info.ndimension() == 2);
+
+    int64_t n_rays = info.size(0);
+
+    int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int64_t maxGrid = 1024;
+    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+    dim3 block, grid;
+
+    torch::Tensor cnts_out = torch::zeros({n_rays,}, info.options());
+    block = dim3(min(maxThread, n_rays));
+    grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+
+    compute_intervals_v2_native_kernel<<<grid, block, 0, stream>>>(
+        n_rays,
+        sdists.data_ptr<float>(),
+        info.data_ptr<int64_t>(),
+        max_step_size,
+        nullptr,
+        cnts_out.data_ptr<int64_t>(),
+        nullptr,
+        nullptr,
+        nullptr);
+
+    // Compute the offset for each ray
+    torch::Tensor info_out = torch::stack(
+        {cnts_out.cumsum(0, torch::kLong) - cnts_out, cnts_out}, 1);
+
+    // The second pass: allocate memory for samples
+    int64_t total_samples = cnts_out.sum().item<int64_t>();
+    torch::Tensor sdists_out = torch::empty({total_samples}, sdists.options());
+    torch::Tensor masks_l_out = torch::zeros({total_samples}, sdists.options().dtype(torch::kBool));
+    torch::Tensor masks_r_out = torch::zeros({total_samples}, sdists.options().dtype(torch::kBool));
+    block = dim3(min(maxThread, n_rays));
+    grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+
+    compute_intervals_v2_native_kernel<<<grid, block, 0, stream>>>(
+        n_rays,
+        sdists.data_ptr<float>(),
+        info.data_ptr<int64_t>(),
+        max_step_size,
+        info_out.data_ptr<int64_t>(),
+        nullptr,
+        sdists_out.data_ptr<float>(),
+        masks_l_out.data_ptr<bool>(),
+        masks_r_out.data_ptr<bool>());
+
+    return {sdists_out, masks_l_out, masks_r_out, info_out};
 }

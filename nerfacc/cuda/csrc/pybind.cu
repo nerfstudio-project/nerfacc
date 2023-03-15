@@ -154,6 +154,11 @@ torch::Tensor compute_intervals(
     torch::Tensor info,     // [n_rays, 2]
     float max_step_size);
 
+std::vector<torch::Tensor> compute_intervals_v2(
+    torch::Tensor sdists,   // [all_samples]
+    torch::Tensor info,     // [n_rays, 2]
+    float max_step_size);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
@@ -198,4 +203,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("pdf_readout", &pdf_readout);
     m.def("importance_sampling", &importance_sampling);
     m.def("compute_intervals", &compute_intervals);
+    m.def("compute_intervals_v2", &compute_intervals_v2);
 }

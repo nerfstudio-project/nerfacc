@@ -128,3 +128,30 @@ def compute_intervals(
     info = info.contiguous()
     intervals = _C.compute_intervals(samples, info, max_step_size)
     return intervals
+
+
+@torch.no_grad()
+def compute_intervals_v2(
+    samples: Tensor,
+    info: Tensor,
+    max_step_size: float = torch.finfo(torch.float32).max,
+) -> Tensor:
+    """Compute intervals from samples.
+
+    Args:
+        samples: packed samples. (all_bins,)
+        info: packed info. (n_rays, 2)
+
+    Returns:
+        bins: interval bins. (all_bins,)
+        bins_l: boolend mask for the left edges. (all_bins,)
+        bins_r: boolend mask for the right edges. (all_bins,)
+        info_bins: packed info for the bins. (n_rays, 2)
+    """
+    assert samples.numel() == info[:, 1].sum()
+    samples = samples.contiguous()
+    info = info.contiguous()
+    bins, bins_l, bins_r, info_bins = _C.compute_intervals_v2(
+        samples, info, max_step_size
+    )
+    return bins, bins_l, bins_r, info_bins
