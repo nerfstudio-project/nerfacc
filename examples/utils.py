@@ -11,7 +11,7 @@ from datasets.utils import Rays, namedtuple_map
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 from nerfacc import OccupancyGrid, ray_marching, rendering
-from nerfacc.proposal import rendering as rendering_proposal
+from nerfacc.proposal_packed import rendering as rendering_proposal
 
 NERF_SYNTHETIC_SCENES = [
     "chair",
@@ -177,17 +177,15 @@ def render_image_proposal(
     else:
         num_rays, _ = rays_shape
 
-    def prop_sigma_fn(t_starts, t_ends, proposal_network):
-        t_origins = chunk_rays.origins[..., None, :]
-        t_dirs = chunk_rays.viewdirs[..., None, :]
+    def prop_sigma_fn(t_starts, t_ends, ray_ids, proposal_network):
+        t_origins = chunk_rays.origins[ray_ids, :]
+        t_dirs = chunk_rays.viewdirs[ray_ids, :]
         positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
         return proposal_network(positions)
 
-    def rgb_sigma_fn(t_starts, t_ends):
-        t_origins = chunk_rays.origins[..., None, :]
-        t_dirs = chunk_rays.viewdirs[..., None, :].repeat_interleave(
-            t_starts.shape[-2], dim=-2
-        )
+    def rgb_sigma_fn(t_starts, t_ends, ray_ids):
+        t_origins = chunk_rays.origins[ray_ids, :]
+        t_dirs = chunk_rays.viewdirs[ray_ids, :]
         positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
         return radiance_field(positions, t_dirs)
 
@@ -203,7 +201,7 @@ def render_image_proposal(
             rgb,
             opacity,
             depth,
-            (weights_per_level, s_vals_per_level),
+            (Ts_per_level, s_vals_per_level, info_per_level),
         ) = rendering_proposal(
             rgb_sigma_fn=rgb_sigma_fn,
             num_samples=num_samples,
@@ -237,6 +235,7 @@ def render_image_proposal(
         colors.view((*rays_shape[:-1], -1)),
         opacities.view((*rays_shape[:-1], -1)),
         depths.view((*rays_shape[:-1], -1)),
-        weights_per_level,
+        Ts_per_level,
         s_vals_per_level,
+        info_per_level
     )

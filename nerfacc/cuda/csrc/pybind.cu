@@ -159,6 +159,12 @@ std::vector<torch::Tensor> compute_intervals_v2(
     torch::Tensor info,     // [n_rays, 2]
     float max_step_size);
 
+std::vector<torch::Tensor> searchsorted_packed(
+    torch::Tensor sdists_q,   // [all_samples_q]
+    torch::Tensor info_q,     // [n_rays, 2]
+    torch::Tensor sdists_k,   // [all_samples_k]
+    torch::Tensor info_k);     // [n_rays, 2] 
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     // contraction
@@ -204,4 +210,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("importance_sampling", &importance_sampling);
     m.def("compute_intervals", &compute_intervals);
     m.def("compute_intervals_v2", &compute_intervals_v2);
+    m.def("searchsorted_packed", &searchsorted_packed);
 }

@@ -21,7 +21,7 @@ from utils import (
     set_random_seed,
 )
 
-from nerfacc.proposal import (
+from nerfacc.proposal_packed import (
     compute_prop_loss,
     get_proposal_annealing_fn,
     get_proposal_requires_grad_fn,
@@ -199,8 +199,9 @@ for step in range(max_steps + 1):
         rgb,
         acc,
         depth,
-        weights_per_level,
+        Ts_per_level,
         s_vals_per_level,
+        info_per_level,
     ) = render_image_proposal(
         radiance_field,
         proposal_networks,
@@ -221,7 +222,9 @@ for step in range(max_steps + 1):
 
     # compute loss
     loss = F.smooth_l1_loss(rgb, pixels)
-    loss_prop = compute_prop_loss(s_vals_per_level, weights_per_level)
+    loss_prop = compute_prop_loss(
+        s_vals_per_level, Ts_per_level, info_per_level
+    )
     loss = loss + loss_prop
 
     optimizer.zero_grad()
@@ -230,7 +233,7 @@ for step in range(max_steps + 1):
     optimizer.step()
     scheduler.step()
 
-    if step % 5000 == 0:
+    if step % 1000 == 0:
         elapsed_time = time.time() - tic
         loss = F.mse_loss(rgb, pixels)
         psnr = -10.0 * torch.log(loss) / np.log(10.0)
@@ -257,7 +260,7 @@ for step in range(max_steps + 1):
                 pixels = data["pixels"]
 
                 # rendering
-                rgb, acc, depth, _, _, = render_image_proposal(
+                rgb, acc, depth, _, _, _, = render_image_proposal(
                     radiance_field,
                     proposal_networks,
                     rays,

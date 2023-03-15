@@ -13,7 +13,11 @@ def test_importance_sampling():
         compute_intervals_v2,
         importance_sampling,
     )
-    from nerfacc.proposal import sample_from_weighted
+    from nerfacc.proposal import (
+        render_weight_from_density,
+        sample_from_weighted,
+    )
+    from nerfacc.vol_rendering import render_transmittance_from_alpha
 
     torch.manual_seed(42)
 
@@ -61,6 +65,28 @@ def test_importance_sampling():
     )
     assert torch.allclose(samples_packed, samples.flatten(), atol=1e-5)
     assert torch.allclose(intervals_packed, intervals, atol=1e-5)
+
+    # query network with new samples
+    sigmas = torch.rand((n_rays, S_expected, 1), device=device)
+    weights = render_weight_from_density(sigmas, tdists[:, :-1], tdists[:, 1:])
+    Ts = 1.0 - torch.cat(
+        [torch.zeros_like(weights[:, :1]), weights.cumsum(1)], dim=-1
+    )
+
+    sigmas_packed = sigmas.flatten()
+    alphas_packed = 1.0 - torch.exp(
+        -sigmas_packed * (bins[bins_r] - bins[bins_l])
+    )
+    bins_alpha = torch.zeros_like(bins)
+    bins_alpha[bins_l] = alphas_packed
+    Ts_packed = render_transmittance_from_alpha(
+        bins_alpha[:, None], packed_info=info_bins.int()
+    ).squeeze(-1)
+    weights_packed = Ts_packed[bins_l] * alphas_packed
+    assert torch.allclose(Ts_packed.flatten(), Ts.flatten(), atol=1e-5)
+    assert torch.allclose(
+        weights_packed.flatten(), weights.flatten(), atol=1e-5
+    )
 
 
 if __name__ == "__main__":

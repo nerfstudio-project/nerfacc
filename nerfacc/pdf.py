@@ -155,3 +155,37 @@ def compute_intervals_v2(
         samples, info, max_step_size
     )
     return bins, bins_l, bins_r, info_bins
+
+
+@torch.no_grad()
+def select_starts_and_ends(info):
+    length = info[:, 1].sum().item()
+    valid_rays = info[:, 1] > 0
+    start_ids = (info[:, 0])[valid_rays]
+    end_ids = (info[:, 0] + info[:, 1] - 1)[valid_rays]
+    start_masks = torch.ones(length, dtype=torch.bool, device=info.device)
+    end_masks = torch.ones(length, dtype=torch.bool, device=info.device)
+    start_masks[end_ids] = False
+    end_masks[start_ids] = False
+    return start_masks, end_masks
+
+
+def transmittance_loss_native_packed(
+    sdists_q: Tensor,
+    Ts_q: Tensor,
+    info_q: Tensor,
+    sdists_k: Tensor,
+    Ts_k: Tensor,
+    info_k: Tensor,
+) -> Tensor:
+    eps = 1e-7
+    ids_left, ids_right = _C.searchsorted_packed(
+        sdists_q.contiguous(),
+        info_q.contiguous(),
+        sdists_k.contiguous(),
+        info_k.contiguous(),
+    )
+    start_masks_q, end_masks_q = select_starts_and_ends(info_q)
+    w = Ts_q[start_masks_q] - Ts_q[end_masks_q]
+    w_outer = Ts_k[ids_left[start_masks_q]] - Ts_k[ids_right[end_masks_q]]
+    return torch.clip(w - w_outer, min=0) ** 2 / (w + eps)

@@ -407,9 +407,9 @@ __global__ void importance_sampling_kernel_naive(
       return;
     }
 
-    // Sampling will happen between [u_start, u_end]
+    // Sampling will happen between [u_start, u_end).
     float u_ceil = min(Ts_in[base_in], 1.0f - T_eps); // near to 1.0
-    float u_floor = max(Ts_in[last_in], T_eps); // near to 0.0
+    float u_floor = max(Ts_in[last_in] + 1e-10f, T_eps); // near to 0.0
 
     // If the ray has a constant trans, we skip it.
     if (u_ceil <= u_floor) {
@@ -437,6 +437,11 @@ __global__ void importance_sampling_kernel_naive(
     int64_t n_samples = 0;
     for (int64_t sid = 0; sid < expected_samples; ++sid) {
       float u = u_ceil - u_shift - sid * u_step;
+
+      if (u <= u_floor) {
+        // u should be in [u_start, u_end)
+        break;
+      }
 
       // find the interval that contains u: T_upper >= u > T_lower
       // equavalent to: searchsorted with "right" on PDF_lower <= u < PDF_upper
@@ -630,6 +635,8 @@ __global__ void compute_intervals_v2_native_kernel(
     bool *masks_l_out,             // [all_bins]
     bool *masks_r_out)             // [all_bins]
 {
+  float half_step_limit = max_step_size * 0.5f;
+
   // parallelize over all rays
   for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_rays; tid += blockDim.x * gridDim.x)
   {
@@ -663,10 +670,10 @@ __global__ void compute_intervals_v2_native_kernel(
         left = (sdists[i] - sdists[i - 1]) * 0.5f;
         right = (sdists[i + 1] - sdists[i]) * 0.5f;
       }
-      left = min(left, max_step_size * 0.5f);
-      right = min(right, max_step_size * 0.5f);
+      left = min(left, half_step_limit);
+      right = min(right, half_step_limit);
 
-      if (sdists[i] - left > last_s + 1e-6f) {
+      if (sdists[i] - left > last_s + 1e-10f) {
         // there is a gap so stores new [left_s, right_s]
         if (sdists_out != nullptr)
           sdists_out[base_out + cnt_out] = sdists[i] - left;
@@ -755,4 +762,117 @@ std::vector<torch::Tensor> compute_intervals_v2(
         masks_r_out.data_ptr<bool>());
 
     return {sdists_out, masks_l_out, masks_r_out, info_out};
+}
+
+
+__global__ void searchsorted_packed_kernel_naive(
+    const int64_t n_rays,
+    // queries
+    const float *sdists_q,    // [all_samples_q]
+    const int64_t *info_q,    // [n_rays, 2]
+    // keys: to be queried
+    const float *sdists_k,    // [all_samples_k]
+    const int64_t *info_k,    // [n_rays, 2]
+    // outputs
+    int64_t *ids_l,            // [all_samples_q]
+    int64_t *ids_r)            // [all_samples_q]
+{
+  // parallelize over rays
+  for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_rays; tid += blockDim.x * gridDim.x)
+  {
+    int64_t ray_id = tid;
+
+    int64_t base_q = info_q[ray_id * 2];
+    int64_t cnt_q = info_q[ray_id * 2 + 1];
+    if (cnt_q == 0) {
+      return;
+    }
+    
+    int64_t base_k = info_k[ray_id * 2];
+    int64_t cnt_k = info_k[ray_id * 2 + 1];
+    int64_t last_k = base_k + cnt_k - 1;
+    if (cnt_k == 0) {
+      // TODO: should raise warning here: What should we put into `ids_l` and `ids_r`?
+      return;
+    }
+
+    // Draw samples
+    int64_t idx_k = base_k;
+    for (int64_t i = 0; i < cnt_q; ++i) {
+      int64_t idx_q = base_q + i;
+
+      float s = sdists_q[idx_q];
+
+      float s_left = sdists_k[idx_k];
+      float s_right = sdists_k[idx_k + 1];
+
+      // s that falls outside the range of sdists_k only
+      if (idx_k == base_k && s < s_left) {
+        ids_l[idx_q] = idx_k;
+        ids_r[idx_q] = idx_k;
+        continue;
+      }
+
+      // find the interval that contains s:
+      // sdists[idx_k] < s <= sdists[idx_k + 1] "left" in searchsorted
+      while (s > s_right && idx_k < last_k - 1) {
+        idx_k += 1;
+        s_left = sdists_k[idx_k];
+        s_right = sdists_k[idx_k + 1];          
+      }
+
+      // s that falls outside the range of sdists_k only
+      if (idx_k == last_k - 1 && s > s_right) {
+        ids_l[idx_q] = idx_k + 1;
+        ids_r[idx_q] = idx_k + 1;
+        // printf(
+        //   "i: %lld, idx_k: %lld, idx_q: %lld, lask_k: %lld, s: %f, s_left: %f, s_right: %f\n", 
+        //   i, idx_k, idx_q, last_k, s, s_left, s_right);
+        continue;
+      }
+
+      // s that fall into the range of sdists_k
+      ids_l[idx_q] = idx_k;
+      ids_r[idx_q] = idx_k + 1;
+    }
+  }
+}
+
+
+std::vector<torch::Tensor> searchsorted_packed(
+    torch::Tensor sdists_q,   // [all_samples_q]
+    torch::Tensor info_q,     // [n_rays, 2]
+    torch::Tensor sdists_k,   // [all_samples_k]
+    torch::Tensor info_k)     // [n_rays, 2] 
+{
+  DEVICE_GUARD(sdists_q);
+  CHECK_INPUT(sdists_q);
+  CHECK_INPUT(sdists_k);
+  TORCH_CHECK(info_q.size(0) == info_k.size(0));
+
+  int64_t n_rays = info_q.size(0);
+
+  int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+  int64_t maxGrid = 1024;
+  at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+  dim3 block, grid;
+
+  // the index in sdists_k:
+  // sdist_k[ids_l] <= sdist_q < sdist_k[ids_r]
+  torch::Tensor ids_l = torch::empty({sdists_q.numel()}, sdists_q.options().dtype(torch::kLong));
+  torch::Tensor ids_r = torch::empty({sdists_q.numel()}, sdists_q.options().dtype(torch::kLong));
+  block = dim3(min(maxThread, n_rays));
+  grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+
+  searchsorted_packed_kernel_naive<<<grid, block, 0, stream>>>(
+      n_rays,
+      sdists_q.data_ptr<float>(),
+      info_q.data_ptr<int64_t>(),
+      sdists_k.data_ptr<float>(),
+      info_k.data_ptr<int64_t>(),
+      // outputs
+      ids_l.data_ptr<int64_t>(),
+      ids_r.data_ptr<int64_t>());
+
+  return {ids_l, ids_r};
 }
