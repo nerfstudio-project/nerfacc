@@ -139,6 +139,9 @@ def rendering(
         # compute light transport
         _alphas = torch.zeros_like(s_vals)
         _alphas[bins_l] = alphas
+        if opaque_bkgd:  # hacky way
+            last_ids = torch.where(~bins_l)[0] - 1
+            _alphas[last_ids] = 1.0
         Ts = render_transmittance_from_alpha(
             _alphas[:, None], packed_info=info.int()
         ).squeeze(-1)
@@ -148,7 +151,7 @@ def rendering(
         info_per_level.append(info)
 
     assert rgbs is not None
-    weights = (Ts[bins_l] * alphas)[:, None]
+    weights = (Ts[bins_l] * _alphas[bins_l])[:, None]
     rgbs = accumulate_along_rays(weights, ray_ids, rgbs, n_rays)
     opacities = accumulate_along_rays(weights, ray_ids, None, n_rays)
     depths = accumulate_along_rays(
