@@ -244,7 +244,7 @@ for step in range(max_steps + 1):
             f"max_depth={depth.max():.3f} | "
         )
 
-    if step > 0 and step % max_steps == 0:
+    if step > 0 and step % 1000 == 0:
         # evaluation
         radiance_field.eval()
         for p in proposal_networks:
@@ -281,17 +281,18 @@ for step in range(max_steps + 1):
                 psnr = -10.0 * torch.log(mse) / np.log(10.0)
                 psnrs.append(psnr.item())
                 lpips.append(lpips_fn(rgb, pixels).item())
-                # if i == 0:
-                #     imageio.imwrite(
-                #         "rgb_test.png",
-                #         (rgb.cpu().numpy() * 255).astype(np.uint8),
-                #     )
-                #     imageio.imwrite(
-                #         "rgb_error.png",
-                #         (
-                #             (rgb - pixels).norm(dim=-1).cpu().numpy() * 255
-                #         ).astype(np.uint8),
-                #     )
+                if i == 0:
+                    imageio.imwrite(
+                        "rgb_test.png",
+                        (rgb.cpu().numpy() * 255).astype(np.uint8),
+                    )
+                    imageio.imwrite(
+                        "rgb_error.png",
+                        (
+                            (rgb - pixels).norm(dim=-1).cpu().numpy() * 255
+                        ).astype(np.uint8),
+                    )
+                    break
         psnr_avg = sum(psnrs) / len(psnrs)
         lpips_avg = sum(lpips) / len(lpips)
         print(f"evaluation: psnr_avg={psnr_avg}, lpips_avg={lpips_avg}")

@@ -409,7 +409,7 @@ __global__ void importance_sampling_kernel_naive(
 
     // Sampling will happen between [u_start, u_end).
     float u_ceil = min(Ts_in[base_in], 1.0f - T_eps); // near to 1.0
-    float u_floor = max(Ts_in[last_in] + 1e-10f, T_eps); // near to 0.0
+    float u_floor = max(Ts_in[last_in] + 1e-20f, T_eps); // near to 0.0
 
     // If the ray has a constant trans, we skip it.
     if (u_ceil <= u_floor) {
@@ -657,7 +657,9 @@ __global__ void compute_intervals_v2_native_kernel(
     }
 
     int64_t cnt_out = 0;
-    float last_s = -1e10f;
+    bool last_right_cut = true;
+    bool this_left_cut = false;
+    bool this_right_cut = false;
     for (int64_t i = base; i <= last; i++) {
       float left, right;
       if (i == base) {
@@ -670,10 +672,22 @@ __global__ void compute_intervals_v2_native_kernel(
         left = (sdists[i] - sdists[i - 1]) * 0.5f;
         right = (sdists[i + 1] - sdists[i]) * 0.5f;
       }
-      left = min(left, half_step_limit);
-      right = min(right, half_step_limit);
 
-      if (sdists[i] - left > last_s + 1e-10f) {
+      // cut
+      if (left > half_step_limit) {
+        left = half_step_limit;
+        this_left_cut = true;
+      } else {
+        this_left_cut = false;
+      }
+      if (right > half_step_limit) {
+        right = half_step_limit;
+        this_right_cut = true;
+      } else {
+        this_right_cut = false;
+      }
+
+      if (last_right_cut || this_left_cut) {
         // there is a gap so stores new [left_s, right_s]
         if (sdists_out != nullptr)
           sdists_out[base_out + cnt_out] = sdists[i] - left;
@@ -697,7 +711,7 @@ __global__ void compute_intervals_v2_native_kernel(
           masks_r_out[base_out + cnt_out] = true;
         cnt_out += 1;
       }
-      last_s = sdists[i] + right;
+      last_right_cut = this_right_cut;
     }
     if (cnts_out != nullptr)
       cnts_out[ray_id] = cnt_out;

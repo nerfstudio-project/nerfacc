@@ -153,7 +153,7 @@ def rendering(
     opacities = accumulate_along_rays(weights, ray_ids, None, n_rays)
     depths = accumulate_along_rays(
         weights, ray_ids, (t_1 + t_0)[:, None] / 2.0, n_rays
-    )
+    ) / opacities.clamp_min(torch.finfo(rgbs.dtype).eps)
     if render_bkgd is not None:
         rgbs = rgbs + render_bkgd * (1.0 - opacities)
 

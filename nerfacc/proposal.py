@@ -165,21 +165,23 @@ def render_from_weighted(
         depths: (..., 1). The naming is a bit confusing since it is actually
             the expected marching *distances*.
     """
-    # Use white instead of black background by default.
-    render_bkgd = (
-        render_bkgd
-        if render_bkgd is not None
-        else torch.ones(3, dtype=rgbs.dtype, device=rgbs.device)
-    )
+    # # Use white instead of black background by default.
+    # render_bkgd = (
+    #     render_bkgd
+    #     if render_bkgd is not None
+    #     else torch.ones(3, dtype=rgbs.dtype, device=rgbs.device)
+    # )
 
     eps = torch.finfo(rgbs.dtype).eps
 
     # (..., 1).
     opacities = weights.sum(axis=-2)
-    # (..., 1).
-    bkgd_weights = (1 - opacities).clamp_min(0)
     # (..., 3).
-    colors = (weights * rgbs).sum(dim=-2) + bkgd_weights * render_bkgd
+    colors = (weights * rgbs).sum(dim=-2)
+    if render_bkgd is not None:
+        # (..., 1).
+        bkgd_weights = (1 - opacities).clamp_min(0)
+        colors += bkgd_weights * render_bkgd
 
     # (..., S, 1).
     t_mids = (t_vals[..., 1:, :] + t_vals[..., :-1, :]) / 2
@@ -271,14 +273,15 @@ def rendering(
 
         annealed_weights = torch.pow(weights, proposal_annealing)
         # (N, S + 1).
-        s_vals, _ = sample_from_weighted(
+        s_vals, s_mids = sample_from_weighted(
             s_vals,
             annealed_weights,
             level_samples,
             stratified=stratified,
             vmin=0.0,
             vmax=1.0,
-        ).detach()
+        )
+        s_vals = s_vals.detach()
         # s_vals = pdf_sampling(
         #     s_vals,
         #     annealed_weights,
