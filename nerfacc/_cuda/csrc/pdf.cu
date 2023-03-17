@@ -12,8 +12,10 @@
 #include <curand_philox4x32_x.h>
 
 #include "include/helpers_cuda.h"
+#include "include/helpers_math.h"
 
 namespace F = torch::nn::functional;
+static constexpr uint32_t MAX_GRID_LEVELS = 8;
 
 template <typename scalar_t>
 inline __device__ __host__ scalar_t ceil_div(scalar_t a, scalar_t b)
@@ -890,3 +892,355 @@ std::vector<torch::Tensor> searchsorted_packed(
 
   return {ids_l, ids_r};
 }
+
+
+// inline __host__ __device__ bool rayBoxIntersection(
+//     const float3 origin, const float3 inv_dir, 
+//     const float3 aabb_min, const float3 aabb_max,
+//     const float near_plane, const float far_plane,
+//     float& tmin, float& tmax) 
+// {
+//     tmin = near_plane;
+//     tmax = far_plane;
+
+//     float tmin_temp{};
+//     float tmax_temp{};
+
+//     if (inv_dir.x >= 0) {
+//         tmin = (aabb_min.x - origin.x) * inv_dir.x;
+//         tmax = (aabb_max.x - origin.x) * inv_dir.x;
+//     } else {
+//         tmin = (aabb_max.x - origin.x) * inv_dir.x;
+//         tmax = (aabb_min.x - origin.x) * inv_dir.x;
+//     }
+
+//     if (inv_dir.y >= 0) {
+//         tmin_temp = (aabb_min.y - origin.y) * inv_dir.y;
+//         tmax_temp = (aabb_max.y - origin.y) * inv_dir.y;
+//     } else {
+//         tmin_temp = (aabb_max.y - origin.y) * inv_dir.y;
+//         tmax_temp = (aabb_min.y - origin.y) * inv_dir.y;
+//     }
+
+//     if (tmin > tmax_temp || tmin_temp > tmax) return false;
+//     if (tmin_temp > tmin) tmin = tmin_temp;
+//     if (tmax_temp < tmax) tmax = tmax_temp;
+
+//     if (inv_dir.z >= 0) {
+//         tmin_temp = (aabb_min.z - origin.z) * inv_dir.z;
+//         tmax_temp = (aabb_max.z - origin.z) * inv_dir.z;
+//     } else {
+//         tmin_temp = (aabb_max.z - origin.z) * inv_dir.z;
+//         tmax_temp = (aabb_min.z - origin.z) * inv_dir.z;
+//     }
+
+//     if (tmin > tmax_temp || tmin_temp > tmax) return false;
+//     if (tmin_temp > tmin) tmin = tmin_temp;
+//     if (tmax_temp < tmax) tmax = tmax_temp;
+//     return true;
+// }
+
+
+// inline __host__ __device__ void quickSort(
+//     float *t, int *mip, int left, int right) 
+// {
+//     int i = left, j = right;
+//     float tmp_t;
+//     int tmp_mip;
+//     float pivot = t[(left + right) / 2];
+ 
+//     /* partition */
+//     while (i <= j) {
+//         while (t[i] < pivot)
+//             i++;
+//         while (t[j] > pivot)
+//             j--;
+//         if (i <= j) {
+//             tmp_t = t[i];
+//             t[i] = t[j];
+//             t[j] = tmp_t;
+//             tmp_mip = mip[i];
+//             mip[i] = mip[j];
+//             mip[j] = tmp_mip;
+//             i++;
+//             j--;
+//         }
+//     };
+ 
+//     /* recursion */
+//     if (left < j)
+//         quickSort(t, mip, left, j);
+//     if (i < right)
+//         quickSort(t, mip, i, right);
+// }
+
+
+// inline __host__ __device__ bool setupTraversal(
+//     const float3 origin, const float3 dir, const float3 inv_dir, 
+//     const int mip, const float tmin, const float tmax, const float eps,
+//     const float3 roi_min, const float3 roi_max, const int grid_nlvl, const int3 grid_res,
+//     // outputs for traversal
+//     float3 &delta, float3 &tdist, 
+//     int3 &step_index, int3 &current_index, int3 &final_index) { 
+
+//     const float3 aabb_mid = (roi_min + roi_max) * 0.5f;
+//     const float3 aabb_half = (roi_max - roi_min) * 0.5f;
+//     const float3 aabb_min = aabb_mid - aabb_half * (1 << mip);
+//     const float3 aabb_max = aabb_mid + aabb_half * (1 << mip);
+//     const float3 voxel_size = (aabb_max - aabb_min) / make_float3(grid_res);
+    
+//     const float3 ray_start = origin + dir * (tmin + eps);
+//     const float3 ray_end = origin + dir * (tmax - eps);
+
+//     // get voxel index of start and end within grid
+//     // TODO: check float error here!
+//     current_index = make_int3(
+//         apply_contraction(ray_start, aabb_min, aabb_max, ContractionType::AABB)
+//         * make_float3(grid_res)
+//     );
+//     current_index = clamp(current_index, make_int3(0, 0, 0), grid_res - 1);
+
+//     final_index = make_int3(
+//         apply_contraction(ray_end, aabb_min, aabb_max, ContractionType::AABB)
+//         * make_float3(grid_res)
+//     );
+//     final_index = clamp(final_index, make_int3(0, 0, 0), grid_res - 1);
+    
+//     // 
+//     const int3 index_delta = make_int3(
+//         dir.x > 0 ? 1 : 0, dir.y > 0 ? 1 : 0, dir.z > 0 ? 1 : 0
+//     );
+//     const int3 start_index = current_index + index_delta;
+//     const float3 tmax_xyz = ((aabb_min + 
+//         ((make_float3(start_index) * voxel_size) - ray_start)) / dir) + tmin;
+            
+//     tdist = make_float3(
+//         (dir.x == 0.0f) ? tmax : tmax_xyz.x,
+//         (dir.y == 0.0f) ? tmax : tmax_xyz.y,
+//         (dir.z == 0.0f) ? tmax : tmax_xyz.z
+//     );
+//     // printf("tdist: %f %f %f\n", tdist.x, tdist.y, tdist.z);
+
+//     const float3 step_float = make_float3(
+//         (dir.x == 0.0f) ? 0.0f : (dir.x > 0.0f ? 1.0f : -1.0f),
+//         (dir.y == 0.0f) ? 0.0f : (dir.y > 0.0f ? 1.0f : -1.0f),
+//         (dir.z == 0.0f) ? 0.0f : (dir.z > 0.0f ? 1.0f : -1.0f)
+//     );
+//     step_index = make_int3(step_float);
+//     // printf("step_index: %d %d %d\n", step_index.x, step_index.y, step_index.z);
+
+//     const float3 delta_temp = voxel_size * inv_dir * step_float;
+//     delta = make_float3(
+//         (dir.x == 0.0f) ? tmax : delta_temp.x,
+//         (dir.y == 0.0f) ? tmax : delta_temp.y,
+//         (dir.z == 0.0f) ? tmax : delta_temp.z
+//     );
+//     // printf("delta: %f %f %f\n", delta.x, delta.y, delta.z);
+//     return true;
+// }
+
+
+// __global__ void compute_pdf_from_grid(
+//     // rays info
+//     const int64_t n_rays,
+//     const float *rays_o, // shape (n_rays, 3)
+//     const float *rays_d, // shape (n_rays, 3)
+//     const float near_plane,
+//     const float far_plane,
+//     // grid info
+//     const float *grid_roi,
+//     const int grid_nlvl,
+//     const int3 grid_res,
+//     const float *grid_data,
+//     // outputs
+//     int64_t *cnts_out,
+//     float *pdf_out)
+// {
+//     // parallelize over rays
+//     for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_rays; tid += blockDim.x * gridDim.x)
+//     {
+//       int64_t ray_id = tid;
+
+//       const float3 origin = make_float3(rays_o[ray_id * 3], rays_o[ray_id * 3 + 1], rays_o[ray_id * 3 + 2]);
+//       const float3 dir = make_float3(rays_d[ray_id * 3], rays_d[ray_id * 3 + 1], rays_d[ray_id * 3 + 2]);
+//       const float3 inv_dir = 1.0f / dir;
+
+//       const float3 roi_min = make_float3(grid_roi[0], grid_roi[1], grid_roi[2]);
+//       const float3 roi_max = make_float3(grid_roi[3], grid_roi[4], grid_roi[5]);
+//       const float3 roi_mid = (roi_min + roi_max) * 0.5f;
+//       const float3 roi_half = (roi_max - roi_min) * 0.5f;
+
+//       // init: compute ray aabb intersection for all levels of grid.
+//       // FIXME: hardcode max level for now.
+//       // Note: CUDA only support zero initialization on device.
+//       float tmin[MAX_GRID_LEVELS] = {};
+//       float tmax[MAX_GRID_LEVELS] = {};
+//       bool hit[MAX_GRID_LEVELS] = {};
+//       for (int lvl = 0; lvl < grid_nlvl; lvl++) {
+//           const float3 roi_half_this_level = roi_half * (1 << lvl);
+//           const float3 aabb_min = roi_mid - roi_half_this_level;
+//           const float3 aabb_max = roi_mid + roi_half_this_level;
+//           hit[lvl] = rayBoxIntersection(
+//               origin, inv_dir, aabb_min, aabb_max, near_plane, far_plane,
+//               // outputs
+//               tmin[lvl], tmax[lvl]);
+//       }
+
+//       // init: segment the rays into different mip levels and sort them.
+//       float sorted_t[MAX_GRID_LEVELS * 2] = {};  // t_in; t_out.
+//       int sorted_mip[MAX_GRID_LEVELS * 2] = {};  // mip_in; mip_out.
+//       for (int lvl = 0; lvl < MAX_GRID_LEVELS; lvl++) {
+//           if (!hit[lvl]) {
+//               sorted_t[lvl * 2] = 1e10f;
+//               sorted_t[lvl * 2 + 1] = 1e10f;
+//               sorted_mip[lvl * 2] = -1;
+//               sorted_mip[lvl * 2 + 1] = -1;     
+//           } else {
+//               sorted_t[lvl * 2] = tmin[lvl];
+//               sorted_t[lvl * 2 + 1] = tmax[lvl];
+//               // ray goes through tmin of this level means it enters this level.
+//               sorted_mip[lvl * 2] = lvl;
+//               // ray goes through tmax of this level means it enters next level.
+//               if (lvl == grid_nlvl - 1)
+//                   sorted_mip[lvl * 2 + 1] = -1;
+//               else
+//                   sorted_mip[lvl * 2 + 1] = lvl + 1;
+//           }
+//       }
+//       quickSort(sorted_t, sorted_mip, 0, MAX_GRID_LEVELS * 2 - 1);
+//       for (int i = 0; i < MAX_GRID_LEVELS * 2; i++) {
+//           printf("[sorted], i=%d, t=%f, mip=%d\n", i, sorted_t[i], sorted_mip[i]);
+//       }
+
+//       // prepare values for ray marching
+//       int cnt = 0;
+//       float T = 1.0f;
+//       float t_last = near_plane;
+
+//       // loop over all segments along the ray.
+//       // for (int i = 0; i < MAX_GRID_LEVELS * 2; i++) {
+
+//       // }
+//     }
+// }
+
+
+// std::vector<torch::Tensor> ray_marching_pdf(
+//     // rays
+//     const torch::Tensor rays_o,
+//     const torch::Tensor rays_d,
+//     const torch::Tensor t_min,
+//     const torch::Tensor t_max,
+//     const float transmittance_threshold,
+//     const bool statified,
+//     // occupancy grid & contraction
+//     const torch::Tensor roi,
+//     const torch::Tensor links,
+//     const torch::Tensor grid_values)
+// {
+//     DEVICE_GUARD(rays_o);
+
+//     CHECK_INPUT(rays_o);
+//     CHECK_INPUT(rays_d);
+//     CHECK_INPUT(t_min);
+//     CHECK_INPUT(t_max);
+//     CHECK_INPUT(roi);
+//     CHECK_INPUT(grid_values);
+//     CHECK_INPUT(links);
+//     TORCH_CHECK(rays_o.ndimension() == 2 & rays_o.size(1) == 3)
+//     TORCH_CHECK(rays_d.ndimension() == 2 & rays_d.size(1) == 3)
+//     TORCH_CHECK(t_min.ndimension() == 1)
+//     TORCH_CHECK(t_max.ndimension() == 1)
+//     TORCH_CHECK(roi.ndimension() == 1 & roi.size(0) == 6)
+//     TORCH_CHECK(links.ndimension() == 4)
+//     TORCH_CHECK(grid_values.ndimension() == 1)
+
+//     const int n_rays = rays_o.size(0);
+//     const int grid_nlvl = links.size(0);
+//     const int3 grid_res = make_int3(
+//         links.size(1), links.size(2), links.size(3));
+
+//     const int threads = 256;
+//     const int blocks = CUDA_N_BLOCKS_NEEDED(n_rays, threads);
+
+//     // helper counter
+//     torch::Tensor num_ts = torch::zeros(
+//         {n_rays}, rays_o.options().dtype(torch::kInt32));
+
+//     // For jittering
+//     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
+//         c10::nullopt, at::cuda::detail::getDefaultCUDAGenerator());
+//     at::PhiloxCudaState rng_engine_inputs;
+//     {
+//         // See Note [Acquire lock when using random generators]
+//         std::lock_guard<std::mutex> lock(gen->mutex_);
+//         rng_engine_inputs = gen->philox_cuda_state(4);
+//     }
+
+//     // count number of samples per ray
+//     ray_marching_pdf_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+//         // rays
+//         statified,
+//         rng_engine_inputs,
+//         n_rays,
+//         rays_o.data_ptr<float>(),
+//         rays_d.data_ptr<float>(),
+//         t_min.data_ptr<float>(),
+//         t_max.data_ptr<float>(),
+//         transmittance_threshold,
+//         // occupancy grid & contraction
+//         roi.data_ptr<float>(),
+//         grid_nlvl,
+//         grid_res,
+//         links.data_ptr<int>(),
+//         grid_values.data_ptr<float>(),
+//         // sampling
+//         nullptr, /* info_ts */
+//         nullptr, /* info_bins */
+//         // outputs
+//         num_ts.data_ptr<int>(),
+//         nullptr, /* ts */
+//         nullptr, /* weights */
+//         nullptr  /* alphas */);
+
+//     torch::Tensor cumsum_ts = num_ts.cumsum(0, torch::kInt32);
+//     torch::Tensor info_ts = torch::stack({cumsum_ts - num_ts, num_ts}, 1);
+
+//     torch::Tensor num_bins = (num_ts - 1).clamp(0);
+//     torch::Tensor cumsum_bins = num_bins.cumsum(0, torch::kInt32);
+//     torch::Tensor info_bins = torch::stack({cumsum_bins - num_bins, num_bins}, 1);
+
+//     // output samples starts and ends
+//     int total_ts = cumsum_ts[cumsum_ts.size(0) - 1].item<int>();
+//     int total_bins = cumsum_bins[cumsum_bins.size(0) - 1].item<int>();
+//     torch::Tensor ts = torch::empty({total_ts}, rays_o.options());
+//     torch::Tensor weights = torch::zeros({total_bins}, rays_o.options());
+//     torch::Tensor alphas = torch::zeros({total_bins}, rays_o.options());
+
+//     ray_marching_pdf_kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(
+//         // rays
+//         statified,
+//         rng_engine_inputs,
+//         n_rays,
+//         rays_o.data_ptr<float>(),
+//         rays_d.data_ptr<float>(),
+//         t_min.data_ptr<float>(),
+//         t_max.data_ptr<float>(),
+//         transmittance_threshold,
+//         // occupancy grid & contraction
+//         roi.data_ptr<float>(),
+//         grid_nlvl,
+//         grid_res,
+//         links.data_ptr<int>(),
+//         grid_values.data_ptr<float>(),
+//         // sampling
+//         info_ts.data_ptr<int>(),
+//         info_bins.data_ptr<int>(),
+//         // outputs
+//         nullptr, /* num_ts */
+//         ts.data_ptr<float>(),
+//         weights.data_ptr<float>(),
+//         alphas.data_ptr<float>());
+
+//     return {info_ts, ts, info_bins, weights, alphas};
+// }

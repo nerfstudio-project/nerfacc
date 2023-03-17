@@ -40,3 +40,9 @@
   func(temp_storage.get(), temp_storage_bytes, __VA_ARGS__);              \
   AT_CUDA_CHECK(cudaGetLastError());                                      \
 } while (false)
+
+template <typename scalar_t>
+inline __device__ __host__ scalar_t ceil_div(scalar_t a, scalar_t b)
+{
+  return (a + b - 1) / b;
+}

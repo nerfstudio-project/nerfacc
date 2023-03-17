@@ -189,3 +189,8 @@ def transmittance_loss_native_packed(
     w = Ts_q[start_masks_q] - Ts_q[end_masks_q]
     w_outer = Ts_k[ids_left[start_masks_q]] - Ts_k[ids_right[end_masks_q]]
     return torch.clip(w - w_outer, min=0) ** 2 / (w + eps)
+    # err1 = Ts_q[start_masks_q] - Ts_k[ids_left[start_masks_q]]
+    # err2 = Ts_k[ids_right[end_masks_q]] - Ts_q[end_masks_q]
+    # return (torch.clip(err1, min=0) ** 2 + torch.clip(err2, min=0) ** 2) / (
+    #     w + eps
+    # )

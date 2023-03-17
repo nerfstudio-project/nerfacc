@@ -15,62 +15,11 @@ def _make_lazy_cuda_func(name: str) -> Callable:
     return call_cuda
 
 
-ContractionTypeGetter = _make_lazy_cuda_func("ContractionType")
-contract = _make_lazy_cuda_func("contract")
-contract_inv = _make_lazy_cuda_func("contract_inv")
-
-grid_query = _make_lazy_cuda_func("grid_query")
-
-ray_aabb_intersect = _make_lazy_cuda_func("ray_aabb_intersect")
-ray_marching = _make_lazy_cuda_func("ray_marching")
-
 is_cub_available = _make_lazy_cuda_func("is_cub_available")
-transmittance_from_sigma_forward_cub = _make_lazy_cuda_func(
-    "transmittance_from_sigma_forward_cub"
-)
-transmittance_from_sigma_backward_cub = _make_lazy_cuda_func(
-    "transmittance_from_sigma_backward_cub"
-)
-transmittance_from_alpha_forward_cub = _make_lazy_cuda_func(
-    "transmittance_from_alpha_forward_cub"
-)
-transmittance_from_alpha_backward_cub = _make_lazy_cuda_func(
-    "transmittance_from_alpha_backward_cub"
-)
 
-transmittance_from_sigma_forward_naive = _make_lazy_cuda_func(
-    "transmittance_from_sigma_forward_naive"
-)
-transmittance_from_sigma_backward_naive = _make_lazy_cuda_func(
-    "transmittance_from_sigma_backward_naive"
-)
-transmittance_from_alpha_forward_naive = _make_lazy_cuda_func(
-    "transmittance_from_alpha_forward_naive"
-)
-transmittance_from_alpha_backward_naive = _make_lazy_cuda_func(
-    "transmittance_from_alpha_backward_naive"
-)
+# data specs
+MultiScaleGridSpec = _make_lazy_cuda_func("MultiScaleGridSpec")
+RaysSpec = _make_lazy_cuda_func("RaysSpec")
 
-weight_from_sigma_forward_naive = _make_lazy_cuda_func(
-    "weight_from_sigma_forward_naive"
-)
-weight_from_sigma_backward_naive = _make_lazy_cuda_func(
-    "weight_from_sigma_backward_naive"
-)
-weight_from_alpha_forward_naive = _make_lazy_cuda_func(
-    "weight_from_alpha_forward_naive"
-)
-weight_from_alpha_backward_naive = _make_lazy_cuda_func(
-    "weight_from_alpha_backward_naive"
-)
-
-unpack_data = _make_lazy_cuda_func("unpack_data")
-unpack_info = _make_lazy_cuda_func("unpack_info")
-unpack_info_to_mask = _make_lazy_cuda_func("unpack_info_to_mask")
-
-pdf_readout = _make_lazy_cuda_func("pdf_readout")
-pdf_sampling = _make_lazy_cuda_func("pdf_sampling")
-importance_sampling = _make_lazy_cuda_func("importance_sampling")
-compute_intervals = _make_lazy_cuda_func("compute_intervals")
-compute_intervals_v2 = _make_lazy_cuda_func("compute_intervals_v2")
-searchsorted_packed = _make_lazy_cuda_func("searchsorted_packed")
+# grid
+traverse_grid = _make_lazy_cuda_func("traverse_grid")
