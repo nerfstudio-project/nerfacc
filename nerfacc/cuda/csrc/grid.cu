@@ -174,22 +174,22 @@ __global__ void traverse_grid_kernel(
                     continuous = false;
                 } else {
                     if (!continuous) {
-                        if (!first_pass) {
+                        if (!first_pass) {  // left side of the intervel
                             ray_segments.edges[tid + n_tdists_traversed] = t_last;
-                            ray_segments.chunk_ids[tid + n_tdists_traversed] = tid;
+                            ray_segments.ray_ids[tid + n_tdists_traversed] = tid;
                             ray_segments.is_left[tid + n_tdists_traversed] = true;
                         }
                         n_tdists_traversed++;
-                        if (!first_pass) {
+                        if (!first_pass) {  // right side of the intervel
                             ray_segments.edges[tid + n_tdists_traversed] = t_traverse;
-                            ray_segments.chunk_ids[tid + n_tdists_traversed] = tid;
+                            ray_segments.ray_ids[tid + n_tdists_traversed] = tid;
                             ray_segments.is_right[tid + n_tdists_traversed] = true;
                         }
                         n_tdists_traversed++;
                     } else {
-                        if (!first_pass) {
+                        if (!first_pass) {  // right side of the intervel
                             ray_segments.edges[tid + n_tdists_traversed] = t_traverse;
-                            ray_segments.chunk_ids[tid + n_tdists_traversed] = tid;
+                            ray_segments.ray_ids[tid + n_tdists_traversed] = tid;
                             ray_segments.is_left[tid + n_tdists_traversed - 1] = true;
                             ray_segments.is_right[tid + n_tdists_traversed] = true;
                         }

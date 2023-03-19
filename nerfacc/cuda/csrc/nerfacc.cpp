@@ -41,5 +41,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def_readwrite("is_right", &RaySegmentsSpec::is_right)
       .def_readwrite("chunk_starts", &RaySegmentsSpec::chunk_starts)
       .def_readwrite("chunk_cnts", &RaySegmentsSpec::chunk_cnts)
-      .def_readwrite("chunk_ids", &RaySegmentsSpec::chunk_ids);
+      .def_readwrite("ray_ids", &RaySegmentsSpec::ray_ids);
 }

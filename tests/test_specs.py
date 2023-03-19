@@ -34,7 +34,7 @@ def test_traverse_grid():
     print("is_right", outputs.is_right)
     print("chunk_starts", outputs.chunk_starts)
     print("chunk_cnts", outputs.chunk_cnts)
-    print("chunk_ids", outputs.chunk_ids)
+    print("ray_ids", outputs.ray_ids)
 
     import sys
 

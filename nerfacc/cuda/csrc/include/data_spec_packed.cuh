@@ -14,7 +14,7 @@ struct PackedRaySegmentsSpec {
         is_right(spec.is_right.defined() ? spec.is_right.data_ptr<bool>() : nullptr),
         chunk_starts(spec.chunk_starts.defined() ? spec.chunk_starts.data_ptr<int64_t>() : nullptr),
         chunk_cnts(spec.chunk_cnts.data_ptr<int64_t>()),
-        chunk_ids(spec.chunk_ids.defined() ? spec.chunk_ids.data_ptr<int64_t>() : nullptr),
+        ray_ids(spec.ray_ids.defined() ? spec.ray_ids.data_ptr<int64_t>() : nullptr),
         n_edges(spec.edges.defined() ? spec.edges.numel() : 0),
         n_rays(spec.chunk_cnts.size(0))
     { }
@@ -24,7 +24,7 @@ struct PackedRaySegmentsSpec {
     bool* is_right;
     int64_t* chunk_starts;
     int64_t* chunk_cnts;  // should always be defined
-    int64_t* chunk_ids;
+    int64_t* ray_ids;   // TODO: uint32_t should be enough
 
     int64_t n_edges;
     int64_t n_rays;

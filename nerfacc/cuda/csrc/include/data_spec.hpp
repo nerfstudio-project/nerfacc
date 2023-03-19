@@ -47,7 +47,7 @@ struct RaySegmentsSpec {
   torch::Tensor is_right;     // [n_edges] have n_bins true values
   torch::Tensor chunk_starts; // [n_rays]
   torch::Tensor chunk_cnts;   // [n_rays]
-  torch::Tensor chunk_ids;    // [n_edges]
+  torch::Tensor ray_ids;      // [n_edges]
 
   inline void check() {
     CHECK_INPUT(edges);
@@ -55,25 +55,25 @@ struct RaySegmentsSpec {
     CHECK_INPUT(is_right);
     CHECK_INPUT(chunk_starts);
     CHECK_INPUT(chunk_cnts);
-    CHECK_INPUT(chunk_ids);
+    CHECK_INPUT(ray_ids);
 
     TORCH_CHECK(edges.defined());
     TORCH_CHECK(is_left.defined());
     TORCH_CHECK(is_right.defined());
     TORCH_CHECK(chunk_starts.defined());
     TORCH_CHECK(chunk_cnts.defined());
-    TORCH_CHECK(chunk_ids.defined());
+    TORCH_CHECK(ray_ids.defined());
 
     TORCH_CHECK(edges.ndimension() == 1);
     TORCH_CHECK(is_left.ndimension() == 1);
     TORCH_CHECK(is_right.ndimension() == 1);
     TORCH_CHECK(chunk_starts.ndimension() == 1);
     TORCH_CHECK(chunk_cnts.ndimension() == 1);
-    TORCH_CHECK(chunk_ids.ndimension() == 1);
+    TORCH_CHECK(ray_ids.ndimension() == 1);
 
     TORCH_CHECK(edges.numel() == is_left.numel());
     TORCH_CHECK(edges.numel() == is_right.numel());
-    TORCH_CHECK(edges.numel() == chunk_ids.numel());
+    TORCH_CHECK(edges.numel() == ray_ids.numel());
     TORCH_CHECK(chunk_starts.numel() == chunk_cnts.numel());
   }
 
@@ -99,12 +99,12 @@ struct RaySegmentsSpec {
       edges = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kFloat32));
       is_left = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kBool));
       is_right = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kBool));
-      chunk_ids = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kLong));
+      ray_ids = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kLong));
     } else {
       edges = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kFloat32));
       is_left = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kBool));
       is_right = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kBool));
-      chunk_ids = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kLong));
+      ray_ids = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kLong));
     }
     return 1;
   }
