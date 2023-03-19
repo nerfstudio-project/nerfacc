@@ -33,7 +33,7 @@ struct PackedRaySegmentsSpec {
 struct PackedMultiScaleGridSpec {
     PackedMultiScaleGridSpec(MultiScaleGridSpec& spec) :
         data(spec.data.data_ptr<float>()),
-        binary(spec.binary.data_ptr<bool>()),
+        occupied(spec.occupied.data_ptr<bool>()),
         base_aabb(spec.base_aabb.data_ptr<float>()),
         levels(spec.data.size(0)),
         resolution{
@@ -42,7 +42,7 @@ struct PackedMultiScaleGridSpec {
             (int)spec.data.size(3)} 
     { }
     float* data;
-    bool* binary;
+    bool* occupied;
     float* base_aabb;
     int levels;
     int3 resolution;

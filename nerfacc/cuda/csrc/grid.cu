@@ -170,7 +170,7 @@ __global__ void traverse_grid_kernel(
                 );
 
                 // skip the cell that is empty.
-                if (!grid.binary[cell_id]) {
+                if (!grid.occupied[cell_id]) {
                     continuous = false;
                 } else {
                     if (!continuous) {

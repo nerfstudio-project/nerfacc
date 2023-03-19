@@ -5,19 +5,19 @@
 
 struct MultiScaleGridSpec {
   torch::Tensor data;      // [levels, resx, resy, resz]
-  torch::Tensor binary;    // [levels, resx, resy, resz]
+  torch::Tensor occupied;    // [levels, resx, resy, resz]
   torch::Tensor base_aabb; // [6,]
 
   inline void check() {
     CHECK_INPUT(data);
-    CHECK_INPUT(binary);
+    CHECK_INPUT(occupied);
     CHECK_INPUT(base_aabb);
 
     TORCH_CHECK(data.ndimension() == 4);
-    TORCH_CHECK(binary.ndimension() == 4);
+    TORCH_CHECK(occupied.ndimension() == 4);
     TORCH_CHECK(base_aabb.ndimension() == 1);
 
-    TORCH_CHECK(data.numel() == binary.numel());
+    TORCH_CHECK(data.numel() == occupied.numel());
     TORCH_CHECK(base_aabb.numel() == 6);
   }
 };

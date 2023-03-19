@@ -31,7 +31,7 @@ class Rays:
 @dataclass
 class MultiScaleGrid:
     data: torch.Tensor
-    binary: torch.Tensor
+    occupied: torch.Tensor
     base_aabb: torch.Tensor
 
     def _to_cpp(self):
@@ -40,7 +40,7 @@ class MultiScaleGrid:
         """
         spec = _C.MultiScaleGridSpec()
         spec.data = self.data
-        spec.binary = self.binary
+        spec.occupied = self.occupied
         spec.base_aabb = self.base_aabb
         return spec
 

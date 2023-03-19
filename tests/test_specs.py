@@ -23,7 +23,7 @@ def test_traverse_grid():
     rays = Rays(rays_o, rays_d)
     grid = MultiScaleGrid(
         data=torch.rand(2, 2, 2, 2, device=device),
-        binary=torch.rand(2, 2, 2, 2, device=device).bool(),
+        occupied=torch.rand(2, 2, 2, 2, device=device).bool(),
         base_aabb=torch.tensor(
             [-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device
         ),

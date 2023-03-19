@@ -26,7 +26,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   py::class_<MultiScaleGridSpec>(m, "MultiScaleGridSpec")
       .def(py::init<>())
       .def_readwrite("data", &MultiScaleGridSpec::data)
-      .def_readwrite("binary", &MultiScaleGridSpec::binary)
+      .def_readwrite("occupied", &MultiScaleGridSpec::occupied)
       .def_readwrite("base_aabb", &MultiScaleGridSpec::base_aabb);
 
   py::class_<RaysSpec>(m, "RaysSpec")
