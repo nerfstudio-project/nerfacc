@@ -1,3 +1,4 @@
+#include <torch/extension.h>
 #include <ATen/NumericUtils.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/CUDAGeneratorImpl.h>
@@ -8,6 +9,7 @@
 #include <curand_kernel.h>
 #include <curand_philox4x32_x.h>
 
+#include "include/data_spec.hpp"
 #include "include/data_spec_packed.cuh"
 #include "include/utils_cuda.cuh"
 #include "include/utils_grid.cuh"
@@ -57,9 +59,8 @@ __global__ void traverse_grid_kernel(
     float near_plane,
     float far_plane, 
     // outputs
-    const int64_t* info,
-    int64_t* n_tdists,
-    float* tdists)
+    const bool first_pass,
+    PackedRaySegmentsSpec ray_segments)
 {
     float eps = 1e-6f;
 
@@ -70,11 +71,8 @@ __global__ void traverse_grid_kernel(
     // parallelize over rays
     for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < rays.N; tid += blockDim.x * gridDim.x)
     {
-        int64_t base, cnt;
-        if (info != nullptr && tdists != nullptr) {
-            base = info[tid * 2];
-            cnt = info[tid * 2 + 1];
-        }
+        // skip rays that are empty.
+        if (!first_pass && ray_segments.chunk_cnts[tid] == 0) continue;
 
         SingleRaySpec ray = SingleRaySpec(rays, tid, near_plane, far_plane);
 
@@ -126,7 +124,8 @@ __global__ void traverse_grid_kernel(
 
         // loop over all segments along the ray.
         int n_tdists_traversed = 0;
-        float t_last = -1.0f;
+        float t_last = near_plane;
+        bool continuous = false;
         for (int i = 0; i < MAX_GRID_LEVELS * 2; i++) {
             int this_mip = sorted_mip[i];
             if (i > 0 && this_mip == -1) break; // ray is outside the grid.    
@@ -135,11 +134,8 @@ __global__ void traverse_grid_kernel(
             float this_tmax = sorted_t[i + 1];   
             if (this_tmin >= this_tmax) continue; // this segment is invalid. e.g. (0.0f, 0.0f)
 
-            if (t_last < 0) {
+            if (!continuous) {
                 t_last = this_tmin;
-                if (tdists != nullptr)
-                    tdists[tid + n_tdists_traversed] = t_last;
-                n_tdists_traversed++;
             }
 
             // printf(
@@ -172,30 +168,57 @@ __global__ void traverse_grid_kernel(
                     + current_index.z
                     + this_mip * grid.resolution.x * grid.resolution.y * grid.resolution.z
                 );
+
+                // skip the cell that is empty.
+                if (!grid.binary[cell_id]) {
+                    continuous = false;
+                } else {
+                    if (!continuous) {
+                        if (!first_pass) {
+                            ray_segments.edges[tid + n_tdists_traversed] = t_last;
+                            ray_segments.chunk_ids[tid + n_tdists_traversed] = tid;
+                            ray_segments.is_left[tid + n_tdists_traversed] = true;
+                        }
+                        n_tdists_traversed++;
+                        if (!first_pass) {
+                            ray_segments.edges[tid + n_tdists_traversed] = t_traverse;
+                            ray_segments.chunk_ids[tid + n_tdists_traversed] = tid;
+                            ray_segments.is_right[tid + n_tdists_traversed] = true;
+                        }
+                        n_tdists_traversed++;
+                    } else {
+                        if (!first_pass) {
+                            ray_segments.edges[tid + n_tdists_traversed] = t_traverse;
+                            ray_segments.chunk_ids[tid + n_tdists_traversed] = tid;
+                            ray_segments.is_left[tid + n_tdists_traversed - 1] = true;
+                            ray_segments.is_right[tid + n_tdists_traversed] = true;
+                        }
+                        n_tdists_traversed++;
+                    }
+                    continuous = true;
+                }
+                t_last = t_traverse;
+
                 // printf(
                 //     "[traverse], t_last=%f, t_traverse=%f, cell_id=%d, current_index=(%d, %d, %d)\n",
                 //     t_last, t_traverse, cell_id, current_index.x, current_index.y, current_index.z
                 // );
 
-                t_last = t_traverse;
-                if (tdists != nullptr)
-                    tdists[tid + n_tdists_traversed] = t_last;
-                n_tdists_traversed++;
                 if (!single_traversal(tdist, current_index, overflow_index, step_index, delta)) {
                     break;
                 }
             }
         }
         
-        if (n_tdists != nullptr)
-            n_tdists[tid] = n_tdists_traversed;
+        if (first_pass)
+            ray_segments.chunk_cnts[tid] = n_tdists_traversed;
     }
 }
 
 }  // namespace device
 }  // namespace
 
-std::vector<torch::Tensor> traverse_grid(
+RaySegmentsSpec traverse_grid(
     MultiScaleGridSpec& grid,
     RaysSpec& rays,
     const float near_plane,
@@ -213,33 +236,30 @@ std::vector<torch::Tensor> traverse_grid(
     dim3 thread_block = dim3(min(maxThread, n_rays));
     dim3 thread_grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, thread_block.x)));
 
-    // first pass
-    torch::Tensor n_tdists = torch::zeros({n_rays}, rays.origins.options().dtype(torch::kLong));
+    // outputs
+    RaySegmentsSpec ray_segments;
+
+    // first pass to count the number of segments along each ray.
+    ray_segments.memalloc_cnts(n_rays, rays.origins.options());
     device::traverse_grid_kernel<<<thread_grid, thread_block, 0, stream>>>(
         device::PackedMultiScaleGridSpec(grid),
         device::PackedRaysSpec(rays),
         near_plane,
         far_plane,
         // outputs
-        nullptr,
-        n_tdists.data_ptr<int64_t>(),
-        nullptr);
+        true,
+        device::PackedRaySegmentsSpec(ray_segments));
 
-    // second pass
-    torch::Tensor cumsum = n_tdists.cumsum(0, torch::kLong);
-    torch::Tensor info = torch::stack({cumsum - n_tdists, n_tdists}, 1);
-    torch::Tensor tdists = torch::zeros({
-        cumsum[cumsum.size(0) - 1].item<int64_t>()
-    }, rays.origins.options());
+    // second pass to record the segments.
+    ray_segments.memalloc_data();
     device::traverse_grid_kernel<<<thread_grid, thread_block, 0, stream>>>(
         device::PackedMultiScaleGridSpec(grid),
         device::PackedRaysSpec(rays),
         near_plane,
         far_plane,
         // outputs
-        info.data_ptr<int64_t>(),
-        nullptr,
-        tdists.data_ptr<float>());
+        false,
+        device::PackedRaySegmentsSpec(ray_segments));
 
-    return {info, tdists};
+    return ray_segments;
 }

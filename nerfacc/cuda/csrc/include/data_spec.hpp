@@ -39,3 +39,73 @@ struct RaysSpec {
     TORCH_CHECK(dirs.size(1) == 3);
   }
 };
+
+
+struct RaySegmentsSpec {
+  torch::Tensor edges;        // [n_edges]
+  torch::Tensor is_left;      // [n_edges] have n_bins true values
+  torch::Tensor is_right;     // [n_edges] have n_bins true values
+  torch::Tensor chunk_starts; // [n_rays]
+  torch::Tensor chunk_cnts;   // [n_rays]
+  torch::Tensor chunk_ids;    // [n_edges]
+
+  inline void check() {
+    CHECK_INPUT(edges);
+    CHECK_INPUT(is_left);
+    CHECK_INPUT(is_right);
+    CHECK_INPUT(chunk_starts);
+    CHECK_INPUT(chunk_cnts);
+    CHECK_INPUT(chunk_ids);
+
+    TORCH_CHECK(edges.defined());
+    TORCH_CHECK(is_left.defined());
+    TORCH_CHECK(is_right.defined());
+    TORCH_CHECK(chunk_starts.defined());
+    TORCH_CHECK(chunk_cnts.defined());
+    TORCH_CHECK(chunk_ids.defined());
+
+    TORCH_CHECK(edges.ndimension() == 1);
+    TORCH_CHECK(is_left.ndimension() == 1);
+    TORCH_CHECK(is_right.ndimension() == 1);
+    TORCH_CHECK(chunk_starts.ndimension() == 1);
+    TORCH_CHECK(chunk_cnts.ndimension() == 1);
+    TORCH_CHECK(chunk_ids.ndimension() == 1);
+
+    TORCH_CHECK(edges.numel() == is_left.numel());
+    TORCH_CHECK(edges.numel() == is_right.numel());
+    TORCH_CHECK(edges.numel() == chunk_ids.numel());
+    TORCH_CHECK(chunk_starts.numel() == chunk_cnts.numel());
+  }
+
+  inline void memalloc_cnts(int64_t n_rays, at::TensorOptions options, bool zero_init = true) {
+    TORCH_CHECK(!chunk_cnts.defined());
+    if (zero_init) {
+      chunk_cnts = torch::zeros({n_rays}, options.dtype(torch::kLong));
+    } else {
+      chunk_cnts = torch::empty({n_rays}, options.dtype(torch::kLong));
+    }
+  }
+
+  inline int64_t memalloc_data(bool zero_init = true) {
+    TORCH_CHECK(chunk_cnts.defined());
+    TORCH_CHECK(!chunk_starts.defined());
+    TORCH_CHECK(!edges.defined());
+    
+    torch::Tensor cumsum = torch::cumsum(chunk_cnts, 0, chunk_cnts.scalar_type());
+    int64_t n_edges = cumsum[-1].item<int64_t>();
+    
+    chunk_starts = cumsum - chunk_cnts;
+    if (zero_init) {
+      edges = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kFloat32));
+      is_left = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kBool));
+      is_right = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kBool));
+      chunk_ids = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kLong));
+    } else {
+      edges = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kFloat32));
+      is_left = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kBool));
+      is_right = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kBool));
+      chunk_ids = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kLong));
+    }
+    return 1;
+  }
+};

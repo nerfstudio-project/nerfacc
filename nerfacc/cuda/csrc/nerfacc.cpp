@@ -10,7 +10,7 @@ bool is_cub_available() {
 }
 
 // grid
-std::vector<torch::Tensor> traverse_grid(
+RaySegmentsSpec traverse_grid(
     MultiScaleGridSpec& grid,
     RaysSpec& rays,
     const float near_plane,
@@ -33,4 +33,13 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def(py::init<>())
       .def_readwrite("origins", &RaysSpec::origins)
       .def_readwrite("dirs", &RaysSpec::dirs);
+
+  py::class_<RaySegmentsSpec>(m, "RaySegmentsSpec")
+      .def(py::init<>())
+      .def_readwrite("edges", &RaySegmentsSpec::edges)
+      .def_readwrite("is_left", &RaySegmentsSpec::is_left)
+      .def_readwrite("is_right", &RaySegmentsSpec::is_right)
+      .def_readwrite("chunk_starts", &RaySegmentsSpec::chunk_starts)
+      .def_readwrite("chunk_cnts", &RaySegmentsSpec::chunk_cnts)
+      .def_readwrite("chunk_ids", &RaySegmentsSpec::chunk_ids);
 }

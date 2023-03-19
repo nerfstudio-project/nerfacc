@@ -7,6 +7,29 @@
 namespace {
 namespace device {
 
+struct PackedRaySegmentsSpec {
+    PackedRaySegmentsSpec(RaySegmentsSpec& spec) :
+        edges(spec.edges.defined() ? spec.edges.data_ptr<float>() : nullptr),
+        is_left(spec.is_left.defined() ? spec.is_left.data_ptr<bool>() : nullptr),
+        is_right(spec.is_right.defined() ? spec.is_right.data_ptr<bool>() : nullptr),
+        chunk_starts(spec.chunk_starts.defined() ? spec.chunk_starts.data_ptr<int64_t>() : nullptr),
+        chunk_cnts(spec.chunk_cnts.data_ptr<int64_t>()),
+        chunk_ids(spec.chunk_ids.defined() ? spec.chunk_ids.data_ptr<int64_t>() : nullptr),
+        n_edges(spec.edges.defined() ? spec.edges.numel() : 0),
+        n_rays(spec.chunk_cnts.size(0))
+    { }
+
+    float* edges;
+    bool* is_left;
+    bool* is_right;
+    int64_t* chunk_starts;
+    int64_t* chunk_cnts;  // should always be defined
+    int64_t* chunk_ids;
+
+    int64_t n_edges;
+    int64_t n_rays;
+};
+
 struct PackedMultiScaleGridSpec {
     PackedMultiScaleGridSpec(MultiScaleGridSpec& spec) :
         data(spec.data.data_ptr<float>()),

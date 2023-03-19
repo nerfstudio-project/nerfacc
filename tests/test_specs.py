@@ -28,8 +28,13 @@ def test_traverse_grid():
             [-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device
         ),
     )
-    info, tdists = _C.traverse_grid(grid._to_cpp(), rays._to_cpp(), 0.0, 100.0)
-    print("tdists", tdists)
+    outputs = _C.traverse_grid(grid._to_cpp(), rays._to_cpp(), 0.0, 100.0)
+    print("edges", outputs.edges)
+    print("is_left", outputs.is_left)
+    print("is_right", outputs.is_right)
+    print("chunk_starts", outputs.chunk_starts)
+    print("chunk_cnts", outputs.chunk_cnts)
+    print("chunk_ids", outputs.chunk_ids)
 
     import sys
 
