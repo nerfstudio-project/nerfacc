@@ -58,6 +58,12 @@ torch::Tensor exclusive_sum(
     torch::Tensor inputs,
     bool normalize);
 
+torch::Tensor exclusive_sum_backward(
+    torch::Tensor chunk_starts,
+    torch::Tensor chunk_cnts,
+    torch::Tensor grad_inputs,
+    bool normalize);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
   _REG_FUNC(is_cub_available);  // TODO: check this function
@@ -67,6 +73,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   _REG_FUNC(inclusive_sum);
   _REG_FUNC(inclusive_sum_backward);
   _REG_FUNC(exclusive_sum);
+  _REG_FUNC(exclusive_sum_backward);
 
 #undef _REG_FUNC
 

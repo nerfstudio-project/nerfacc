@@ -45,14 +45,18 @@ def test_inclusive_sum():
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_exclusive_sum():
-    # TODO: check exclusive sum. numeric error?
+    from nerfacc.scan import exclusive_sum
+
     torch.manual_seed(42)
 
-    data = torch.rand((5, 1000), device=device)
+    data = torch.rand((5, 1000), device=device, requires_grad=True)
     outputs1 = torch.cumsum(
         torch.cat([torch.zeros_like(data[:, :1]), data[:, :-1]], dim=-1), dim=-1
     )
     outputs1 = outputs1.flatten()
+    outputs1.sum().backward()
+    grad1 = data.grad.clone()
+    data.grad.zero_()
 
     chunk_starts = torch.arange(
         0, data.numel(), data.shape[1], device=device, dtype=torch.long
@@ -61,8 +65,13 @@ def test_exclusive_sum():
         (data.shape[0],), data.shape[1], dtype=torch.long, device=device
     )
     flatten_data = data.flatten().contiguous()
-    outputs2 = _C.exclusive_sum(chunk_starts, chunk_cnts, flatten_data, False)
-    # print((outputs1 - outputs2).abs().max())
+    outputs2 = exclusive_sum(chunk_starts, chunk_cnts, flatten_data, False)
+    outputs2.sum().backward()
+    grad2 = data.grad.clone()
+
+    # TODO: check exclusive sum. numeric error?
+    print((outputs1 - outputs2).abs().max())
+    assert torch.allclose(grad1, grad2)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
@@ -255,4 +264,4 @@ if __name__ == "__main__":
     # test_traverse_grid()
     # test_traverse_grid_sampling()
     test_inclusive_sum()
-    # test_exclusive_sum()
+    test_exclusive_sum()
