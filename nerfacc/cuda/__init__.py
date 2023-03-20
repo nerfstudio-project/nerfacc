@@ -30,6 +30,4 @@ traverse_grid = _make_lazy_cuda_func("traverse_grid")
 
 # scan
 inclusive_sum = _make_lazy_cuda_func("inclusive_sum")
-inclusive_sum_backward = _make_lazy_cuda_func("inclusive_sum_backward")
 exclusive_sum = _make_lazy_cuda_func("exclusive_sum")
-exclusive_sum_backward = _make_lazy_cuda_func("exclusive_sum_backward")

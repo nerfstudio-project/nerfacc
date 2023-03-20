@@ -31,7 +31,9 @@ class _InclusiveSum(torch.autograd.Function):
         chunk_starts = chunk_starts.contiguous()
         chunk_cnts = chunk_cnts.contiguous()
         inputs = inputs.contiguous()
-        outputs = _C.inclusive_sum(chunk_starts, chunk_cnts, inputs, normalize)
+        outputs = _C.inclusive_sum(
+            chunk_starts, chunk_cnts, inputs, normalize, False
+        )
         if ctx.needs_input_grad[2]:
             ctx.normalize = normalize
             ctx.save_for_backward(chunk_starts, chunk_cnts)
@@ -43,8 +45,8 @@ class _InclusiveSum(torch.autograd.Function):
         chunk_starts, chunk_cnts = ctx.saved_tensors
         normalize = ctx.normalize
         assert normalize == False, "Only support backward for normalize==False."
-        grad_inputs = _C.inclusive_sum_backward(
-            chunk_starts, chunk_cnts, grad_outputs, normalize
+        grad_inputs = _C.inclusive_sum(
+            chunk_starts, chunk_cnts, grad_outputs, normalize, True
         )
         return None, None, grad_inputs, None
 
@@ -57,7 +59,9 @@ class _ExclusiveSum(torch.autograd.Function):
         chunk_starts = chunk_starts.contiguous()
         chunk_cnts = chunk_cnts.contiguous()
         inputs = inputs.contiguous()
-        outputs = _C.exclusive_sum(chunk_starts, chunk_cnts, inputs, normalize)
+        outputs = _C.exclusive_sum(
+            chunk_starts, chunk_cnts, inputs, normalize, False
+        )
         if ctx.needs_input_grad[2]:
             ctx.normalize = normalize
             ctx.save_for_backward(chunk_starts, chunk_cnts)
@@ -69,7 +73,7 @@ class _ExclusiveSum(torch.autograd.Function):
         chunk_starts, chunk_cnts = ctx.saved_tensors
         normalize = ctx.normalize
         assert normalize == False, "Only support backward for normalize==False."
-        grad_inputs = _C.exclusive_sum_backward(
-            chunk_starts, chunk_cnts, grad_outputs, normalize
+        grad_inputs = _C.exclusive_sum(
+            chunk_starts, chunk_cnts, grad_outputs, normalize, True
         )
         return None, None, grad_inputs, None
