@@ -83,10 +83,9 @@ def test_traverse_grid_basic():
 def test_traverse_grid():
     from nerfacc.data_specs import MultiScaleGrid, Rays
 
-    torch.manual_seed(28)
-    # torch.manual_seed(80)
+    torch.manual_seed(42)
 
-    n_rays = 2
+    n_rays = 1000
     rays_o = torch.randn(n_rays, 3, device=device)
     rays_d = torch.randn(n_rays, 3, device=device)
     rays_d /= torch.norm(rays_d, dim=-1, keepdim=True)
@@ -102,45 +101,36 @@ def test_traverse_grid():
         ),
     )
 
+    # traverse grid
     traversal = _C.traverse_grid(
         grid._to_cpp(), rays._to_cpp(), 0.0, 100.0, -1, 0.0
     )
-    # print(traversal.edges)
-    # print(traversal.is_left)
-    # print(traversal.is_right)
-
     t_starts = traversal.edges[traversal.is_left]
     t_ends = traversal.edges[traversal.is_right]
-    t_mids = (t_starts + t_ends) / 2
-    ray_ids = traversal.ray_ids[traversal.is_left]
-    x_starts = rays_o[ray_ids] + t_starts[..., None] * rays_d[ray_ids]
-    x_ends = rays_o[ray_ids] + t_ends[..., None] * rays_d[ray_ids]
-    x_mids = rays_o[ray_ids] + t_mids[..., None] * rays_d[ray_ids]
-    occ_starts = grid.query(x_starts)
-    occ_ends = grid.query(x_ends)
-    occ_mids = grid.query(x_mids)
-    occ = occ_starts | occ_ends
-    # print(torch.where(~occ_starts))
-    print(occ_mids.float().mean())
-    exit()
+    lengths1 = (t_ends - t_starts).sum()
 
+    # uniformly march in the grid
+    traversal = _C.traverse_grid(
+        grid._to_cpp(), rays._to_cpp(), 0.0, 100.0, 1e-4, 0.0
+    )
+    t_starts = traversal.edges[traversal.is_left]
+    t_ends = traversal.edges[traversal.is_right]
+    lengths2 = (t_ends - t_starts).sum()
+
+    assert torch.allclose(lengths1, lengths2, atol=1e-2)
+
+    # timing
+    traversal = _C.traverse_grid(
+        grid._to_cpp(), rays._to_cpp(), 0.0, 100.0, 1e-3, 0.0
+    )
     torch.cuda.synchronize()
-    for _ in tqdm.tqdm(range(1000)):
+    for _ in tqdm.tqdm(range(100)):
         outputs = _C.traverse_grid(
-            grid._to_cpp(), rays._to_cpp(), 0.0, 100.0, 0.1, 0.0
+            grid._to_cpp(), rays._to_cpp(), 0.0, 100.0, 1e-3, 0.0
         )
         torch.cuda.synchronize()
-    # print("edges", outputs.edges)
-    # print("is_left", outputs.is_left)
-    # print("is_right", outputs.is_right)
-    # print("chunk_starts", outputs.chunk_starts)
-    # print("chunk_cnts", outputs.chunk_cnts)
-    # print("ray_ids", outputs.ray_ids)
-    # print("------")
-    # print("starts", outputs.edges[outputs.is_left])
-    # print("ends", outputs.edges[outputs.is_right])
 
-    # old ones
+    # timing
     packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
         rays_o,
         rays_d,
@@ -148,11 +138,11 @@ def test_traverse_grid():
         torch.ones_like(rays_o[:, 0]) * 100,
         grid.base_aabb,
         grid.occupied,
-        0.1,
+        1e-3,
         0.0,
     )
     torch.cuda.synchronize()
-    for _ in tqdm.tqdm(range(1000)):
+    for _ in tqdm.tqdm(range(100)):
         packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
             rays_o,
             rays_d,
@@ -160,61 +150,13 @@ def test_traverse_grid():
             torch.ones_like(rays_o[:, 0]) * 100,
             grid.base_aabb,
             grid.occupied,
-            0.1,
+            1e-3,
             0.0,
         )
         torch.cuda.synchronize()
-    # print("packed_info", packed_info)
-    # print("ray_indices", ray_indices.flatten())
-    # print("t_starts", t_starts.flatten())
-    # print("t_ends", t_ends.flatten())
-
-    # import sys
-
-    # sys.path.append(
-    #     "/home/ruilongli/workspace/nerfacc/benchmarks/voxel-traversal/build/"
-    # )
-    # import numpy as np
-    # import pytraversal
-
-    # print("===========")
-    # all_dists = []
-    # grid_py = pytraversal.Grid3D(
-    #     [-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], grid.data.shape[1:]
-    # )
-    # traversed, dists = grid_py.traverse(
-    #     rays_o.flatten().tolist(),
-    #     (rays_o + rays_d).flatten().tolist(),
-    #     0,
-    #     100.0,
-    # )
-    # cell_ids = traversed[:, 0] * 4 + traversed[:, 1] * 2 + traversed[:, 2]
-    # dists = np.min(dists, axis=1)
-    # all_dists.append(dists)
-    # print("lvl0 traversed", traversed)
-    # print("lvl0 dists", dists)
-    # grid_py = pytraversal.Grid3D(
-    #     [-2.0, -2.0, -2.0], [2.0, 2.0, 2.0], grid.data.shape[1:]
-    # )
-    # traversed, dists = grid_py.traverse(
-    #     rays_o.flatten().tolist(),
-    #     (rays_o + rays_d).flatten().tolist(),
-    #     0,
-    #     100.0,
-    # )
-    # cell_ids = traversed[:, 0] * 4 + traversed[:, 1] * 2 + traversed[:, 2]
-    # cell_ids += 8
-    # dists = np.min(dists, axis=1)
-    # all_dists.append(dists)
-    # print("lvl1 traversed", traversed)
-    # print("lvl1 dists", dists)
-
-    # all_dists = np.concatenate(all_dists)
-    # all_dists = np.unique(all_dists)
-    # print("all_dists", all_dists)
 
 
 if __name__ == "__main__":
     # test_grid_query()
-    test_traverse_grid_basic()
-    # test_traverse_grid()
+    # test_traverse_grid_basic()
+    test_traverse_grid()

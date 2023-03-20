@@ -81,7 +81,6 @@ __global__ void traverse_grid_kernel(
     // parallelize over rays
     for (int32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < rays.N; tid += blockDim.x * gridDim.x)
     {
-        // printf("tid=%lld, N=%lld\n", tid, rays.N);
         // skip rays that are empty.
         if (!first_pass && ray_segments.chunk_cnts[tid] == 0) continue;
 
@@ -102,10 +101,9 @@ __global__ void traverse_grid_kernel(
             const float3 aabb_max = base_aabb_mid + base_aabb_half * (1 << lvl);
             AABBSpec aabb = AABBSpec(aabb_min, aabb_max);
             hit[lvl] = ray_aabb_intersect(ray, aabb, tmin[lvl], tmax[lvl]);
-            // if (tid == 1)
-            //     printf(
-            //         "[ray_aabb_intersect] lvl=%lld, hit=%d, tmin=%f, tmax=%f\n", 
-            //         lvl, hit[lvl], tmin[lvl], tmax[lvl]);
+            // printf(
+            //     "[ray_aabb_intersect] lvl=%lld, hit=%d, tmin=%f, tmax=%f\n", 
+            //     lvl, hit[lvl], tmin[lvl], tmax[lvl]);
         }
 
         // init: segment the rays into different mip levels and sort them.
@@ -128,7 +126,7 @@ __global__ void traverse_grid_kernel(
         }
         _quick_sort(sorted_t, sorted_mip, 0, MAX_GRID_LEVELS * 2 - 1);
         // for (int i = 0; i < MAX_GRID_LEVELS * 2; i++) {
-        //     if (sorted_t[i] < 1e9f && tid == 1)
+        //     if (sorted_t[i] < 1e9f)
         //         printf("[sorted], i=%d, t=%f, mip=%d\n", i, sorted_t[i], sorted_mip[i]);
         // }
 
@@ -148,22 +146,16 @@ __global__ void traverse_grid_kernel(
                 if (step_size <= 0.0f) { // march to this_tmin.
                     t_last = this_tmin;
                 } else {
-                    while (true) { // march until t_last is right before this_tmin.
+                    while (true) { // march until t_mid is right after this_tmin.
                         float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
-                        if (t_last + dt > this_tmin) break;
+                        if (t_last + dt * 0.5f >= this_tmin) break;
                         t_last += dt;
                     }
-                    // while (true) { // march until t_mid is right after this_tmin.
-                    //     float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
-                    //     t_last += dt;
-                    //     if (t_last - dt * 0.5f >= this_tmin) break;
-                    // }
                 }
             }
-            // if (tid == 1)
-            //     printf(
-            //         "[traverse segment] i=%d, this_mip=%d, this_tmin=%f, this_tmax=%f\n", 
-            //         i, this_mip, this_tmin, this_tmax);
+            // printf(
+            //     "[traverse segment] i=%d, this_mip=%d, this_tmin=%f, this_tmax=%f\n", 
+            //     i, this_mip, this_tmin, this_tmax);
 
             const float3 aabb_min = base_aabb_mid - base_aabb_half * (1 << this_mip);
             const float3 aabb_max = base_aabb_mid + base_aabb_half * (1 << this_mip);
@@ -197,16 +189,11 @@ __global__ void traverse_grid_kernel(
                     if (step_size <= 0.0f) { // march to t_traverse.
                         t_last = t_traverse;
                     } else {
-                        while (true) { // march until t_last is right before t_traverse.
+                        while (true) { // march until t_mid is right after t_traverse.
                             float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
-                            if (t_last + dt > t_traverse) break;
+                            if (t_last + dt * 0.5f >= t_traverse) break;
                             t_last += dt;
                         }
-                        // while (true) { // march until t_mid is right after t_traverse.
-                        //     float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
-                        //     t_last += dt;
-                        //     if (t_last - dt * 0.5f >= t_traverse) break;
-                        // }
                     }
                     continuous = false;
                 } else {
@@ -215,16 +202,14 @@ __global__ void traverse_grid_kernel(
                         float t_next;
                         if (step_size <= 0.0f) {
                             t_next = t_traverse;
-                        } else {
-                            t_next = t_last + _calc_dt(t_last, cone_angle, step_size, 1e10f);
+                        } else {  // march until t_mid is right after t_traverse.
+                            float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
+                            if (t_last + dt * 0.5f >= t_traverse) break;
+                            t_next = t_last + dt;
                         }
                         if (!continuous) {
                             if (!first_pass) {  // left side of the intervel
                                 int64_t idx = chunk_start + n_tdists_traversed;
-                                // if (idx >= 27155 && idx <= 27158)
-                                //     printf(
-                                //         "[left] idx=%lld, t_last=%f, t_next=%f, tid=%d, current_index=(%d, %d, %d), cell_id=%lld, tdist=(%f, %f, %f)\n",
-                                //         idx, t_last, t_next, tid, current_index.x, current_index.y, current_index.z, cell_id, tdist.x, tdist.y, tdist.z);
                                 ray_segments.edges[idx] = t_last;
                                 ray_segments.ray_ids[idx] = tid;
                                 ray_segments.is_left[idx] = true;
@@ -232,10 +217,6 @@ __global__ void traverse_grid_kernel(
                             n_tdists_traversed++;
                             if (!first_pass) {  // right side of the intervel
                                 int64_t idx = chunk_start + n_tdists_traversed;
-                                // if (idx >= 27155 && idx <= 27158)
-                                //     printf(
-                                //         "[left] idx=%lld, t_last=%f, t_next=%f, tid=%d, current_index=(%d, %d, %d), cell_id=%lld, tdist=(%f, %f, %f)\n",
-                                //         idx, t_last, t_next, tid, current_index.x, current_index.y, current_index.z, cell_id, tdist.x, tdist.y, tdist.z);
                                 ray_segments.edges[idx] = t_next;
                                 ray_segments.ray_ids[idx] = tid;
                                 ray_segments.is_right[idx] = true;
@@ -244,10 +225,6 @@ __global__ void traverse_grid_kernel(
                         } else {
                             if (!first_pass) {  // right side of the intervel
                                 int64_t idx = chunk_start + n_tdists_traversed;
-                                // if (idx >= 27155 && idx <= 27158)
-                                //     printf(
-                                //         "[left] idx=%lld, t_last=%f, t_next=%f, tid=%d, current_index=(%d, %d, %d), cell_id=%lld, tdist=(%f, %f, %f)\n",
-                                //         idx, t_last, t_next, tid, current_index.x, current_index.y, current_index.z, cell_id, tdist.x, tdist.y, tdist.z);
                                 ray_segments.edges[idx] = t_next;
                                 ray_segments.ray_ids[idx] = tid;
                                 ray_segments.is_left[idx - 1] = true;
