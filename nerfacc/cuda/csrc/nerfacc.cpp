@@ -46,6 +46,12 @@ torch::Tensor inclusive_sum(
     torch::Tensor inputs,
     bool normalize);
 
+torch::Tensor inclusive_sum_backward(
+    torch::Tensor chunk_starts,
+    torch::Tensor chunk_cnts,
+    torch::Tensor grad_inputs,
+    bool normalize);
+
 torch::Tensor exclusive_sum(
     torch::Tensor chunk_starts,
     torch::Tensor chunk_cnts,
@@ -59,6 +65,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   _REG_FUNC(ray_marching);
   _REG_FUNC(grid_query);
   _REG_FUNC(inclusive_sum);
+  _REG_FUNC(inclusive_sum_backward);
   _REG_FUNC(exclusive_sum);
 
 #undef _REG_FUNC

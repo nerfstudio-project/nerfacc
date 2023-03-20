@@ -18,12 +18,18 @@ namespace device {
  * Each thread block processes one or more sets of contiguous rows (processing multiple rows
  * per thread block is quicker than processing a single row, especially for short rows).
  */
-template<typename T, int num_threads_x, int num_threads_y, class BinaryFunction>
+template<
+    typename T, 
+    int num_threads_x, 
+    int num_threads_y, 
+    class BinaryFunction,
+    typename DataIteratorT, 
+    typename IdxIteratorT>
 __device__ void inclusive_scan_impl(
-    T* row_buf, T *tgt_, T *src_,
+    T* row_buf, DataIteratorT tgt_, DataIteratorT src_,
     const uint32_t num_rows, 
     // const uint32_t row_size,
-    const int64_t *chunk_starts, const int64_t *chunk_cnts,
+    IdxIteratorT chunk_starts, IdxIteratorT chunk_cnts,
     T init, BinaryFunction binary_op, 
     bool normalize = false){
   for (uint32_t block_row = blockIdx.x * blockDim.y;
@@ -33,8 +39,8 @@ __device__ void inclusive_scan_impl(
     T block_total = init;
     if (row >= num_rows) continue;
 
-    T *row_src = src_ + chunk_starts[row];
-    T *row_tgt = tgt_ + chunk_starts[row];
+    DataIteratorT row_src = src_ + chunk_starts[row];
+    DataIteratorT row_tgt = tgt_ + chunk_starts[row];
     uint32_t row_size = chunk_cnts[row];
     if (row_size == 0) continue;
 
@@ -109,14 +115,16 @@ template <
     typename T,
     int num_threads_x,
     int num_threads_y,
-    class BinaryFunction>
+    class BinaryFunction,
+    typename DataIteratorT, 
+    typename IdxIteratorT>
 __global__ void
 inclusive_scan_kernel(
-    T* tgt_,
-    T* src_,
+    DataIteratorT tgt_,
+    DataIteratorT src_,
     const uint32_t num_rows,
-    const int64_t* chunk_starts,
-    const int64_t* chunk_cnts,
+    IdxIteratorT chunk_starts,
+    IdxIteratorT chunk_cnts,
     T init,
     BinaryFunction binary_op,
     bool normalize = false) {
@@ -135,12 +143,18 @@ inclusive_scan_kernel(
  * Each thread block processes one or more sets of contiguous rows (processing multiple rows
  * per thread block is quicker than processing a single row, especially for short rows).
  */
-template<typename T, int num_threads_x, int num_threads_y, class BinaryFunction>
+template<
+    typename T, 
+    int num_threads_x, 
+    int num_threads_y, 
+    class BinaryFunction,
+    typename DataIteratorT, 
+    typename IdxIteratorT>
 __device__ void exclusive_scan_impl(
-    T* row_buf, T *tgt_, T *src_,
+    T* row_buf, DataIteratorT tgt_, DataIteratorT src_,
     const uint32_t num_rows, 
     // const uint32_t row_size,
-    const int64_t *chunk_starts, const int64_t *chunk_cnts,
+    IdxIteratorT chunk_starts, IdxIteratorT chunk_cnts,
     T init, BinaryFunction binary_op, 
     bool normalize = false){
   for (uint32_t block_row = blockIdx.x * blockDim.y;
@@ -150,8 +164,8 @@ __device__ void exclusive_scan_impl(
     T block_total = init;
     if (row >= num_rows) continue;
 
-    T *row_src = src_ + chunk_starts[row];
-    T *row_tgt = tgt_ + chunk_starts[row];
+    DataIteratorT row_src = src_ + chunk_starts[row];
+    DataIteratorT row_tgt = tgt_ + chunk_starts[row];
     uint32_t row_size = chunk_cnts[row];
     if (row_size == 0) continue;
     
@@ -228,14 +242,16 @@ template <
     typename T,
     int num_threads_x,
     int num_threads_y,
-    class BinaryFunction>
+    class BinaryFunction,
+    typename DataIteratorT, 
+    typename IdxIteratorT>
 __global__ void
 exclusive_scan_kernel(
-    T* tgt_,
-    T* src_,
+    DataIteratorT tgt_,
+    DataIteratorT src_,
     const uint32_t num_rows,
-    const int64_t* chunk_starts,
-    const int64_t* chunk_cnts,
+    IdxIteratorT chunk_starts,
+    IdxIteratorT chunk_cnts,
     T init,
     BinaryFunction binary_op,
     bool normalize = false) {
