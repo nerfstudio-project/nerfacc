@@ -16,7 +16,7 @@ from radiance_fields.mlp import VanillaNeRFRadianceField
 from utils import (
     MIPNERF360_UNBOUNDED_SCENES,
     NERF_SYNTHETIC_SCENES,
-    render_image, 
+    render_image,
     set_random_seed,
 )
 
@@ -153,11 +153,11 @@ occupancy_grid = OccupancyGrid(
 
 if args.model_path is not None:
     checkpoint = torch.load(args.model_path)
-    radiance_field.load_state_dict(checkpoint['radiance_field_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-    occupancy_grid.load_state_dict(checkpoint['occupancy_grid_state_dict'])
-    step = checkpoint['step']
+    radiance_field.load_state_dict(checkpoint["radiance_field_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    occupancy_grid.load_state_dict(checkpoint["occupancy_grid_state_dict"])
+    step = checkpoint["step"]
 else:
     step = 0
 
@@ -228,12 +228,16 @@ for epoch in range(10000000):
 
         if step > 0 and step % max_steps == 0:
             model_save_path = str(pathlib.Path.cwd() / f"mlp_nerf_{step}")
-            torch.save({'step': step, 
-                        'radiance_field_state_dict': radiance_field.state_dict(), 
-                        'optimizer_state_dict': optimizer.state_dict(), 
-                        'scheduler_state_dict': scheduler.state_dict(),
-                        'occupancy_grid_state_dict': occupancy_grid.state_dict(),
-                        }, model_save_path)
+            torch.save(
+                {
+                    "step": step,
+                    "radiance_field_state_dict": radiance_field.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scheduler_state_dict": scheduler.state_dict(),
+                    "occupancy_grid_state_dict": occupancy_grid.state_dict(),
+                },
+                model_save_path,
+            )
 
             # evaluation
             radiance_field.eval()
