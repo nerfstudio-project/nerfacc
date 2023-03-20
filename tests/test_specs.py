@@ -16,6 +16,47 @@ torch.set_printoptions(6)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_inclusive_sum():
+    torch.manual_seed(42)
+
+    data = torch.rand((5, 1000), device=device)
+    outputs1 = torch.cumsum(data, dim=-1)
+    outputs1 = outputs1.flatten()
+
+    chunk_starts = torch.arange(
+        0, data.numel(), data.shape[1], device=device, dtype=torch.long
+    )
+    chunk_cnts = torch.full(
+        (data.shape[0],), data.shape[1], dtype=torch.long, device=device
+    )
+    flatten_data = data.flatten().contiguous()
+    outputs2 = _C.inclusive_sum(chunk_starts, chunk_cnts, flatten_data, False)
+    assert torch.allclose(outputs1, outputs2)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_exclusive_sum():
+    # TODO: check exclusive sum. numeric error?
+    torch.manual_seed(42)
+
+    data = torch.rand((5, 1000), device=device)
+    outputs1 = torch.cumsum(
+        torch.cat([torch.zeros_like(data[:, :1]), data[:, :-1]], dim=-1), dim=-1
+    )
+    outputs1 = outputs1.flatten()
+
+    chunk_starts = torch.arange(
+        0, data.numel(), data.shape[1], device=device, dtype=torch.long
+    )
+    chunk_cnts = torch.full(
+        (data.shape[0],), data.shape[1], dtype=torch.long, device=device
+    )
+    flatten_data = data.flatten().contiguous()
+    outputs2 = _C.exclusive_sum(chunk_starts, chunk_cnts, flatten_data, False)
+    # print((outputs1 - outputs2).abs().max())
+
+
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_grid_query():
     from nerfacc.data_specs import MultiScaleGrid
 
@@ -203,4 +244,6 @@ if __name__ == "__main__":
     # test_grid_query()
     # test_traverse_grid_basic()
     # test_traverse_grid()
-    test_traverse_grid_sampling()
+    # test_traverse_grid_sampling()
+    test_inclusive_sum()
+    test_exclusive_sum()
