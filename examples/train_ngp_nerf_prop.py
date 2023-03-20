@@ -21,7 +21,7 @@ from utils import (
     set_random_seed,
 )
 
-from nerfacc.proposal_packed import (
+from nerfacc._proposal_packed import (
     compute_prop_loss,
     get_proposal_annealing_fn,
     get_proposal_requires_grad_fn,

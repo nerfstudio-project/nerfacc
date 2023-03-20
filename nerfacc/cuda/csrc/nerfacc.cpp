@@ -3,28 +3,6 @@
 
 #include <torch/extension.h>
 
-using torch::Tensor;
-
-// old ones
-std::vector<torch::Tensor> ray_marching(
-    // rays
-    const torch::Tensor rays_o,
-    const torch::Tensor rays_d,
-    const torch::Tensor t_min,
-    const torch::Tensor t_max,
-    // occupancy grid & contraction
-    const torch::Tensor roi,
-    const torch::Tensor grid_binary,
-    // sampling
-    const float step_size,
-    const float cone_angle);
-torch::Tensor grid_query(
-    const torch::Tensor samples,
-    // occupancy grid & contraction
-    const torch::Tensor roi,
-    const torch::Tensor grid_value);
-
-
 bool is_cub_available() {
     return (bool) CUB_SUPPORTS_SCAN_BY_KEY();
 }
@@ -76,9 +54,9 @@ torch::Tensor exclusive_prod_backward(
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
   _REG_FUNC(is_cub_available);  // TODO: check this function
+
   _REG_FUNC(traverse_grid);
-  _REG_FUNC(ray_marching);
-  _REG_FUNC(grid_query);
+
   _REG_FUNC(inclusive_sum);
   _REG_FUNC(exclusive_sum);
   _REG_FUNC(inclusive_prod_forward);

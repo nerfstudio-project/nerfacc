@@ -13,7 +13,7 @@ def test_importance_sampling():
         compute_intervals_v2,
         importance_sampling,
     )
-    from nerfacc.proposal import (
+    from nerfacc._proposal import (
         render_weight_from_density,
         sample_from_weighted,
     )
@@ -91,9 +91,9 @@ def test_importance_sampling():
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_rendering():
-    from nerfacc.proposal import _lossfun_outer, rendering
-    from nerfacc.proposal_packed import rendering as rendering_packed
-    from nerfacc.proposal_packed import transmittance_loss_native_packed
+    from nerfacc._proposal import _lossfun_outer, rendering
+    from nerfacc._proposal_packed import rendering as rendering_packed
+    from nerfacc._proposal_packed import transmittance_loss_native_packed
 
     torch.manual_seed(42)
 

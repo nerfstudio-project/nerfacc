@@ -11,7 +11,7 @@ from datasets.utils import Rays, namedtuple_map
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 from nerfacc import OccupancyGrid, ray_marching, rendering
-from nerfacc.proposal_packed import rendering as rendering_proposal
+from nerfacc._proposal_packed import rendering as rendering_proposal
 
 NERF_SYNTHETIC_SCENES = [
     "chair",

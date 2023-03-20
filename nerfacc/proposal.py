@@ -1,193 +1,18 @@
-#!/usr/bin/env python3
-#
-# File   : prop_utils.py
-# Author : Hang Gao
-# Email  : hangg.sv7@gmail.com
-# Date   : 02/19/2023
-#
-# Distributed under terms of the MIT license.
-
 from typing import Callable, Literal, Optional, Sequence, Tuple
 
 import torch
-import torch.nn.functional as F
 
 from .intersection import ray_aabb_intersect
-from .pdf import pdf_outer, pdf_sampling
-
-
-def sample_from_weighted(
-    bins: torch.Tensor,
-    weights: torch.Tensor,
-    num_samples: int,
-    stratified: bool = False,
-    vmin: float = -torch.inf,
-    vmax: float = torch.inf,
-) -> torch.Tensor:
-    """
-    Args:
-        bins: (..., B + 1).
-        weights: (..., B).
-
-    Returns:
-        samples: (..., S + 1).
-    """
-    B = weights.shape[-1]
-    S = num_samples
-    assert bins.shape[-1] == B + 1
-
-    dtype, device = bins.dtype, bins.device
-    eps = torch.finfo(weights.dtype).eps
-
-    # (..., B).
-    pdf = F.normalize(weights, p=1, dim=-1)
-    # (..., B + 1).
-    cdf = torch.cat(
-        [
-            torch.zeros_like(pdf[..., :1]),
-            torch.cumsum(pdf[..., :-1], dim=-1),
-            torch.ones_like(pdf[..., :1]),
-        ],
-        dim=-1,
-    )
-
-    # (..., S). Sample positions between [0, 1).
-    if not stratified:
-        pad = 1 / (2 * S)
-        # Get the center of each pdf bins.
-        u = torch.linspace(pad, 1 - pad - eps, S, dtype=dtype, device=device)
-        u = u.broadcast_to(bins.shape[:-1] + (S,))
-    else:
-        # `u` is in [0, 1) --- it can be zero, but it can never be 1.
-        u_max = eps + (1 - eps) / S
-        max_jitter = (1 - u_max) / (S - 1) - eps
-        # Only perform one jittering per ray (`single_jitter` in the original
-        # implementation.)
-        u = (
-            torch.linspace(0, 1 - u_max, S, dtype=dtype, device=device)
-            + torch.rand(
-                *bins.shape[:-1],
-                1,
-                dtype=dtype,
-                device=device,
-            )
-            * max_jitter
-        )
-
-    # (..., S).
-    ceil = torch.searchsorted(cdf.contiguous(), u.contiguous(), side="right")
-    floor = ceil - 1
-    # (..., S * 2).
-    inds = torch.cat([floor, ceil], dim=-1)
-
-    # (..., S).
-    cdf0, cdf1 = cdf.gather(-1, inds).split(S, dim=-1)
-    b0, b1 = bins.gather(-1, inds).split(S, dim=-1)
-
-    # (..., S). Linear interpolation in 1D.
-    t = (u - cdf0) / torch.clamp(cdf1 - cdf0, min=eps)
-    # Sample centers.
-    centers = b0 + t * (b1 - b0)
-
-    samples = (centers[..., 1:] + centers[..., :-1]) / 2
-    samples = torch.cat(
-        [
-            (2 * centers[..., :1] - samples[..., :1]).clamp_min(vmin),
-            samples,
-            (2 * centers[..., -1:] - samples[..., -1:]).clamp_max(vmax),
-        ],
-        dim=-1,
-    )
-
-    return samples, centers
-
-
-def render_weight_from_density(
-    sigmas: torch.Tensor,
-    t_starts: torch.Tensor,
-    t_ends: torch.Tensor,
-    opaque_bkgd: bool = False,
-) -> torch.Tensor:
-    """
-    Args:
-        sigmas: (..., S, 1).
-        t_starts: (..., S).
-        t_ends: (..., S).
-
-    Return:
-        weights: (..., S).
-    """
-    # (..., S).
-    deltas = t_ends - t_starts
-    # (..., S).
-    sigma_deltas = sigmas[..., 0] * deltas
-
-    if opaque_bkgd:
-        sigma_deltas = torch.cat(
-            [
-                sigma_deltas[..., :-1],
-                torch.full_like(sigma_deltas[..., -1:], torch.inf),
-            ],
-            dim=-1,
-        )
-
-    alphas = 1 - torch.exp(-sigma_deltas)
-    trans = torch.exp(
-        -(
-            torch.cat(
-                [
-                    torch.zeros_like(sigma_deltas[..., :1]),
-                    torch.cumsum(sigma_deltas[..., :-1], dim=-1),
-                ],
-                dim=-1,
-            )
-        )
-    )
-    weights = alphas * trans
-    return weights
-
-
-def render_from_weighted(
-    rgbs: torch.Tensor,
-    t_vals: torch.Tensor,
-    weights: torch.Tensor,
-    render_bkgd: Optional[torch.Tensor] = None,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Args:
-        rgbs: (..., S, 3).
-        t_vals: (..., S + 1, 1).
-        weights: (..., S, 1).
-
-    Return:
-        colors: (..., 3).
-        opacities: (..., 3).
-        depths: (..., 1). The naming is a bit confusing since it is actually
-            the expected marching *distances*.
-    """
-    # # Use white instead of black background by default.
-    # render_bkgd = (
-    #     render_bkgd
-    #     if render_bkgd is not None
-    #     else torch.ones(3, dtype=rgbs.dtype, device=rgbs.device)
-    # )
-
-    eps = torch.finfo(rgbs.dtype).eps
-
-    # (..., 1).
-    opacities = weights.sum(axis=-2)
-    # (..., 3).
-    colors = (weights * rgbs).sum(dim=-2)
-    if render_bkgd is not None:
-        # (..., 1).
-        bkgd_weights = (1 - opacities).clamp_min(0)
-        colors += bkgd_weights * render_bkgd
-
-    # (..., S, 1).
-    t_mids = (t_vals[..., 1:, :] + t_vals[..., :-1, :]) / 2
-    depths = (weights * t_mids).sum(dim=-2) / opacities.clamp_min(eps)
-
-    return colors, opacities, depths
+from .pack import unpack_info
+from .pdf import (
+    compute_intervals_v2,
+    importance_sampling,
+    transmittance_loss_native_packed,
+)
+from .vol_rendering import (
+    accumulate_along_rays,
+    render_transmittance_from_alpha,
+)
 
 
 def transform_stot(
@@ -232,6 +57,8 @@ def rendering(
     proposal_requires_grad: bool = False,
     proposal_annealing: float = 1.0,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    assert proposal_annealing == 1.0
+
     if len(prop_sigma_fns) != len(num_samples_per_prop):
         raise ValueError(
             "`sigma_fns` and `samples_per_level` must have the same length."
@@ -252,17 +79,27 @@ def rendering(
         t_min = torch.clamp(t_min, max=far_plane)
         t_max = torch.clamp(t_max, max=far_plane)
 
-    s_vals = torch.cat(
+    n_rays = rays_o.shape[0]
+    device = rays_o.device
+
+    s_vals = torch.stack(
+        [torch.zeros_like(rays_o[:, 0]), torch.ones_like(rays_o[:, 0])],
+        dim=-1,
+    ).flatten()
+    Ts = torch.stack(
+        [torch.ones_like(rays_o[:, 0]), torch.zeros_like(rays_o[:, 0])],
+        dim=-1,
+    ).flatten()
+    info = torch.stack(
         [
-            torch.zeros_like(rays_o[..., :1]),
-            torch.ones_like(rays_o[..., :1]),
+            torch.arange(0, n_rays * 2, 2, device=device),
+            torch.full((n_rays,), 2, device=device),
         ],
         dim=-1,
     )
-    weights = torch.ones_like(rays_o[..., :1])
-    rgbs = t_vals = None
+    rgbs = None
 
-    weights_per_level, s_vals_per_level = [], []
+    Ts_per_level, s_vals_per_level, info_per_level = [], [], []
     for level, (level_fn, level_samples) in enumerate(
         zip(
             prop_sigma_fns + [rgb_sigma_fn],
@@ -271,127 +108,85 @@ def rendering(
     ):
         is_prop = level < len(prop_sigma_fns)
 
-        annealed_weights = torch.pow(weights, proposal_annealing)
-        # (N, S + 1).
-        s_vals, s_mids = sample_from_weighted(
+        # importance sampling
+        expected_samples_per_ray = torch.full(
+            (n_rays,), level_samples, device=device, dtype=torch.long
+        )
+        s_mids, info_mids = importance_sampling(
             s_vals,
-            annealed_weights,
-            level_samples,
-            stratified=stratified,
-            vmin=0.0,
-            vmax=1.0,
+            Ts,
+            info,
+            expected_samples_per_ray,
+            stratified,
+            T_eps=0.0,
         )
-        s_vals = s_vals.detach()
-        # s_vals = pdf_sampling(
-        #     s_vals,
-        #     annealed_weights,
-        #     level_samples,
-        #     padding=0.0,
-        #     stratified=stratified,
-        # ).detach()
+        s_vals, bins_l, bins_r, info = compute_intervals_v2(s_mids, info_mids)
+        s_0 = s_vals[bins_l]
+        s_1 = s_vals[bins_r]
+        ray_ids = unpack_info(info_mids.int(), s_mids.numel())
 
-        t_vals = transform_stot(
-            sampling_type, s_vals, t_min[..., None], t_max[..., None]  # type: ignore
-        )
-
+        # network evaluation
+        t_0 = transform_stot(sampling_type, s_0, t_min[ray_ids], t_max[ray_ids])
+        t_1 = transform_stot(sampling_type, s_1, t_min[ray_ids], t_max[ray_ids])
         if is_prop:
             with torch.set_grad_enabled(proposal_requires_grad):
-                # (N, S, 1).
-                sigmas = level_fn(t_vals[..., :-1, None], t_vals[..., 1:, None])
+                sigmas = level_fn(t_0[:, None], t_1[:, None], ray_ids)
         else:
-            # (N, S, *).
-            rgbs, sigmas = level_fn(
-                t_vals[..., :-1, None], t_vals[..., 1:, None]
-            )
+            rgbs, sigmas = level_fn(t_0[:, None], t_1[:, None], ray_ids)
 
-        # (N, S).
-        weights = render_weight_from_density(
-            sigmas,
-            t_vals[..., :-1],
-            t_vals[..., 1:],
-            opaque_bkgd=opaque_bkgd,
-        )
+        alphas = 1.0 - torch.exp(-sigmas.squeeze(-1) * (t_1 - t_0))
 
-        weights_per_level.append(weights)
+        # compute light transport
+        _alphas = torch.zeros_like(s_vals)
+        _alphas[bins_l] = alphas
+        if opaque_bkgd:  # hacky way
+            last_ids = torch.where(~bins_l)[0] - 1
+            _alphas[last_ids] = 1.0
+        Ts = render_transmittance_from_alpha(
+            _alphas[:, None], packed_info=info.int()
+        ).squeeze(-1)
+
+        Ts_per_level.append(Ts)
         s_vals_per_level.append(s_vals)
+        info_per_level.append(info)
 
-    assert rgbs is not None and t_vals is not None
-    rgbs, opacities, depths = render_from_weighted(
-        rgbs, t_vals[..., None], weights[..., None], render_bkgd
-    )
+    assert rgbs is not None
+    weights = (Ts[bins_l] * _alphas[bins_l])[:, None]
+    rgbs = accumulate_along_rays(weights, ray_ids, rgbs, n_rays)
+    opacities = accumulate_along_rays(weights, ray_ids, None, n_rays)
+    depths = accumulate_along_rays(
+        weights, ray_ids, (t_1 + t_0)[:, None] / 2.0, n_rays
+    ) / opacities.clamp_min(torch.finfo(rgbs.dtype).eps)
+    if render_bkgd is not None:
+        rgbs = rgbs + render_bkgd * (1.0 - opacities)
 
     return (
         rgbs,
         opacities,
         depths,
-        (weights_per_level, s_vals_per_level),
+        (Ts_per_level, s_vals_per_level, info_per_level),
     )
-
-
-def _outer(
-    t0_starts: torch.Tensor,
-    t0_ends: torch.Tensor,
-    t1_starts: torch.Tensor,
-    t1_ends: torch.Tensor,
-    y1: torch.Tensor,
-) -> torch.Tensor:
-    """
-    Args:
-        t0_starts: (..., S0).
-        t0_ends: (..., S0).
-        t1_starts: (..., S1).
-        t1_ends: (..., S1).
-        y1: (..., S1).
-    """
-    cy1 = torch.cat(
-        [torch.zeros_like(y1[..., :1]), torch.cumsum(y1, dim=-1)], dim=-1
-    )
-
-    idx_lo = (
-        torch.searchsorted(
-            t1_starts.contiguous(), t0_starts.contiguous(), side="right"
-        )
-        - 1
-    )
-    idx_lo = torch.clamp(idx_lo, min=0, max=y1.shape[-1] - 1)
-    idx_hi = torch.searchsorted(
-        t1_ends.contiguous(), t0_ends.contiguous(), side="right"
-    )
-    idx_hi = torch.clamp(idx_hi, min=0, max=y1.shape[-1] - 1)
-    cy1_lo = torch.take_along_dim(cy1[..., :-1], idx_lo, dim=-1)
-    cy1_hi = torch.take_along_dim(cy1[..., 1:], idx_hi, dim=-1)
-    y0_outer = cy1_hi - cy1_lo
-
-    return y0_outer
-
-
-def _lossfun_outer(
-    t: torch.Tensor, w: torch.Tensor, t_env: torch.Tensor, w_env: torch.Tensor
-):
-    """
-    Args:
-        t: interval edges, (..., S + 1).
-        w: weights, (..., S).
-        t_env: interval edges of the upper bound enveloping historgram, (..., S + 1).
-        w_env: weights that should upper bound the inner (t,w) histogram, (..., S).
-    """
-    eps = 1e-7  # torch.finfo(t.dtype).eps
-    w_outer = pdf_outer(t_env, w_env, None, t, None)
-    # w_outer = _outer(
-    #     t[..., :-1], t[..., 1:], t_env[..., :-1], t_env[..., 1:], w_env
-    # )
-    return torch.clip(w - w_outer, min=0) ** 2 / (w + eps)
 
 
 def compute_prop_loss(
     s_vals_per_level: Sequence[torch.Tensor],
-    weights_per_level: Sequence[torch.Tensor],
+    Ts_per_level: Sequence[torch.Tensor],
+    info_per_level: Sequence[torch.Tensor],
 ) -> torch.Tensor:
-    c = s_vals_per_level[-1].detach()
-    w = weights_per_level[-1].detach()
     loss = 0.0
-    for svals, weights in zip(s_vals_per_level[:-1], weights_per_level[:-1]):
-        loss += torch.mean(_lossfun_outer(c, w, svals, weights))
+    for s_vals, Ts, info in zip(
+        s_vals_per_level[:-1], Ts_per_level[:-1], info_per_level[:-1]
+    ):
+        loss += torch.mean(
+            transmittance_loss_native_packed(
+                s_vals_per_level[-1].detach(),
+                Ts_per_level[-1].detach(),
+                info_per_level[-1].detach(),
+                s_vals,
+                Ts,
+                info,
+            )
+        )
     return loss
 
 

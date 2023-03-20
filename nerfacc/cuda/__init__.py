@@ -15,10 +15,6 @@ def _make_lazy_cuda_func(name: str) -> Callable:
     return call_cuda
 
 
-# old
-ray_marching = _make_lazy_cuda_func("ray_marching")
-grid_query = _make_lazy_cuda_func("grid_query")
-
 is_cub_available = _make_lazy_cuda_func("is_cub_available")
 
 # data specs
