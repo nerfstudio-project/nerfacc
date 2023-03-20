@@ -37,7 +37,7 @@ __all__ = [
     "render_weight_from_density",
     "render_transmittance_from_density",
     "render_transmittance_from_alpha",
-    "rendering",
+    # "rendering",
     # pack
     "pack_data",
     "unpack_data",
