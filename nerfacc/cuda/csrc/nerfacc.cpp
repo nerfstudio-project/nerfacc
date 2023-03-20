@@ -54,6 +54,29 @@ torch::Tensor exclusive_sum(
     bool normalize,
     bool backward);
 
+torch::Tensor inclusive_prod_forward(
+    torch::Tensor chunk_starts,
+    torch::Tensor chunk_cnts,
+    torch::Tensor inputs);
+
+torch::Tensor inclusive_prod_backward(
+    torch::Tensor chunk_starts,
+    torch::Tensor chunk_cnts,
+    torch::Tensor inputs,
+    torch::Tensor outputs,
+    torch::Tensor grad_outputs);
+
+torch::Tensor exclusive_prod_forward(
+    torch::Tensor chunk_starts,
+    torch::Tensor chunk_cnts,
+    torch::Tensor inputs);
+
+torch::Tensor exclusive_prod_backward(
+    torch::Tensor chunk_starts,
+    torch::Tensor chunk_cnts,
+    torch::Tensor inputs,
+    torch::Tensor outputs,
+    torch::Tensor grad_outputs);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
@@ -63,6 +86,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   _REG_FUNC(grid_query);
   _REG_FUNC(inclusive_sum);
   _REG_FUNC(exclusive_sum);
+  _REG_FUNC(inclusive_prod_forward);
+  _REG_FUNC(inclusive_prod_backward);
+  _REG_FUNC(exclusive_prod_forward);
+  _REG_FUNC(exclusive_prod_backward);
 
 #undef _REG_FUNC
 
