@@ -78,6 +78,9 @@ __global__ void traverse_grid_kernel(
     float3 base_aabb_mid = (base_aabb.min + base_aabb.max) * 0.5f;
     float3 base_aabb_half = (base_aabb.max - base_aabb.min) * 0.5f;
 
+    float3 cell_scale = base_aabb_half * 2.0f / make_float3(grid.resolution) * scalbnf(1.732f, grid.levels - 1);
+    float max_step_size = fmaxf(cell_scale.x, fmaxf(cell_scale.y, cell_scale.z));
+
     // parallelize over rays
     for (int32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < rays.N; tid += blockDim.x * gridDim.x)
     {
@@ -147,7 +150,7 @@ __global__ void traverse_grid_kernel(
                     t_last = this_tmin;
                 } else {
                     while (true) { // march until t_mid is right after this_tmin.
-                        float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
+                        float dt = _calc_dt(t_last, cone_angle, step_size, max_step_size);
                         if (t_last + dt * 0.5f >= this_tmin) break;
                         t_last += dt;
                     }
@@ -190,7 +193,7 @@ __global__ void traverse_grid_kernel(
                         t_last = t_traverse;
                     } else {
                         while (true) { // march until t_mid is right after t_traverse.
-                            float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
+                            float dt = _calc_dt(t_last, cone_angle, step_size, max_step_size);
                             if (t_last + dt * 0.5f >= t_traverse) break;
                             t_last += dt;
                         }
@@ -203,7 +206,7 @@ __global__ void traverse_grid_kernel(
                         if (step_size <= 0.0f) {
                             t_next = t_traverse;
                         } else {  // march until t_mid is right after t_traverse.
-                            float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
+                            float dt = _calc_dt(t_last, cone_angle, step_size, max_step_size);
                             if (t_last + dt * 0.5f >= t_traverse) break;
                             t_next = t_last + dt;
                         }
