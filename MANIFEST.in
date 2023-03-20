@@ -1,2 +1,5 @@
 include nerfacc/cuda/csrc/include/*
 include nerfacc/cuda/csrc/*
+
+include nerfacc/_cuda/csrc/include/*
+include nerfacc/_cuda/csrc/*

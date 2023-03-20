@@ -17,11 +17,6 @@
 namespace F = torch::nn::functional;
 static constexpr uint32_t MAX_GRID_LEVELS = 8;
 
-template <typename scalar_t>
-inline __device__ __host__ scalar_t ceil_div(scalar_t a, scalar_t b)
-{
-  return (a + b - 1) / b;
-}
 
 // Taken from:
 // https://github.com/pytorch/pytorch/blob/8f1c3c68d3aba5c8898bfb3144988aab6776d549/aten/src/ATen/native/cuda/Bucketization.cu

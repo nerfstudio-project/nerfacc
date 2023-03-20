@@ -7,7 +7,7 @@ from typing import Callable, Optional, Tuple
 import torch
 from torch import Tensor
 
-import nerfacc.cuda as _C
+import nerfacc._cuda as _C
 
 from .pack import pack_info
 

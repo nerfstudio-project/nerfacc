@@ -37,7 +37,7 @@ def cuda_toolkit_version():
     return cuda_version
 
 
-name = "nerfacc_cuda"
+name = "nerfacc_cuda_legacy"
 build_dir = _get_build_directory(name, verbose=False)
 extra_include_paths = []
 extra_cflags = ["-O3"]

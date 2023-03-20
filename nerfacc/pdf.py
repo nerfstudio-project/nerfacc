@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor
 
-import nerfacc.cuda as _C
+import nerfacc._cuda as _C
 
 
 class PDFOuter(torch.autograd.Function):

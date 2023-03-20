@@ -2,7 +2,9 @@ from typing import Callable, Optional, Tuple
 
 import torch
 
-import nerfacc.cuda as _C
+import nerfacc._cuda as _C
+from nerfacc.cuda import traverse_grid
+from nerfacc.data_specs import MultiScaleGrid, Rays
 
 from .contraction import ContractionType
 from .grid import Grid
@@ -135,58 +137,82 @@ def ray_marching(
             "Only one of `alpha_fn` and `sigma_fn` should be provided."
         )
 
-    # logic for t_min and t_max:
-    # 1. if t_min and t_max are given, use them with highest priority.
-    # 2. if t_min and t_max are not given, but scene_aabb is given, use
-    # ray_aabb_intersect to compute t_min and t_max.
-    # 3. if t_min and t_max are not given, and scene_aabb is not given,
-    # set t_min to 0.0, and t_max to 1e10. (the case of unbounded scene)
-    # 4. always clip t_min with near_plane and t_max with far_plane if given.
-    if t_min is None or t_max is None:
-        if scene_aabb is not None:
-            t_min, t_max = ray_aabb_intersect(rays_o, rays_d, scene_aabb)
-        else:
-            t_min = torch.zeros_like(rays_o[..., 0])
-            t_max = torch.ones_like(rays_o[..., 0]) * 1e10
-    if near_plane is not None:
-        t_min = torch.clamp(t_min, min=near_plane)
-    if far_plane is not None:
-        t_max = torch.clamp(t_max, max=far_plane)
+    # # logic for t_min and t_max:
+    # # 1. if t_min and t_max are given, use them with highest priority.
+    # # 2. if t_min and t_max are not given, but scene_aabb is given, use
+    # # ray_aabb_intersect to compute t_min and t_max.
+    # # 3. if t_min and t_max are not given, and scene_aabb is not given,
+    # # set t_min to 0.0, and t_max to 1e10. (the case of unbounded scene)
+    # # 4. always clip t_min with near_plane and t_max with far_plane if given.
+    # if t_min is None or t_max is None:
+    #     if scene_aabb is not None:
+    #         t_min, t_max = ray_aabb_intersect(rays_o, rays_d, scene_aabb)
+    #     else:
+    #         t_min = torch.zeros_like(rays_o[..., 0])
+    #         t_max = torch.ones_like(rays_o[..., 0]) * 1e10
+    # if near_plane is not None:
+    #     t_min = torch.clamp(t_min, min=near_plane)
+    # if far_plane is not None:
+    #     t_max = torch.clamp(t_max, max=far_plane)
 
-    # stratified sampling: prevent overfitting during training
+    # # stratified sampling: prevent overfitting during training
+    # if stratified:
+    #     t_min = t_min + torch.rand_like(t_min) * render_step_size
+
+    # # use grid for skipping if given
+    # if grid is not None:
+    #     grid_roi_aabb = grid.roi_aabb
+    #     grid_binary = grid.binary
+    #     contraction_type = grid.contraction_type.to_cpp_version()
+    # else:
+    #     grid_roi_aabb = torch.tensor(
+    #         [-1e10, -1e10, -1e10, 1e10, 1e10, 1e10],
+    #         dtype=torch.float32,
+    #         device=rays_o.device,
+    #     )
+    #     grid_binary = torch.ones(
+    #         [1, 1, 1, 1], dtype=torch.bool, device=rays_o.device
+    #     )
+    #     contraction_type = ContractionType.AABB.to_cpp_version()
+
+    # # marching with grid-based skipping
+    # packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
+    #     # rays
+    #     rays_o.contiguous(),
+    #     rays_d.contiguous(),
+    #     t_min.contiguous(),
+    #     t_max.contiguous(),
+    #     # coontraction and grid
+    #     grid_roi_aabb.contiguous(),
+    #     grid_binary.contiguous(),
+    #     contraction_type,
+    #     # sampling
+    #     render_step_size,
+    #     cone_angle,
+    # )
+
+    _grid = MultiScaleGrid(
+        data=grid.occs.reshape_as(grid.binary),
+        occupied=grid.binary.contiguous(),
+        base_aabb=grid.roi_aabb.contiguous(),
+    )
+    near_plane = 0.0
     if stratified:
-        t_min = t_min + torch.rand_like(t_min) * render_step_size
-
-    # use grid for skipping if given
-    if grid is not None:
-        grid_roi_aabb = grid.roi_aabb
-        grid_binary = grid.binary
-        contraction_type = grid.contraction_type.to_cpp_version()
-    else:
-        grid_roi_aabb = torch.tensor(
-            [-1e10, -1e10, -1e10, 1e10, 1e10, 1e10],
-            dtype=torch.float32,
-            device=rays_o.device,
-        )
-        grid_binary = torch.ones(
-            [1, 1, 1, 1], dtype=torch.bool, device=rays_o.device
-        )
-        contraction_type = ContractionType.AABB.to_cpp_version()
-
-    # marching with grid-based skipping
-    packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
-        # rays
-        rays_o.contiguous(),
-        rays_d.contiguous(),
-        t_min.contiguous(),
-        t_max.contiguous(),
-        # coontraction and grid
-        grid_roi_aabb.contiguous(),
-        grid_binary.contiguous(),
-        contraction_type,
-        # sampling
+        near_plane += torch.rand(()).item() * render_step_size
+    rays = Rays(rays_o.contiguous(), rays_d.contiguous())
+    traversal = traverse_grid(
+        _grid._to_cpp(),
+        rays._to_cpp(),
+        near_plane,
+        1e10,
         render_step_size,
         cone_angle,
+    )
+    t_starts = traversal.edges[traversal.is_left, None]
+    t_ends = traversal.edges[traversal.is_right, None]
+    ray_indices = traversal.ray_ids[traversal.is_left]
+    packed_info = torch.stack(
+        [traversal.chunk_starts, traversal.chunk_cnts], dim=-1
     )
 
     # skip invisible space

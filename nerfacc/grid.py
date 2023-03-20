@@ -7,7 +7,7 @@ from typing import Callable, List, Union
 import torch
 import torch.nn as nn
 
-import nerfacc.cuda as _C
+import nerfacc._cuda as _C
 
 from .contraction import ContractionType, contract_inv
 

@@ -6,7 +6,7 @@ from enum import Enum
 
 import torch
 
-import nerfacc.cuda as _C
+import nerfacc._cuda as _C
 
 
 class ContractionType(Enum):

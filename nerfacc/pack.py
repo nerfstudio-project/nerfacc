@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor
 
-import nerfacc.cuda as _C
+import nerfacc._cuda as _C
 
 
 def pack_data(data: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
