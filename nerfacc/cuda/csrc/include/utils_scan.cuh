@@ -104,7 +104,7 @@ __device__ void inclusive_scan_impl(
       {
         uint32_t col = block_col + threadIdx.x;
         if (col < row_size) {
-          row_tgt[col] /= block_total;
+          row_tgt[col] /= fmaxf(block_total, 1e-10f);
         }
       }
     }
@@ -231,7 +231,7 @@ __device__ void exclusive_scan_impl(
       {
         uint32_t col = block_col + threadIdx.x;
         if (col < row_size - 1) {
-          row_tgt[col + 1] /= block_total;
+          row_tgt[col + 1] /= fmaxf(block_total, 1e-10f);
         }
       }
     }

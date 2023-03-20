@@ -11,7 +11,7 @@ def test_inclusive_sum():
     torch.manual_seed(42)
 
     data = torch.rand((5, 1000), device=device, requires_grad=True)
-    outputs1 = torch.cumsum(data, dim=-1)
+    outputs1 = inclusive_sum(data)
     outputs1 = outputs1.flatten()
     outputs1.sum().backward()
     grad1 = data.grad.clone()
@@ -24,7 +24,7 @@ def test_inclusive_sum():
         (data.shape[0],), data.shape[1], dtype=torch.long, device=device
     )
     flatten_data = data.flatten().contiguous()
-    outputs2 = inclusive_sum(chunk_starts, chunk_cnts, flatten_data)
+    outputs2 = inclusive_sum(flatten_data, chunk_starts, chunk_cnts)
     outputs2.sum().backward()
     grad2 = data.grad.clone()
 
@@ -39,9 +39,7 @@ def test_exclusive_sum():
     torch.manual_seed(42)
 
     data = torch.rand((5, 1000), device=device, requires_grad=True)
-    outputs1 = torch.cumsum(
-        torch.cat([torch.zeros_like(data[:, :1]), data[:, :-1]], dim=-1), dim=-1
-    )
+    outputs1 = exclusive_sum(data)
     outputs1 = outputs1.flatten()
     outputs1.sum().backward()
     grad1 = data.grad.clone()
@@ -54,7 +52,7 @@ def test_exclusive_sum():
         (data.shape[0],), data.shape[1], dtype=torch.long, device=device
     )
     flatten_data = data.flatten().contiguous()
-    outputs2 = exclusive_sum(chunk_starts, chunk_cnts, flatten_data)
+    outputs2 = exclusive_sum(flatten_data, chunk_starts, chunk_cnts)
     outputs2.sum().backward()
     grad2 = data.grad.clone()
 
@@ -70,7 +68,7 @@ def test_inclusive_prod():
     torch.manual_seed(42)
 
     data = torch.rand((5, 1000), device=device, requires_grad=True)
-    outputs1 = torch.cumprod(data, dim=-1)
+    outputs1 = inclusive_prod(data)
     outputs1 = outputs1.flatten()
     outputs1.sum().backward()
     grad1 = data.grad.clone()
@@ -83,7 +81,7 @@ def test_inclusive_prod():
         (data.shape[0],), data.shape[1], dtype=torch.long, device=device
     )
     flatten_data = data.flatten().contiguous()
-    outputs2 = inclusive_prod(chunk_starts, chunk_cnts, flatten_data)
+    outputs2 = inclusive_prod(flatten_data, chunk_starts, chunk_cnts)
     outputs2.sum().backward()
     grad2 = data.grad.clone()
 
@@ -98,9 +96,7 @@ def test_exclusive_prod():
     torch.manual_seed(42)
 
     data = torch.rand((5, 1000), device=device, requires_grad=True)
-    outputs1 = torch.cumprod(
-        torch.cat([torch.ones_like(data[:, :1]), data[:, :-1]], dim=-1), dim=-1
-    )
+    outputs1 = exclusive_prod(data)
     outputs1 = outputs1.flatten()
     outputs1.sum().backward()
     grad1 = data.grad.clone()
@@ -113,7 +109,7 @@ def test_exclusive_prod():
         (data.shape[0],), data.shape[1], dtype=torch.long, device=device
     )
     flatten_data = data.flatten().contiguous()
-    outputs2 = exclusive_prod(chunk_starts, chunk_cnts, flatten_data)
+    outputs2 = exclusive_prod(flatten_data, chunk_starts, chunk_cnts)
     outputs2.sum().backward()
     grad2 = data.grad.clone()
 

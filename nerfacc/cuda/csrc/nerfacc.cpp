@@ -46,31 +46,26 @@ torch::Tensor inclusive_sum(
     torch::Tensor inputs,
     bool normalize,
     bool backward);
-
 torch::Tensor exclusive_sum(
     torch::Tensor chunk_starts,
     torch::Tensor chunk_cnts,
     torch::Tensor inputs,
     bool normalize,
     bool backward);
-
 torch::Tensor inclusive_prod_forward(
     torch::Tensor chunk_starts,
     torch::Tensor chunk_cnts,
     torch::Tensor inputs);
-
 torch::Tensor inclusive_prod_backward(
     torch::Tensor chunk_starts,
     torch::Tensor chunk_cnts,
     torch::Tensor inputs,
     torch::Tensor outputs,
     torch::Tensor grad_outputs);
-
 torch::Tensor exclusive_prod_forward(
     torch::Tensor chunk_starts,
     torch::Tensor chunk_cnts,
     torch::Tensor inputs);
-
 torch::Tensor exclusive_prod_backward(
     torch::Tensor chunk_starts,
     torch::Tensor chunk_cnts,

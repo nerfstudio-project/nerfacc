@@ -1,44 +1,80 @@
+from typing import Optional
+
 import torch
 
 import nerfacc.cuda as _C
 
 
 def inclusive_sum(
-    chunk_starts: torch.Tensor,
-    chunk_cnts: torch.Tensor,
     inputs: torch.Tensor,
+    chunk_starts: Optional[torch.Tensor] = None,
+    chunk_cnts: Optional[torch.Tensor] = None,
     normalize: bool = False,
 ) -> torch.Tensor:
-    """Inclusive Sum on a Flattened Tensor."""
-    return _InclusiveSum.apply(chunk_starts, chunk_cnts, inputs, normalize)
+    """Inclusive Sum on a Tensor."""
+    if chunk_starts is None or chunk_cnts is None:
+        outputs = torch.cumsum(inputs, dim=-1)
+        if normalize:
+            outputs = outputs / outputs[..., -1:].clamp_min(1e-10)
+    else:
+        outputs = _InclusiveSum.apply(
+            chunk_starts, chunk_cnts, inputs, normalize
+        )
+    return outputs
 
 
 def exclusive_sum(
-    chunk_starts: torch.Tensor,
-    chunk_cnts: torch.Tensor,
     inputs: torch.Tensor,
+    chunk_starts: Optional[torch.Tensor] = None,
+    chunk_cnts: Optional[torch.Tensor] = None,
     normalize: bool = False,
 ) -> torch.Tensor:
-    """Inclusive Sum on a Flattened Tensor."""
-    return _ExclusiveSum.apply(chunk_starts, chunk_cnts, inputs, normalize)
+    """Inclusive Sum on a Tensor."""
+    if chunk_starts is None or chunk_cnts is None:
+        outputs = torch.cumsum(
+            torch.cat([torch.zeros_like(inputs[..., :1]), inputs], dim=-1),
+            dim=-1,
+        )
+        if normalize:
+            outputs = outputs[..., :-1] / outputs[..., -1:].clamp_min(1e-10)
+        else:
+            outputs = outputs[..., :-1]
+    else:
+        outputs = _ExclusiveSum.apply(
+            chunk_starts, chunk_cnts, inputs, normalize
+        )
+    return outputs
 
 
 def inclusive_prod(
-    chunk_starts: torch.Tensor,
-    chunk_cnts: torch.Tensor,
     inputs: torch.Tensor,
+    chunk_starts: Optional[torch.Tensor] = None,
+    chunk_cnts: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    """Inclusive Product on a Flattened Tensor."""
-    return _InclusiveProd.apply(chunk_starts, chunk_cnts, inputs)
+    """Inclusive Product on a Tensor."""
+    if chunk_starts is None or chunk_cnts is None:
+        outputs = torch.cumprod(inputs, dim=-1)
+    else:
+        outputs = _InclusiveProd.apply(chunk_starts, chunk_cnts, inputs)
+    return outputs
 
 
 def exclusive_prod(
-    chunk_starts: torch.Tensor,
-    chunk_cnts: torch.Tensor,
     inputs: torch.Tensor,
+    chunk_starts: Optional[torch.Tensor] = None,
+    chunk_cnts: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
-    """Exclusive Product on a Flattened Tensor."""
-    return _ExclusiveProd.apply(chunk_starts, chunk_cnts, inputs)
+    """Exclusive Product on a Tensor."""
+    if chunk_starts is None or chunk_cnts is None:
+        outputs = torch.cumprod(
+            torch.cat(
+                [torch.ones_like(inputs[..., :1]), inputs[..., :-1]], dim=-1
+            ),
+            dim=-1,
+        )
+    else:
+        outputs = _ExclusiveProd.apply(chunk_starts, chunk_cnts, inputs)
+    return outputs
 
 
 class _InclusiveSum(torch.autograd.Function):
