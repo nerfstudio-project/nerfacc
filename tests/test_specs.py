@@ -119,44 +119,88 @@ def test_traverse_grid():
 
     assert torch.allclose(lengths1, lengths2, atol=1e-2)
 
-    # timing
-    traversal = _C.traverse_grid(
-        grid._to_cpp(), rays._to_cpp(), 0.0, 100.0, 1e-3, 0.0
-    )
-    torch.cuda.synchronize()
-    for _ in tqdm.tqdm(range(100)):
-        outputs = _C.traverse_grid(
-            grid._to_cpp(), rays._to_cpp(), 0.0, 100.0, 1e-3, 0.0
-        )
-        torch.cuda.synchronize()
 
-    # timing
-    packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
-        rays_o,
-        rays_d,
-        torch.zeros_like(rays_o[:, 0]),
-        torch.ones_like(rays_o[:, 0]) * 100,
-        grid.base_aabb,
-        grid.occupied,
-        1e-3,
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_traverse_grid_sampling():
+    from nerfacc.data_specs import MultiScaleGrid, Rays
+
+    torch.manual_seed(42)
+
+    n_rays = 10
+    rays_o = torch.randn(n_rays, 3, device=device)
+    rays_d = torch.randn(n_rays, 3, device=device)
+    rays_d /= torch.norm(rays_d, dim=-1, keepdim=True)
+    rays = Rays(rays_o, rays_d)
+
+    data = torch.rand(4, 128, 128, 128, device=device)
+    occupied = data > 0.5
+    grid = MultiScaleGrid(
+        data=data,
+        occupied=occupied,
+        base_aabb=torch.tensor(
+            [-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device
+        ),
+    )
+
+    # traverse grid
+    traversal = _C.traverse_grid(
+        grid._to_cpp(), rays._to_cpp(), 0.0, 100.0, -1, 0.0
+    )
+    sdists = traversal.edges
+    info = torch.stack([traversal.chunk_starts, traversal.chunk_cnts], dim=-1)
+
+    t_starts = traversal.edges[traversal.is_left]
+    t_ends = traversal.edges[traversal.is_right]
+    t_mids = (t_starts + t_ends) / 2
+    ray_ids = traversal.ray_ids[traversal.is_left]
+    t_deltas = t_ends - t_starts
+
+    t_traversal_per_ray = torch.zeros(
+        (n_rays,), device=t_deltas.device, dtype=t_deltas.dtype
+    )
+    t_traversal_per_ray.scatter_add_(0, ray_ids, t_deltas)
+    expected_samples_per_ray = torch.ceil(t_traversal_per_ray / 1e-4).long()
+    print(
+        "expected_samples_per_ray",
+        expected_samples_per_ray,
+        expected_samples_per_ray.sum(),
+    )
+
+    # pdfs = t_deltas / t_traversal_per_ray[ray_ids].clamp_min(1e-10)
+    # print(pdfs.shape, pdfs.min(), pdfs.max())
+
+    _pdfs = torch.zeros_like(sdists)
+    _pdfs[traversal.is_right] = t_deltas
+    cdfs = _C.inclusive_sum(
+        traversal.chunk_starts, traversal.chunk_cnts, _pdfs.contiguous(), True
+    )
+    print("cdfs", cdfs[:10])
+    Ts = 1.0 - cdfs
+    # print(cdfs.shape, cdfs.min(), cdfs.max())
+
+    import nerfacc
+
+    sdists_out, info_out = nerfacc._cuda.importance_sampling(
+        sdists.contiguous(),
+        Ts.contiguous(),
+        info.contiguous(),
+        expected_samples_per_ray.contiguous(),
+        False,
         0.0,
     )
-    torch.cuda.synchronize()
-    for _ in tqdm.tqdm(range(100)):
-        packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
-            rays_o,
-            rays_d,
-            torch.zeros_like(rays_o[:, 0]),
-            torch.ones_like(rays_o[:, 0]) * 100,
-            grid.base_aabb,
-            grid.occupied,
-            1e-3,
-            0.0,
-        )
-        torch.cuda.synchronize()
+    print(sdists_out[:10])
+
+    traversal = _C.traverse_grid(
+        grid._to_cpp(), rays._to_cpp(), 0.0, 100.0, 1e-4, 0.0
+    )
+    t_starts = traversal.edges[traversal.is_left]
+    t_ends = traversal.edges[traversal.is_right]
+    t_mids = (t_starts + t_ends) / 2
+    print(t_mids[:10])
 
 
 if __name__ == "__main__":
     # test_grid_query()
     # test_traverse_grid_basic()
-    test_traverse_grid()
+    # test_traverse_grid()
+    test_traverse_grid_sampling()

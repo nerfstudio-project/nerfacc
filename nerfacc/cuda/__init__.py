@@ -27,3 +27,6 @@ RaysSpec = _make_lazy_cuda_func("RaysSpec")
 
 # grid
 traverse_grid = _make_lazy_cuda_func("traverse_grid")
+
+# scan
+inclusive_sum = _make_lazy_cuda_func("inclusive_sum")

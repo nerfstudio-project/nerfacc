@@ -39,12 +39,21 @@ RaySegmentsSpec traverse_grid(
     const float step_size,
     const float cone_angle);
 
+// scan
+torch::Tensor inclusive_sum(
+    torch::Tensor chunk_starts,
+    torch::Tensor chunk_cnts,
+    torch::Tensor inputs,
+    bool normalize);
+
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
-  _REG_FUNC(is_cub_available);
+  _REG_FUNC(is_cub_available);  // TODO: check this function
   _REG_FUNC(traverse_grid);
   _REG_FUNC(ray_marching);
   _REG_FUNC(grid_query);
+  _REG_FUNC(inclusive_sum);
 
 #undef _REG_FUNC
 
