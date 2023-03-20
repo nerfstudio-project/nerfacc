@@ -77,7 +77,7 @@ struct RaySegmentsSpec {
     TORCH_CHECK(chunk_starts.numel() == chunk_cnts.numel());
   }
 
-  inline void memalloc_cnts(int64_t n_rays, at::TensorOptions options, bool zero_init = true) {
+  inline void memalloc_cnts(int32_t n_rays, at::TensorOptions options, bool zero_init = true) {
     TORCH_CHECK(!chunk_cnts.defined());
     if (zero_init) {
       chunk_cnts = torch::zeros({n_rays}, options.dtype(torch::kLong));

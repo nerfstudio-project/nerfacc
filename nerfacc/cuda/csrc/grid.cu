@@ -20,6 +20,13 @@ static constexpr uint32_t MAX_GRID_LEVELS = 8;
 namespace {
 namespace device {
 
+inline __device__ float _calc_dt(
+    const float t, const float cone_angle,
+    const float dt_min, const float dt_max)
+{
+    return clamp(t * cone_angle, dt_min, dt_max);
+}
+
 inline __device__ void _quick_sort(
     float *t, int *mip, int left, int right) {
     int i = left, j = right;
@@ -58,6 +65,9 @@ __global__ void traverse_grid_kernel(
     PackedRaysSpec rays, 
     float near_plane,
     float far_plane, 
+    // optionally do marching in grid.
+    float step_size,
+    float cone_angle,
     // outputs
     const bool first_pass,
     PackedRaySegmentsSpec ray_segments)
@@ -69,10 +79,15 @@ __global__ void traverse_grid_kernel(
     float3 base_aabb_half = (base_aabb.max - base_aabb.min) * 0.5f;
 
     // parallelize over rays
-    for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < rays.N; tid += blockDim.x * gridDim.x)
+    for (int32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < rays.N; tid += blockDim.x * gridDim.x)
     {
+        // printf("tid=%lld, N=%lld\n", tid, rays.N);
         // skip rays that are empty.
         if (!first_pass && ray_segments.chunk_cnts[tid] == 0) continue;
+
+        int64_t chunk_start;
+        if (!first_pass)
+            chunk_start = ray_segments.chunk_starts[tid];
 
         SingleRaySpec ray = SingleRaySpec(rays, tid, near_plane, far_plane);
 
@@ -82,14 +97,15 @@ __global__ void traverse_grid_kernel(
         float tmin[MAX_GRID_LEVELS] = {};
         float tmax[MAX_GRID_LEVELS] = {};
         bool hit[MAX_GRID_LEVELS] = {};
-        for (int64_t lvl = 0; lvl < grid.levels; lvl++) {
+        for (int32_t lvl = 0; lvl < grid.levels; lvl++) {
             const float3 aabb_min = base_aabb_mid - base_aabb_half * (1 << lvl);
             const float3 aabb_max = base_aabb_mid + base_aabb_half * (1 << lvl);
             AABBSpec aabb = AABBSpec(aabb_min, aabb_max);
             hit[lvl] = ray_aabb_intersect(ray, aabb, tmin[lvl], tmax[lvl]);
-            // printf(
-            //     "[ray_aabb_intersect] lvl=%lld, hit=%d, tmin=%f, tmax=%f\n", 
-            //     lvl, hit[lvl], tmin[lvl], tmax[lvl]);
+            // if (tid == 1)
+            //     printf(
+            //         "[ray_aabb_intersect] lvl=%lld, hit=%d, tmin=%f, tmax=%f\n", 
+            //         lvl, hit[lvl], tmin[lvl], tmax[lvl]);
         }
 
         // init: segment the rays into different mip levels and sort them.
@@ -99,48 +115,55 @@ __global__ void traverse_grid_kernel(
             if (!hit[lvl]) {
                 sorted_t[lvl * 2] = 1e10f;
                 sorted_t[lvl * 2 + 1] = 1e10f;
-                sorted_mip[lvl * 2] = -1;
-                sorted_mip[lvl * 2 + 1] = -1;     
+                sorted_mip[lvl * 2] = MAX_GRID_LEVELS;
+                sorted_mip[lvl * 2 + 1] = MAX_GRID_LEVELS;     
             } else {
                 sorted_t[lvl * 2] = tmin[lvl];
                 sorted_t[lvl * 2 + 1] = tmax[lvl];
                 // ray goes through tmin of this level means it enters this level.
                 sorted_mip[lvl * 2] = lvl;
                 // ray goes through tmax of this level means it enters next level.
-                if (lvl == grid.levels - 1)
-                    sorted_mip[lvl * 2 + 1] = -1;
-                else
-                    sorted_mip[lvl * 2 + 1] = lvl + 1;
+                sorted_mip[lvl * 2 + 1] = lvl + 1;
             }
         }
         _quick_sort(sorted_t, sorted_mip, 0, MAX_GRID_LEVELS * 2 - 1);
         // for (int i = 0; i < MAX_GRID_LEVELS * 2; i++) {
-        //     if (sorted_t[i] < 1e9f)
+        //     if (sorted_t[i] < 1e9f && tid == 1)
         //         printf("[sorted], i=%d, t=%f, mip=%d\n", i, sorted_t[i], sorted_mip[i]);
         // }
 
-        // // prepare values for ray marching
-        // float T = 1.0f;
-
         // loop over all segments along the ray.
-        int n_tdists_traversed = 0;
+        int64_t n_tdists_traversed = 0;
         float t_last = near_plane;
         bool continuous = false;
-        for (int i = 0; i < MAX_GRID_LEVELS * 2; i++) {
-            int this_mip = sorted_mip[i];
-            if (i > 0 && this_mip == -1) break; // ray is outside the grid.    
+        for (int32_t i = 0; i < MAX_GRID_LEVELS * 2; i++) {
+            int32_t this_mip = sorted_mip[i];
+            if (i > 0 && this_mip >= grid.levels) break; // ray is outside the grid.    
 
-            float this_tmin = sorted_t[i];
-            float this_tmax = sorted_t[i + 1];   
+            float this_tmin = fmaxf(sorted_t[i], near_plane);
+            float this_tmax = fminf(sorted_t[i + 1], far_plane);   
             if (this_tmin >= this_tmax) continue; // this segment is invalid. e.g. (0.0f, 0.0f)
 
             if (!continuous) {
-                t_last = this_tmin;
+                if (step_size <= 0.0f) { // march to this_tmin.
+                    t_last = this_tmin;
+                } else {
+                    while (true) { // march until t_last is right before this_tmin.
+                        float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
+                        if (t_last + dt > this_tmin) break;
+                        t_last += dt;
+                    }
+                    // while (true) { // march until t_mid is right after this_tmin.
+                    //     float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
+                    //     t_last += dt;
+                    //     if (t_last - dt * 0.5f >= this_tmin) break;
+                    // }
+                }
             }
-
-            // printf(
-            //     "[traverse segment] i=%d, this_mip=%d, this_tmin=%f, this_tmax=%f\n", 
-            //     i, this_mip, this_tmin, this_tmax);
+            // if (tid == 1)
+            //     printf(
+            //         "[traverse segment] i=%d, this_mip=%d, this_tmin=%f, this_tmax=%f\n", 
+            //         i, this_mip, this_tmin, this_tmax);
 
             const float3 aabb_min = base_aabb_mid - base_aabb_half * (1 << this_mip);
             const float3 aabb_max = base_aabb_mid + base_aabb_half * (1 << this_mip);
@@ -162,42 +185,81 @@ __global__ void traverse_grid_kernel(
             const int3 overflow_index = final_index + step_index;
             while (true) {
                 float t_traverse = min(tdist.x, min(tdist.y, tdist.z));
-                int cell_id = (
+                int64_t cell_id = (
                     current_index.x * grid.resolution.y * grid.resolution.z
                     + current_index.y * grid.resolution.z
                     + current_index.z
                     + this_mip * grid.resolution.x * grid.resolution.y * grid.resolution.z
                 );
 
-                // skip the cell that is empty.
                 if (!grid.occupied[cell_id]) {
+                    // skip the cell that is empty.
+                    if (step_size <= 0.0f) { // march to t_traverse.
+                        t_last = t_traverse;
+                    } else {
+                        while (true) { // march until t_last is right before t_traverse.
+                            float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
+                            if (t_last + dt > t_traverse) break;
+                            t_last += dt;
+                        }
+                        // while (true) { // march until t_mid is right after t_traverse.
+                        //     float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
+                        //     t_last += dt;
+                        //     if (t_last - dt * 0.5f >= t_traverse) break;
+                        // }
+                    }
                     continuous = false;
                 } else {
-                    if (!continuous) {
-                        if (!first_pass) {  // left side of the intervel
-                            ray_segments.edges[tid + n_tdists_traversed] = t_last;
-                            ray_segments.ray_ids[tid + n_tdists_traversed] = tid;
-                            ray_segments.is_left[tid + n_tdists_traversed] = true;
+                    // this cell is not empty, so we need to traverse it.
+                    while (true) {
+                        float t_next;
+                        if (step_size <= 0.0f) {
+                            t_next = t_traverse;
+                        } else {
+                            t_next = t_last + _calc_dt(t_last, cone_angle, step_size, 1e10f);
                         }
-                        n_tdists_traversed++;
-                        if (!first_pass) {  // right side of the intervel
-                            ray_segments.edges[tid + n_tdists_traversed] = t_traverse;
-                            ray_segments.ray_ids[tid + n_tdists_traversed] = tid;
-                            ray_segments.is_right[tid + n_tdists_traversed] = true;
+                        if (!continuous) {
+                            if (!first_pass) {  // left side of the intervel
+                                int64_t idx = chunk_start + n_tdists_traversed;
+                                // if (idx >= 27155 && idx <= 27158)
+                                //     printf(
+                                //         "[left] idx=%lld, t_last=%f, t_next=%f, tid=%d, current_index=(%d, %d, %d), cell_id=%lld, tdist=(%f, %f, %f)\n",
+                                //         idx, t_last, t_next, tid, current_index.x, current_index.y, current_index.z, cell_id, tdist.x, tdist.y, tdist.z);
+                                ray_segments.edges[idx] = t_last;
+                                ray_segments.ray_ids[idx] = tid;
+                                ray_segments.is_left[idx] = true;
+                            }
+                            n_tdists_traversed++;
+                            if (!first_pass) {  // right side of the intervel
+                                int64_t idx = chunk_start + n_tdists_traversed;
+                                // if (idx >= 27155 && idx <= 27158)
+                                //     printf(
+                                //         "[left] idx=%lld, t_last=%f, t_next=%f, tid=%d, current_index=(%d, %d, %d), cell_id=%lld, tdist=(%f, %f, %f)\n",
+                                //         idx, t_last, t_next, tid, current_index.x, current_index.y, current_index.z, cell_id, tdist.x, tdist.y, tdist.z);
+                                ray_segments.edges[idx] = t_next;
+                                ray_segments.ray_ids[idx] = tid;
+                                ray_segments.is_right[idx] = true;
+                            }
+                            n_tdists_traversed++;
+                        } else {
+                            if (!first_pass) {  // right side of the intervel
+                                int64_t idx = chunk_start + n_tdists_traversed;
+                                // if (idx >= 27155 && idx <= 27158)
+                                //     printf(
+                                //         "[left] idx=%lld, t_last=%f, t_next=%f, tid=%d, current_index=(%d, %d, %d), cell_id=%lld, tdist=(%f, %f, %f)\n",
+                                //         idx, t_last, t_next, tid, current_index.x, current_index.y, current_index.z, cell_id, tdist.x, tdist.y, tdist.z);
+                                ray_segments.edges[idx] = t_next;
+                                ray_segments.ray_ids[idx] = tid;
+                                ray_segments.is_left[idx - 1] = true;
+                                ray_segments.is_right[idx] = true;
+                            }
+                            n_tdists_traversed++;
                         }
-                        n_tdists_traversed++;
-                    } else {
-                        if (!first_pass) {  // right side of the intervel
-                            ray_segments.edges[tid + n_tdists_traversed] = t_traverse;
-                            ray_segments.ray_ids[tid + n_tdists_traversed] = tid;
-                            ray_segments.is_left[tid + n_tdists_traversed - 1] = true;
-                            ray_segments.is_right[tid + n_tdists_traversed] = true;
-                        }
-                        n_tdists_traversed++;
+                        continuous = true;
+                        t_last = t_next;
+                        if (t_next >= t_traverse) break;
                     }
-                    continuous = true;
                 }
-                t_last = t_traverse;
 
                 // printf(
                 //     "[traverse], t_last=%f, t_traverse=%f, cell_id=%d, current_index=(%d, %d, %d)\n",
@@ -215,6 +277,7 @@ __global__ void traverse_grid_kernel(
     }
 }
 
+
 }  // namespace device
 }  // namespace
 
@@ -222,44 +285,54 @@ RaySegmentsSpec traverse_grid(
     MultiScaleGridSpec& grid,
     RaysSpec& rays,
     const float near_plane,
-    const float far_plane) 
+    const float far_plane,
+    // optionally do marching in grid.
+    const float step_size,
+    const float cone_angle) 
 {
     DEVICE_GUARD(rays.origins);
     grid.check();
     rays.check();  
 
-    int64_t n_rays = rays.origins.size(0);
+    int32_t n_rays = rays.origins.size(0);
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
-    int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-    int64_t maxGrid = 1024;
-    dim3 thread_block = dim3(min(maxThread, n_rays));
-    dim3 thread_grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, thread_block.x)));
+    int32_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int32_t maxGrid = 65535;
+    dim3 THREADS = dim3(min(maxThread, n_rays));
+    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
 
     // outputs
     RaySegmentsSpec ray_segments;
 
     // first pass to count the number of segments along each ray.
     ray_segments.memalloc_cnts(n_rays, rays.origins.options());
-    device::traverse_grid_kernel<<<thread_grid, thread_block, 0, stream>>>(
+    device::traverse_grid_kernel<<<BLOCKS, THREADS, 0, stream>>>(
         device::PackedMultiScaleGridSpec(grid),
         device::PackedRaysSpec(rays),
         near_plane,
         far_plane,
+        // optionally do marching in grid.
+        step_size,
+        cone_angle,
         // outputs
         true,
         device::PackedRaySegmentsSpec(ray_segments));
 
     // second pass to record the segments.
     ray_segments.memalloc_data();
-    device::traverse_grid_kernel<<<thread_grid, thread_block, 0, stream>>>(
+    device::traverse_grid_kernel<<<BLOCKS, THREADS, 0, stream>>>(
         device::PackedMultiScaleGridSpec(grid),
         device::PackedRaysSpec(rays),
         near_plane,
         far_plane,
+        // optionally do marching in grid.
+        step_size,
+        cone_angle,
         // outputs
         false,
         device::PackedRaySegmentsSpec(ray_segments));
 
+    cudaGetLastError();
     return ray_segments;
 }

@@ -24,10 +24,10 @@ struct PackedRaySegmentsSpec {
     bool* is_right;
     int64_t* chunk_starts;
     int64_t* chunk_cnts;  // should always be defined
-    int64_t* ray_ids;   // TODO: uint32_t should be enough
+    int64_t* ray_ids;
 
     int64_t n_edges;
-    int64_t n_rays;
+    int32_t n_rays;
 };
 
 struct PackedMultiScaleGridSpec {
@@ -37,14 +37,14 @@ struct PackedMultiScaleGridSpec {
         base_aabb(spec.base_aabb.data_ptr<float>()),
         levels(spec.data.size(0)),
         resolution{
-            (int)spec.data.size(1), 
-            (int)spec.data.size(2), 
-            (int)spec.data.size(3)} 
+            (int32_t)spec.data.size(1), 
+            (int32_t)spec.data.size(2), 
+            (int32_t)spec.data.size(3)} 
     { }
     float* data;
     bool* occupied;
     float* base_aabb;
-    int levels;
+    int32_t levels;
     int3 resolution;
 };
 
@@ -54,14 +54,14 @@ struct PackedRaysSpec {
         dirs(spec.dirs.data_ptr<float>()),
         N(spec.origins.size(0))
     { }
-    const float *origins;
-    const float *dirs;
-    const int64_t N;
+    float *origins;
+    float *dirs;
+    int32_t N;
 };
 
 struct SingleRaySpec {
     __device__ SingleRaySpec(
-        PackedRaysSpec& rays, int64_t id, float tmin, float tmax) :
+        PackedRaysSpec& rays, int32_t id, float tmin, float tmax) :
         origin{
             rays.origins[id * 3], 
             rays.origins[id * 3 + 1], 
