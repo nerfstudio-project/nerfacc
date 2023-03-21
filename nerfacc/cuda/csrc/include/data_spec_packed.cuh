@@ -10,24 +10,31 @@ namespace device {
 struct PackedRaySegmentsSpec {
     PackedRaySegmentsSpec(RaySegmentsSpec& spec) :
         edges(spec.edges.defined() ? spec.edges.data_ptr<float>() : nullptr),
+        is_batched(spec.edges.defined() ? spec.edges.dim() > 1 : false),
+        // for flattened tensor
+        chunk_starts(spec.chunk_starts.defined() ? spec.chunk_starts.data_ptr<int64_t>() : nullptr),
+        chunk_cnts(spec.chunk_cnts.defined() ? spec.chunk_cnts.data_ptr<int64_t>(): nullptr),
+        ray_ids(spec.ray_ids.defined() ? spec.ray_ids.data_ptr<int64_t>() : nullptr),
         is_left(spec.is_left.defined() ? spec.is_left.data_ptr<bool>() : nullptr),
         is_right(spec.is_right.defined() ? spec.is_right.data_ptr<bool>() : nullptr),
-        chunk_starts(spec.chunk_starts.defined() ? spec.chunk_starts.data_ptr<int64_t>() : nullptr),
-        chunk_cnts(spec.chunk_cnts.data_ptr<int64_t>()),
-        ray_ids(spec.ray_ids.defined() ? spec.ray_ids.data_ptr<int64_t>() : nullptr),
+        // for dimensions
         n_edges(spec.edges.defined() ? spec.edges.numel() : 0),
-        n_rays(spec.chunk_cnts.size(0))
+        n_rays(spec.chunk_cnts.defined() ? spec.chunk_cnts.size(0) : 0),  // for flattened tensor
+        n_edges_per_ray(spec.edges.defined() ? spec.edges.size(-1) : 0)   // for batched tensor
     { }
 
     float* edges;
+    bool is_batched;
+
+    int64_t* chunk_starts;
+    int64_t* chunk_cnts; 
+    int64_t* ray_ids;
     bool* is_left;
     bool* is_right;
-    int64_t* chunk_starts;
-    int64_t* chunk_cnts;  // should always be defined
-    int64_t* ray_ids;
 
     int64_t n_edges;
     int32_t n_rays;
+    int32_t n_edges_per_ray;
 };
 
 struct PackedMultiScaleGridSpec {

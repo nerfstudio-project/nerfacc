@@ -108,15 +108,27 @@ __global__ void importance_sampling_kernel(
     // parallelize over outputs
     for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < samples.n_edges; tid += blockDim.x * gridDim.x)
     {
-        int32_t ray_id = binary_search_chunk_id(tid, samples.n_rays, samples.chunk_starts) - 1;
-        samples.ray_ids[tid] = ray_id;
+        int32_t ray_id;
+        int64_t n_samples, sid;
+        if (samples.is_batched) {
+            ray_id = tid / samples.n_edges_per_ray;
+            n_samples = samples.n_edges_per_ray;
+            sid = tid - ray_id * samples.n_edges_per_ray;
+        } else {
+            ray_id = binary_search_chunk_id(tid, samples.n_rays, samples.chunk_starts) - 1;
+            samples.ray_ids[tid] = ray_id;
+            n_samples = samples.chunk_cnts[ray_id];
+            sid = tid - samples.chunk_starts[ray_id];
+        }
 
-        int64_t base = ray_segments.chunk_starts[ray_id];
-        int64_t cnt = ray_segments.chunk_cnts[ray_id];
-        int64_t last = base + cnt - 1;
-
-        int64_t n_samples = samples.chunk_cnts[ray_id];
-        int64_t sid = tid - samples.chunk_starts[ray_id];
+        int64_t base, last;
+        if (ray_segments.is_batched) {
+            base = ray_id * ray_segments.n_edges_per_ray;
+            last = base + ray_segments.n_edges_per_ray - 1;
+        } else {
+            base = ray_segments.chunk_starts[ray_id];
+            last = base + ray_segments.chunk_cnts[ray_id] - 1;
+        }
 
         float u_floor = cdfs[base];
         float u_ceil = cdfs[last];
@@ -163,45 +175,66 @@ __global__ void compute_intervels_kernel(
     // parallelize over samples
     for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < samples.n_edges; tid += blockDim.x * gridDim.x)
     {
-        int32_t ray_id = samples.ray_ids[tid];
+        int32_t ray_id;
+        int64_t n_samples, sid;
+        if (samples.is_batched) {
+            ray_id = tid / samples.n_edges_per_ray;    
+            n_samples = samples.n_edges_per_ray;
+            sid = tid - ray_id * samples.n_edges_per_ray;
+        } else {
+            ray_id = samples.ray_ids[tid];
+            n_samples = samples.chunk_cnts[ray_id];
+            sid = tid - samples.chunk_starts[ray_id];
+        }
 
-        // input {t_min, t_max}
-        int64_t base = ray_segments.chunk_starts[ray_id];
-        int64_t cnt = ray_segments.chunk_cnts[ray_id];
-        int64_t last = base + cnt - 1;
+        int64_t base, last;
+        if (ray_segments.is_batched) {
+            base = ray_id * ray_segments.n_edges_per_ray;
+            last = base + ray_segments.n_edges_per_ray - 1;
+        } else {
+            base = ray_segments.chunk_starts[ray_id];
+            last = base + ray_segments.chunk_cnts[ray_id] - 1;
+        }
+
+        int64_t base_out;
+        if (intervals.is_batched) {
+            base_out = ray_id * intervals.n_edges_per_ray;
+        } else {
+            base_out = intervals.chunk_starts[ray_id];
+        }
+
         float t_min = ray_segments.edges[base];
         float t_max = ray_segments.edges[last];
-
-        // input sample
-        int64_t n_samples = samples.chunk_cnts[ray_id];
-        int64_t sid = tid - samples.chunk_starts[ray_id];
-
-        // output segment
-        int64_t base_out = intervals.chunk_starts[ray_id];
 
         if (sid == 0) {
             float t = samples.edges[tid];
             float t_next = samples.edges[tid + 1]; // FIXME: out of bounds?
             float half_width = (t_next - t) * 0.5f;
             intervals.edges[base_out] = fmaxf(t - half_width, t_min);
-            intervals.ray_ids[base_out] = ray_id;
-            intervals.is_left[base_out] = true;
-            intervals.is_right[base_out] = false;
+            if (!intervals.is_batched) {
+                intervals.ray_ids[base_out] = ray_id;
+                intervals.is_left[base_out] = true;
+                intervals.is_right[base_out] = false;
+            }
         } else {
             float t = samples.edges[tid];
             float t_prev = samples.edges[tid - 1];
             float t_edge = (t + t_prev) * 0.5f;
             int64_t idx = base_out + sid;
             intervals.edges[idx] = t_edge;
-            intervals.ray_ids[idx] = ray_id;
-            intervals.is_left[idx] = true;
-            intervals.is_right[idx] = true;
+            if (!intervals.is_batched) {
+                intervals.ray_ids[idx] = ray_id;
+                intervals.is_left[idx] = true;
+                intervals.is_right[idx] = true;
+            }
             if (sid == n_samples - 1) {
                 float half_width = (t - t_prev) * 0.5f;
                 intervals.edges[idx + 1] = fminf(t + half_width, t_max);
-                intervals.ray_ids[idx + 1] = ray_id;
-                intervals.is_left[idx + 1] = false;
-                intervals.is_right[idx + 1] = true;
+                if (!intervals.is_batched) {
+                    intervals.ray_ids[idx + 1] = ray_id;
+                    intervals.is_left[idx + 1] = false;
+                    intervals.is_right[idx + 1] = true;
+                }
             }
         }
     }
@@ -210,24 +243,18 @@ __global__ void compute_intervels_kernel(
 }  // namespace device
 }  // namespace
 
+// Return flattend RaySegmentsSpec because n_intervels_per_ray is defined per ray.
 std::vector<RaySegmentsSpec> importance_sampling(
-    RaySegmentsSpec ray_segments,
-    torch::Tensor cdfs,                 // [n_edges]
-    torch::Tensor n_intervels_per_ray,  // [n_rays]
+    RaySegmentsSpec ray_segments,       // [..., n_edges_per_ray] or flattend
+    torch::Tensor cdfs,                 // [..., n_edges_per_ray] or flattend 
+    torch::Tensor n_intervels_per_ray,  // [...] or flattend
     bool stratified)  
 {
     DEVICE_GUARD(cdfs);
-
     ray_segments.check();
     CHECK_INPUT(cdfs);
     CHECK_INPUT(n_intervels_per_ray);
-
-    TORCH_CHECK(cdfs.ndimension() == 1);
-    TORCH_CHECK(n_intervels_per_ray.ndimension() == 1);
     TORCH_CHECK(cdfs.numel() == ray_segments.edges.numel());
-    TORCH_CHECK(n_intervels_per_ray.numel() == ray_segments.chunk_cnts.numel());
-
-    int32_t n_rays = n_intervels_per_ray.numel();
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int64_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
@@ -247,7 +274,7 @@ std::vector<RaySegmentsSpec> importance_sampling(
     // output samples
     RaySegmentsSpec samples;
     samples.chunk_cnts = n_intervels_per_ray.to(n_intervels_per_ray.options().dtype(torch::kLong));
-    samples.memalloc_data(false, false);
+    samples.memalloc_data(false, false); // no need boolen masks, no need to zero init.
     int64_t n_samples = samples.edges.numel();
 
     // step 1. compute the ray_ids and samples
@@ -267,7 +294,73 @@ std::vector<RaySegmentsSpec> importance_sampling(
     RaySegmentsSpec intervals;
     intervals.chunk_cnts = (
       (samples.chunk_cnts + 1) * (samples.chunk_cnts > 0)).to(samples.chunk_cnts.options());
-    intervals.memalloc_data();
+    intervals.memalloc_data(true, false); // need the boolen masks, no need to zero init.
+
+    // step 2. compute the intervals.
+    device::compute_intervels_kernel<<<BLOCKS, THREADS, 0, stream>>>(
+        // samples
+        device::PackedRaySegmentsSpec(ray_segments),
+        device::PackedRaySegmentsSpec(samples),
+        // output intervals
+        device::PackedRaySegmentsSpec(intervals));
+
+    return {intervals, samples};
+}
+
+
+// Return batched RaySegmentsSpec because n_intervels_per_ray is same across rays.
+std::vector<RaySegmentsSpec> importance_sampling(
+    RaySegmentsSpec ray_segments,       // [..., n_edges_per_ray] or flattend
+    torch::Tensor cdfs,                 // [..., n_edges_per_ray] or flattend 
+    int64_t n_intervels_per_ray,       
+    bool stratified)  
+{
+    DEVICE_GUARD(cdfs);
+    ray_segments.check();
+    CHECK_INPUT(cdfs);
+    TORCH_CHECK(cdfs.numel() == ray_segments.edges.numel());
+
+    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+    int64_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int64_t maxGrid = 65535;
+    dim3 THREADS, BLOCKS;
+
+    // For jittering
+    auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
+        c10::nullopt, at::cuda::detail::getDefaultCUDAGenerator());
+    at::PhiloxCudaState rng_engine_inputs;
+    {
+      // See Note [Acquire lock when using random generators]
+      std::lock_guard<std::mutex> lock(gen->mutex_);
+      rng_engine_inputs = gen->philox_cuda_state(4);
+    }
+
+    RaySegmentsSpec samples, intervals;
+    if (ray_segments.edges.ndimension() > 1){  // batched input
+        auto data_size = ray_segments.edges.sizes().vec();
+        data_size.back() = n_intervels_per_ray;
+        samples.edges = torch::empty(data_size, cdfs.options());
+        data_size.back() = n_intervels_per_ray + 1;
+        intervals.edges = torch::empty(data_size, cdfs.options());
+    } else { // flattend input
+        int64_t n_rays = ray_segments.chunk_cnts.numel();
+        samples.edges = torch::empty({n_rays, n_intervels_per_ray}, cdfs.options());
+        intervals.edges = torch::empty({n_rays, n_intervels_per_ray + 1}, cdfs.options());
+    }
+    int64_t n_samples = samples.edges.numel();
+    
+    // step 1. compute the ray_ids and samples
+    THREADS = dim3(min(maxThread, n_samples));
+    BLOCKS = dim3(min(maxGrid, ceil_div<int64_t>(n_samples, THREADS.x)));
+    device::importance_sampling_kernel<<<BLOCKS, THREADS, 0, stream>>>(
+        // cdfs
+        device::PackedRaySegmentsSpec(ray_segments),
+        cdfs.data_ptr<float>(),
+        // jittering
+        stratified,
+        rng_engine_inputs,
+        // output samples
+        device::PackedRaySegmentsSpec(samples));
 
     // step 2. compute the intervals.
     device::compute_intervels_kernel<<<BLOCKS, THREADS, 0, stream>>>(

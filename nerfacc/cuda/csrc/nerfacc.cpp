@@ -54,8 +54,13 @@ RaySegmentsSpec traverse_grid(
 // pdf
 std::vector<RaySegmentsSpec> importance_sampling(
     RaySegmentsSpec ray_segments,
-    torch::Tensor cdfs,                 // [n_edges]
-    torch::Tensor n_intervels_per_ray,  // [n_rays]
+    torch::Tensor cdfs,                 
+    torch::Tensor n_intervels_per_ray,  
+    bool stratified);
+std::vector<RaySegmentsSpec> importance_sampling(
+    RaySegmentsSpec ray_segments,
+    torch::Tensor cdfs,                  
+    int64_t n_intervels_per_ray,
     bool stratified);
 
 
@@ -71,9 +76,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   _REG_FUNC(exclusive_prod_backward);
 
   _REG_FUNC(traverse_grid);
-  _REG_FUNC(importance_sampling);
-
 #undef _REG_FUNC
+
+  m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, torch::Tensor, bool>(&importance_sampling));
+  m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, int64_t, bool>(&importance_sampling));
 
   py::class_<MultiScaleGridSpec>(m, "MultiScaleGridSpec")
       .def(py::init<>())

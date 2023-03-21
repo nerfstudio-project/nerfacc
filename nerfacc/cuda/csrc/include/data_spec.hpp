@@ -42,28 +42,29 @@ struct RaysSpec {
 
 
 struct RaySegmentsSpec {
-  torch::Tensor edges;        // [n_edges]
-  torch::Tensor is_left;      // [n_edges] have n_bins true values
-  torch::Tensor is_right;     // [n_edges] have n_bins true values
+  torch::Tensor edges;        // [n_edges] or [n_rays, n_edges_per_ray]
+  // for flattened tensor
   torch::Tensor chunk_starts; // [n_rays]
   torch::Tensor chunk_cnts;   // [n_rays]
   torch::Tensor ray_ids;      // [n_edges]
+  torch::Tensor is_left;      // [n_edges] have n_bins true values
+  torch::Tensor is_right;     // [n_edges] have n_bins true values
 
   inline void check() {
     CHECK_INPUT(edges);
+    TORCH_CHECK(edges.defined());
+
+    // batched tensor [..., n_edges_per_ray]
+    if (edges.ndimension() > 1) return;
+
+    // flattend tensor [n_edges]
     CHECK_INPUT(chunk_starts);
     CHECK_INPUT(chunk_cnts);
-
-    TORCH_CHECK(edges.defined());
     TORCH_CHECK(chunk_starts.defined());
     TORCH_CHECK(chunk_cnts.defined());
-
-    TORCH_CHECK(edges.ndimension() == 1);
     TORCH_CHECK(chunk_starts.ndimension() == 1);
     TORCH_CHECK(chunk_cnts.ndimension() == 1);
-
     TORCH_CHECK(chunk_starts.numel() == chunk_cnts.numel());
-
     if (ray_ids.defined()) {
       CHECK_INPUT(ray_ids);
       TORCH_CHECK(ray_ids.ndimension() == 1);

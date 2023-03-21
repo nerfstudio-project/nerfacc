@@ -88,8 +88,8 @@ class MultiScaleGrid:
 @dataclass
 class RaySegments:
     edges: torch.Tensor
-    chunk_starts: torch.Tensor
-    chunk_cnts: torch.Tensor
+    chunk_starts: Optional[torch.Tensor] = None
+    chunk_cnts: Optional[torch.Tensor] = None
     ray_ids: Optional[torch.Tensor] = None
     is_left: Optional[torch.Tensor] = None
     is_right: Optional[torch.Tensor] = None
@@ -101,8 +101,10 @@ class RaySegments:
 
         spec = _C.RaySegmentsSpec()
         spec.edges = self.edges
-        spec.chunk_starts = self.chunk_starts
-        spec.chunk_cnts = self.chunk_cnts
+        if self.chunk_starts is not None:
+            spec.chunk_starts = self.chunk_starts
+        if self.chunk_cnts is not None:
+            spec.chunk_cnts = self.chunk_cnts
         if self.ray_ids is not None:
             spec.ray_ids = self.ray_ids
         if self.is_left is not None:
@@ -113,4 +115,4 @@ class RaySegments:
 
     @property
     def device(self) -> torch.device:
-        return self.chunk_cnts.device
+        return self.edges.device
