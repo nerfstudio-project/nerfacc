@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 #
-# File   : prop_utils.py
-# Author : Hang Gao
-# Email  : hangg.sv7@gmail.com
-# Date   : 02/19/2023
+# Author : Hang Gao, Ruilong Li
 #
 # Distributed under terms of the MIT license.
 
@@ -15,7 +12,7 @@ from ._pdf import pdf_outer
 from .data_specs import RaySegments
 from .intersection import ray_aabb_intersect
 from .pdf import importance_sampling
-from .rendering import accumulate_along_rays, render_transmittance_from_alpha
+from .rendering import accumulate_along_rays, render_weight_from_density
 
 
 def transform_stot(
@@ -117,12 +114,11 @@ def rendering(
             rgbs, sigmas = level_fn(t_starts[..., None], t_ends[..., None])
         sigmas = sigmas.squeeze(-1)
 
-        alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
         if opaque_bkgd:
-            alphas[..., -1] = 1.0
-        trans = render_transmittance_from_alpha(alphas)
-        weights = alphas * trans
-
+            sigmas[..., -1] = torch.inf
+        weights, trans, alphas = render_weight_from_density(
+            t_starts, t_ends, sigmas
+        )
         cdfs = 1.0 - torch.cat([trans, torch.zeros_like(trans[:, :1])], dim=-1)
 
         weights_per_level.append(weights)

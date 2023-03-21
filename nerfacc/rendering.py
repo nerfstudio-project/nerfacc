@@ -2,11 +2,11 @@
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 
 import torch
 
-from .scan import exclusive_prod
+from .scan import exclusive_prod, exclusive_sum
 
 
 def render_transmittance_from_alpha(
@@ -15,6 +15,9 @@ def render_transmittance_from_alpha(
     chunk_cnts: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Compute transmittance from alpha."""
+    # FIXME Try not to use exclusive_prod because:
+    # 1. torch.cumprod is much slower than torch.cumsum
+    # 2. exclusive_prod gradient on input == 0 is not correct.
     trans = exclusive_prod(1 - alphas, chunk_starts, chunk_cnts)
     return trans
 
@@ -25,22 +28,23 @@ def render_transmittance_from_density(
     sigmas: torch.Tensor,
     chunk_starts: Optional[torch.Tensor] = None,
     chunk_cnts: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor]:
     """Compute transmittance from density."""
-    alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
-    trans = render_transmittance_from_alpha(alphas, chunk_starts, chunk_cnts)
-    return trans
+    sigmas_dt = sigmas * (t_ends - t_starts)
+    alphas = 1.0 - torch.exp(-sigmas_dt)
+    trans = torch.exp(-exclusive_sum(sigmas_dt, chunk_starts, chunk_cnts))
+    return trans, alphas
 
 
 def render_weight_from_alpha(
     alphas: torch.Tensor,
     chunk_starts: Optional[torch.Tensor] = None,
     chunk_cnts: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor]:
     """Compute weights from alpha."""
     trans = render_transmittance_from_alpha(alphas, chunk_starts, chunk_cnts)
     weights = trans * alphas
-    return weights
+    return weights, trans
 
 
 def render_weight_from_density(
@@ -49,12 +53,13 @@ def render_weight_from_density(
     sigmas: torch.Tensor,
     chunk_starts: Optional[torch.Tensor] = None,
     chunk_cnts: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor]:
     """Compute transmittance from density."""
-    alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
-    trans = render_transmittance_from_alpha(alphas, chunk_starts, chunk_cnts)
+    sigmas_dt = sigmas * (t_ends - t_starts)
+    alphas = 1.0 - torch.exp(-sigmas_dt)
+    trans = torch.exp(-exclusive_sum(sigmas_dt, chunk_starts, chunk_cnts))
     weights = trans * alphas
-    return weights
+    return weights, trans, alphas
 
 
 def render_visibility_from_alpha(
@@ -66,6 +71,25 @@ def render_visibility_from_alpha(
 ) -> torch.Tensor:
     """Compute visibility from alpha."""
     trans = render_transmittance_from_alpha(alphas, chunk_starts, chunk_cnts)
+    vis = trans >= early_stop_eps
+    if alpha_thre > 0:
+        vis = vis & (alphas >= alpha_thre)
+    return vis
+
+
+def render_visibility_from_density(
+    t_starts: torch.Tensor,
+    t_ends: torch.Tensor,
+    sigmas: torch.Tensor,
+    chunk_starts: Optional[torch.Tensor] = None,
+    chunk_cnts: Optional[torch.Tensor] = None,
+    early_stop_eps: float = 1e-4,
+    alpha_thre: float = 0.0,
+) -> torch.Tensor:
+    """Compute visibility from alpha."""
+    trans, alphas = render_transmittance_from_density(
+        t_starts, t_ends, sigmas, chunk_starts, chunk_cnts
+    )
     vis = trans >= early_stop_eps
     if alpha_thre > 0:
         vis = vis & (alphas >= alpha_thre)

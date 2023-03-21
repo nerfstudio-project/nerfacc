@@ -251,7 +251,7 @@ for step in range(max_steps + 1):
                 pixels = data["pixels"]
 
                 # rendering
-                rgb, acc, depth, _, _, _, = render_image_proposal(
+                rgb, acc, depth, _, _, = render_image_proposal(
                     radiance_field,
                     proposal_networks,
                     rays,
