@@ -13,7 +13,7 @@ import torch
 import torch.nn.functional as F
 
 from .intersection import ray_aabb_intersect
-from .pdf import pdf_outer, pdf_sampling
+from ._pdf import pdf_outer, pdf_sampling
 
 
 def sample_from_weighted(

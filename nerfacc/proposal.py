@@ -4,7 +4,7 @@ import torch
 
 from .intersection import ray_aabb_intersect
 from .pack import unpack_info
-from .pdf import (
+from ._pdf import (
     compute_intervals_v2,
     importance_sampling,
     transmittance_loss_native_packed,

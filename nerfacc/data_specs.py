@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 
@@ -82,3 +83,31 @@ class MultiScaleGrid:
         mip = torch.clamp(mip, max=self.data.shape[0] - 1)
 
         return self.occupied[mip, ix[:, 0], ix[:, 1], ix[:, 2]] * selector
+
+
+@dataclass
+class RaySegments:
+    edges: torch.Tensor
+    chunk_starts: torch.Tensor
+    chunk_cnts: torch.Tensor
+    ray_ids: torch.Tensor
+    is_left: torch.Tensor
+    is_right: torch.Tensor
+
+    def _to_cpp(self):
+        """
+        Generate object to pass to C++
+        """
+
+        spec = _C.RaySegmentsSpec()
+        spec.edges = self.edges
+        spec.chunk_starts = self.chunk_starts
+        spec.chunk_cnts = self.chunk_cnts
+        spec.ray_ids = self.ray_ids
+        spec.is_left = self.is_left
+        spec.is_right = self.is_right
+        return spec
+
+    @property
+    def device(self) -> torch.device:
+        return self.chunk_cnts.device

@@ -8,7 +8,7 @@ device = "cuda:0"
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_importance_sampling():
-    from nerfacc.pdf import (
+    from nerfacc._pdf import (
         compute_intervals,
         compute_intervals_v2,
         importance_sampling,
