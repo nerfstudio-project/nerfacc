@@ -16,9 +16,8 @@ def importance_sampling(
     assert n_intervals_per_ray.dim() == 1
     assert cdfs.numel() == ray_segments.edges.numel()
     assert n_intervals_per_ray.numel() == ray_segments.chunk_cnts.numel()
-
     intervals, _ = _C.importance_sampling(
-        ray_segments,
+        ray_segments._to_cpp(),
         cdfs.contiguous(),
         n_intervals_per_ray.contiguous(),
         stratified,

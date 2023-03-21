@@ -79,9 +79,12 @@ def accumulate_along_rays(
     n_rays: Optional[int] = None,
 ) -> torch.Tensor:
     """Accumulate volumetric values along the ray."""
-    assert values.dim() == weights.dim() + 1
-    assert weights.shape == values.shape[:-1]
-    src = weights[..., None] * values
+    if values is None:
+        src = weights[..., None]
+    else:
+        assert values.dim() == weights.dim() + 1
+        assert weights.shape == values.shape[:-1]
+        src = weights[..., None] * values
     if ray_indices is not None:
         assert n_rays is not None, "n_rays must be provided"
         assert weights.dim() == 1, "weights must be flattened"

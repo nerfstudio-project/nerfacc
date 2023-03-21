@@ -20,6 +20,7 @@ is_cub_available = _make_lazy_cuda_func("is_cub_available")
 # data specs
 MultiScaleGridSpec = _make_lazy_cuda_func("MultiScaleGridSpec")
 RaysSpec = _make_lazy_cuda_func("RaysSpec")
+RaySegmentsSpec = _make_lazy_cuda_func("RaySegmentsSpec")
 
 # grid
 traverse_grid = _make_lazy_cuda_func("traverse_grid")

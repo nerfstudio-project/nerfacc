@@ -90,9 +90,9 @@ class RaySegments:
     edges: torch.Tensor
     chunk_starts: torch.Tensor
     chunk_cnts: torch.Tensor
-    ray_ids: torch.Tensor
-    is_left: torch.Tensor
-    is_right: torch.Tensor
+    ray_ids: Optional[torch.Tensor] = None
+    is_left: Optional[torch.Tensor] = None
+    is_right: Optional[torch.Tensor] = None
 
     def _to_cpp(self):
         """
@@ -103,9 +103,12 @@ class RaySegments:
         spec.edges = self.edges
         spec.chunk_starts = self.chunk_starts
         spec.chunk_cnts = self.chunk_cnts
-        spec.ray_ids = self.ray_ids
-        spec.is_left = self.is_left
-        spec.is_right = self.is_right
+        if self.ray_ids is not None:
+            spec.ray_ids = self.ray_ids
+        if self.is_left is not None:
+            spec.is_left = self.is_left
+        if self.is_right is not None:
+            spec.is_right = self.is_right
         return spec
 
     @property
