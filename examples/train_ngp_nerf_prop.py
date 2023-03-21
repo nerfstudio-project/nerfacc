@@ -21,7 +21,7 @@ from utils import (
     set_random_seed,
 )
 
-from nerfacc._proposal_packed import (
+from nerfacc._proposal import (
     compute_prop_loss,
     get_proposal_annealing_fn,
     get_proposal_requires_grad_fn,
@@ -195,14 +195,7 @@ for step in range(max_steps + 1):
     pixels = data["pixels"]
 
     # render
-    (
-        rgb,
-        acc,
-        depth,
-        Ts_per_level,
-        s_vals_per_level,
-        info_per_level,
-    ) = render_image_proposal(
+    (rgb, acc, depth, Ts_per_level, s_vals_per_level) = render_image_proposal(
         radiance_field,
         proposal_networks,
         rays,
@@ -222,9 +215,7 @@ for step in range(max_steps + 1):
 
     # compute loss
     loss = F.smooth_l1_loss(rgb, pixels)
-    loss_prop = compute_prop_loss(
-        s_vals_per_level, Ts_per_level, info_per_level
-    )
+    loss_prop = compute_prop_loss(s_vals_per_level, Ts_per_level)
     loss = loss + loss_prop
 
     optimizer.zero_grad()
