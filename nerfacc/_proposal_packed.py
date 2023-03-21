@@ -2,17 +2,11 @@ from typing import Callable, Literal, Optional, Sequence, Tuple
 
 import torch
 
+from ._pdf import transmittance_loss_native_packed
+from .data_specs import RaySegments
 from .intersection import ray_aabb_intersect
-from .pack import unpack_info
-from ._pdf import (
-    compute_intervals_v2,
-    importance_sampling,
-    transmittance_loss_native_packed,
-)
-from .vol_rendering import (
-    accumulate_along_rays,
-    render_transmittance_from_alpha,
-)
+from .pdf import importance_sampling
+from .rendering import accumulate_along_rays, render_transmittance_from_alpha
 
 
 def transform_stot(
@@ -82,20 +76,15 @@ def rendering(
     n_rays = rays_o.shape[0]
     device = rays_o.device
 
-    s_vals = torch.stack(
+    edges = torch.stack(
         [torch.zeros_like(rays_o[:, 0]), torch.ones_like(rays_o[:, 0])],
         dim=-1,
     ).flatten()
-    Ts = torch.stack(
-        [torch.ones_like(rays_o[:, 0]), torch.zeros_like(rays_o[:, 0])],
-        dim=-1,
-    ).flatten()
-    info = torch.stack(
-        [
-            torch.arange(0, n_rays * 2, 2, device=device),
-            torch.full((n_rays,), 2, device=device),
-        ],
-        dim=-1,
+    cdfs = edges.clone()
+    ray_segments = RaySegments(
+        edges=edges,
+        chunk_cnts=torch.full((n_rays,), 2, device=device),
+        chunk_starts=torch.arange(0, n_rays * 2, 2, device=device),
     )
     rgbs = None
 
@@ -109,21 +98,15 @@ def rendering(
         is_prop = level < len(prop_sigma_fns)
 
         # importance sampling
-        expected_samples_per_ray = torch.full(
+        n_intervals_per_ray = torch.full(
             (n_rays,), level_samples, device=device, dtype=torch.long
         )
-        s_mids, info_mids = importance_sampling(
-            s_vals,
-            Ts,
-            info,
-            expected_samples_per_ray,
-            stratified,
-            T_eps=0.0,
+        ray_segments = importance_sampling(
+            ray_segments, cdfs, n_intervals_per_ray, stratified
         )
-        s_vals, bins_l, bins_r, info = compute_intervals_v2(s_mids, info_mids)
-        s_0 = s_vals[bins_l]
-        s_1 = s_vals[bins_r]
-        ray_ids = unpack_info(info_mids.int(), s_mids.numel())
+        s_0 = ray_segments.edges[ray_segments.is_left]
+        s_1 = ray_segments.edges[ray_segments.is_right]
+        ray_ids = ray_segments.ray_ids[ray_segments.is_left]
 
         # network evaluation
         t_0 = transform_stot(sampling_type, s_0, t_min[ray_ids], t_max[ray_ids])
@@ -137,32 +120,37 @@ def rendering(
         alphas = 1.0 - torch.exp(-sigmas.squeeze(-1) * (t_1 - t_0))
 
         # compute light transport
-        _alphas = torch.zeros_like(s_vals)
-        _alphas[bins_l] = alphas
+        _alphas = torch.zeros_like(ray_segments.edges)
+        _alphas[ray_segments.is_left] = alphas
         if opaque_bkgd:  # hacky way
-            last_ids = torch.where(~bins_l)[0] - 1
+            last_ids = torch.where(~ray_segments.is_left)[0] - 1
             _alphas[last_ids] = 1.0
-        Ts = render_transmittance_from_alpha(
-            _alphas[:, None], packed_info=info.int()
-        ).squeeze(-1)
+        trans = render_transmittance_from_alpha(
+            _alphas, ray_segments.chunk_starts, ray_segments.chunk_cnts
+        )
+        cdfs = 1.0 - trans
 
-        Ts_per_level.append(Ts)
-        s_vals_per_level.append(s_vals)
-        info_per_level.append(info)
+        Ts_per_level.append(trans)
+        s_vals_per_level.append(ray_segments.edges)
+        info_per_level.append(
+            torch.stack(
+                [ray_segments.chunk_starts, ray_segments.chunk_cnts], dim=-1
+            )
+        )
 
     assert rgbs is not None
-    weights = (Ts[bins_l] * _alphas[bins_l])[:, None]
-    rgbs = accumulate_along_rays(weights, ray_ids, rgbs, n_rays)
-    opacities = accumulate_along_rays(weights, ray_ids, None, n_rays)
+    weights = (trans * _alphas)[ray_segments.is_left]
+    rgbs = accumulate_along_rays(weights, rgbs, ray_ids, n_rays)
+    accs = accumulate_along_rays(weights, None, ray_ids, n_rays)
     depths = accumulate_along_rays(
-        weights, ray_ids, (t_1 + t_0)[:, None] / 2.0, n_rays
-    ) / opacities.clamp_min(torch.finfo(rgbs.dtype).eps)
+        weights, (t_1 + t_0)[:, None] / 2.0, ray_ids, n_rays
+    ) / accs.clamp_min(torch.finfo(rgbs.dtype).eps)
     if render_bkgd is not None:
-        rgbs = rgbs + render_bkgd * (1.0 - opacities)
+        rgbs = rgbs + render_bkgd * (1.0 - accs)
 
     return (
         rgbs,
-        opacities,
+        accs,
         depths,
         (Ts_per_level, s_vals_per_level, info_per_level),
     )
