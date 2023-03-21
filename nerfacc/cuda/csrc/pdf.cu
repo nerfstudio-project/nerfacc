@@ -99,6 +99,9 @@ __global__ void importance_sampling_kernel(
     // cdfs
     PackedRaySegmentsSpec ray_segments,
     const float *cdfs,
+    // jittering
+    bool stratified,
+    at::PhiloxCudaState philox_args,
     // outputs
     PackedRaySegmentsSpec samples)
 {
@@ -119,7 +122,15 @@ __global__ void importance_sampling_kernel(
         float u_ceil = cdfs[last];
 
         float u_step = (u_ceil - u_floor) / n_samples;
-        float u = u_floor + (sid + 0.5f) * u_step;
+
+        float bias = 0.5f;
+        if (stratified) {
+          auto seeds = at::cuda::philox::unpack(philox_args);
+          curandStatePhilox4_32_10_t state;
+          curand_init(std::get<0>(seeds), ray_id, std::get<1>(seeds), &state);
+          bias = curand_uniform(&state);
+        }
+        float u = u_floor + (sid + bias) * u_step;
 
         // searchsorted with "right" option:
         // i.e. cdfs[p - 1] <= u < cdfs[p]
@@ -196,14 +207,14 @@ __global__ void compute_intervels_kernel(
     }
 }
 
-
 }  // namespace device
 }  // namespace
 
 std::vector<RaySegmentsSpec> importance_sampling(
     RaySegmentsSpec ray_segments,
     torch::Tensor cdfs,                 // [n_edges]
-    torch::Tensor n_intervels_per_ray)  // [n_rays]
+    torch::Tensor n_intervels_per_ray,  // [n_rays]
+    bool stratified)  
 {
     DEVICE_GUARD(cdfs);
 
@@ -223,6 +234,16 @@ std::vector<RaySegmentsSpec> importance_sampling(
     int64_t maxGrid = 65535;
     dim3 THREADS, BLOCKS;
 
+    // For jittering
+    auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
+        c10::nullopt, at::cuda::detail::getDefaultCUDAGenerator());
+    at::PhiloxCudaState rng_engine_inputs;
+    {
+      // See Note [Acquire lock when using random generators]
+      std::lock_guard<std::mutex> lock(gen->mutex_);
+      rng_engine_inputs = gen->philox_cuda_state(4);
+    }
+
     // output samples
     RaySegmentsSpec samples;
     samples.chunk_cnts = n_intervels_per_ray.to(n_intervels_per_ray.options().dtype(torch::kLong));
@@ -236,7 +257,10 @@ std::vector<RaySegmentsSpec> importance_sampling(
         // cdfs
         device::PackedRaySegmentsSpec(ray_segments),
         cdfs.data_ptr<float>(),
-        // outputs
+        // jittering
+        stratified,
+        rng_engine_inputs,
+        // output samples
         device::PackedRaySegmentsSpec(samples));
 
     // output ray segments
@@ -247,10 +271,10 @@ std::vector<RaySegmentsSpec> importance_sampling(
 
     // step 2. compute the intervals.
     device::compute_intervels_kernel<<<BLOCKS, THREADS, 0, stream>>>(
-        // cdfs
+        // samples
         device::PackedRaySegmentsSpec(ray_segments),
         device::PackedRaySegmentsSpec(samples),
-        // outputs
+        // output intervals
         device::PackedRaySegmentsSpec(intervals));
 
     return {intervals, samples};

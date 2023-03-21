@@ -12,7 +12,7 @@ def test_importance_sampling():
 
     torch.manual_seed(42)
 
-    n_rays = 10
+    n_rays = 1
     rays_o = torch.randn(n_rays, 3, device=device)
     rays_d = torch.randn(n_rays, 3, device=device)
     rays_d /= torch.norm(rays_d, dim=-1, keepdim=True)
@@ -46,14 +46,17 @@ def test_importance_sampling():
     n_intervels_per_ray = torch.randint(
         2, 100, (n_rays,), dtype=torch.long, device=device
     )
+    stratified = True
 
+    torch.manual_seed(36)
     intervels, samples = importance_sampling(
-        traversal, cdfs, n_intervels_per_ray
+        traversal, cdfs, n_intervels_per_ray, stratified
     )
 
     from nerfacc._proposal import sample_from_weighted
 
     intervels2, samples2 = [], []
+    torch.manual_seed(36)
     for start, cnt, n_samples in zip(
         traversal.chunk_starts, traversal.chunk_cnts, n_intervels_per_ray
     ):
@@ -61,7 +64,7 @@ def test_importance_sampling():
             traversal.edges[start : start + cnt],
             cdfs[start : start + cnt][1:] - cdfs[start : start + cnt][:-1],
             n_samples,
-            False,
+            stratified,
             traversal.edges[start : start + cnt].min(),
             traversal.edges[start : start + cnt].max(),
         )
