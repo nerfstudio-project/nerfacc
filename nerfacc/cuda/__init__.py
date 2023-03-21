@@ -31,3 +31,6 @@ inclusive_prod_forward = _make_lazy_cuda_func("inclusive_prod_forward")
 inclusive_prod_backward = _make_lazy_cuda_func("inclusive_prod_backward")
 exclusive_prod_forward = _make_lazy_cuda_func("exclusive_prod_forward")
 exclusive_prod_backward = _make_lazy_cuda_func("exclusive_prod_backward")
+
+# pdf
+importance_sampling = _make_lazy_cuda_func("importance_sampling")

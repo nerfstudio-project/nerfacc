@@ -51,6 +51,12 @@ torch::Tensor exclusive_prod_backward(
     torch::Tensor outputs,
     torch::Tensor grad_outputs);
 
+// pdf
+std::vector<RaySegmentsSpec> importance_sampling(
+    RaySegmentsSpec ray_segments,
+    torch::Tensor cdfs,                 // [n_edges]
+    torch::Tensor n_intervels_per_ray); // [n_rays]
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
   _REG_FUNC(is_cub_available);  // TODO: check this function
@@ -63,6 +69,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   _REG_FUNC(inclusive_prod_backward);
   _REG_FUNC(exclusive_prod_forward);
   _REG_FUNC(exclusive_prod_backward);
+
+  _REG_FUNC(importance_sampling);
 
 #undef _REG_FUNC
 

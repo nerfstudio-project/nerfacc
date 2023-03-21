@@ -65,16 +65,19 @@ struct RaySegmentsSpec {
     TORCH_CHECK(ray_ids.defined());
 
     TORCH_CHECK(edges.ndimension() == 1);
-    TORCH_CHECK(is_left.ndimension() == 1);
-    TORCH_CHECK(is_right.ndimension() == 1);
     TORCH_CHECK(chunk_starts.ndimension() == 1);
     TORCH_CHECK(chunk_cnts.ndimension() == 1);
     TORCH_CHECK(ray_ids.ndimension() == 1);
 
-    TORCH_CHECK(edges.numel() == is_left.numel());
-    TORCH_CHECK(edges.numel() == is_right.numel());
     TORCH_CHECK(edges.numel() == ray_ids.numel());
     TORCH_CHECK(chunk_starts.numel() == chunk_cnts.numel());
+
+    if (is_left.defined())
+      TORCH_CHECK(is_left.ndimension() == 1);
+      TORCH_CHECK(edges.numel() == is_left.numel());
+    if (is_right.defined())
+      TORCH_CHECK(is_right.ndimension() == 1);
+      TORCH_CHECK(edges.numel() == is_right.numel());
   }
 
   inline void memalloc_cnts(int32_t n_rays, at::TensorOptions options, bool zero_init = true) {
@@ -86,7 +89,7 @@ struct RaySegmentsSpec {
     }
   }
 
-  inline int64_t memalloc_data(bool zero_init = true) {
+  inline int64_t memalloc_data(bool alloc_masks = true, bool zero_init = true) {
     TORCH_CHECK(chunk_cnts.defined());
     TORCH_CHECK(!chunk_starts.defined());
     TORCH_CHECK(!edges.defined());
@@ -97,14 +100,18 @@ struct RaySegmentsSpec {
     chunk_starts = cumsum - chunk_cnts;
     if (zero_init) {
       edges = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kFloat32));
-      is_left = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kBool));
-      is_right = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kBool));
       ray_ids = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kLong));
+      if (alloc_masks) {
+        is_left = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kBool));
+        is_right = torch::zeros({n_edges}, chunk_cnts.options().dtype(torch::kBool));
+      }
     } else {
       edges = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kFloat32));
-      is_left = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kBool));
-      is_right = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kBool));
       ray_ids = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kLong));
+      if (alloc_masks) {
+        is_left = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kBool));
+        is_right = torch::empty({n_edges}, chunk_cnts.options().dtype(torch::kBool));
+      }
     }
     return 1;
   }
