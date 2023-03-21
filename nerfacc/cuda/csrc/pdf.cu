@@ -80,6 +80,7 @@ inline __device__ int32_t binary_search_chunk_id(
 }
 
 
+/* kernels for importance_sampling */
 __global__ void compute_ray_ids_kernel(
     const int64_t n_rays,
     const int64_t n_items,
@@ -93,7 +94,6 @@ __global__ void compute_ray_ids_kernel(
         ray_ids[tid] = binary_search_chunk_id(tid, n_rays, chunk_starts) - 1;
     }
 }
-
 
 __global__ void importance_sampling_kernel(
     // cdfs
@@ -240,8 +240,50 @@ __global__ void compute_intervels_kernel(
     }
 }
 
+
+/* kernels for searchsorted */
+__global__ void searchsorted_kernel(
+    PackedRaySegmentsSpec query,
+    PackedRaySegmentsSpec key,
+    // outputs
+    int64_t *ids_left,
+    int64_t *ids_right)
+{
+    // parallelize over outputs
+    for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < query.n_edges; tid += blockDim.x * gridDim.x)
+    {
+        int32_t ray_id;
+        if (query.is_batched) {
+            ray_id = tid / query.n_edges_per_ray;    
+        } else {
+            if (query.ray_ids == nullptr) {
+                ray_id = binary_search_chunk_id(tid, query.n_rays, query.chunk_starts) - 1;
+            } else {
+                ray_id = query.ray_ids[tid];
+            }
+        }
+
+        int64_t base, last;
+        if (key.is_batched) {
+            base = ray_id * key.n_edges_per_ray;
+            last = base + key.n_edges_per_ray - 1;
+        } else {
+            base = key.chunk_starts[ray_id];
+            last = base + key.chunk_cnts[ray_id] - 1;
+        }
+
+        // searchsorted with "right" option:
+        // i.e. key.edges[p - 1] <= query.edges[tid] < key.edges[p]
+        int64_t p = upper_bound<float>(key.edges, base, last, query.edges[tid], nullptr);
+        ids_left[tid] = max(min(p - 1, last), base);
+        ids_right[tid] = max(min(p, last), base);
+    }
+}
+
+
 }  // namespace device
 }  // namespace
+
 
 // Return flattend RaySegmentsSpec because n_intervels_per_ray is defined per ray.
 std::vector<RaySegmentsSpec> importance_sampling(
@@ -371,4 +413,39 @@ std::vector<RaySegmentsSpec> importance_sampling(
         device::PackedRaySegmentsSpec(intervals));
 
     return {intervals, samples};
+}
+
+
+// Find two indices {left, right} for each item in query,
+// such that: key.edges[left] <= query.edges < key.edges[right]
+std::vector<torch::Tensor> searchsorted(
+    RaySegmentsSpec query,
+    RaySegmentsSpec key)
+{
+    DEVICE_GUARD(query.edges);
+    query.check();
+    key.check();
+
+    // outputs
+    int64_t n_edges = query.edges.numel();
+
+    torch::Tensor ids_left = torch::empty(
+        query.edges.sizes(), query.edges.options().dtype(torch::kLong));
+    torch::Tensor ids_right = torch::empty(
+        query.edges.sizes(), query.edges.options().dtype(torch::kLong));
+
+    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+    int64_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int64_t maxGrid = 65535;
+    dim3 THREADS = dim3(min(maxThread, n_edges));
+    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int64_t>(n_edges, THREADS.x)));
+
+    device::searchsorted_kernel<<<BLOCKS, THREADS, 0, stream>>>(
+        device::PackedRaySegmentsSpec(query),
+        device::PackedRaySegmentsSpec(key),
+        // outputs
+        ids_left.data_ptr<int64_t>(),
+        ids_right.data_ptr<int64_t>());
+
+    return {ids_left, ids_right};
 }

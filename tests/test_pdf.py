@@ -89,5 +89,27 @@ def test_importance_sampling():
     assert torch.allclose(samples.edges, samples2, atol=1e-4)
 
 
+def test_searchsorted():
+    from nerfacc.data_specs import RaySegments
+    from nerfacc.pdf import searchsorted
+
+    torch.manual_seed(42)
+    query = torch.rand((100, 1000), device=device)
+    key = torch.rand((100, 2000), device=device)
+    key = torch.sort(key, -1)[0]
+
+    ids_left, ids_right = searchsorted(
+        RaySegments(edges=query), RaySegments(edges=key)
+    )
+    y = key.flatten()[ids_right]
+
+    ids_right2 = torch.searchsorted(key, query, right=True)
+    ids_right2 = torch.clamp(ids_right2, 0, key.shape[-1] - 1)
+    y2 = torch.take_along_dim(key, ids_right2, dim=-1)
+
+    assert torch.allclose(y, y2)
+
+
 if __name__ == "__main__":
-    test_importance_sampling()
+    # test_importance_sampling()
+    test_searchsorted()

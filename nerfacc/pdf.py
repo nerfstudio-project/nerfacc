@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Tuple, Union
 
 import torch
 
@@ -41,3 +41,16 @@ def importance_sampling(
         is_left=intervals.is_left,
         is_right=intervals.is_right,
     )
+
+
+def searchsorted(query: RaySegments, key: RaySegments) -> Tuple[torch.Tensor]:
+    """Searchsorted on ray segments.
+
+    To query the value with those ids, use:
+
+        key.edges.flatten()[ids_left] or key.edges.flatten()[ids_right]
+
+    Returns:
+        ids_left, ids_right: the flatten ids of in the key that contains the query.
+    """
+    return _C.searchsorted(query._to_cpp(), key._to_cpp())

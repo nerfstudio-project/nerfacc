@@ -62,7 +62,9 @@ std::vector<RaySegmentsSpec> importance_sampling(
     torch::Tensor cdfs,                  
     int64_t n_intervels_per_ray,
     bool stratified);
-
+std::vector<torch::Tensor> searchsorted(
+    RaySegmentsSpec query,
+    RaySegmentsSpec key);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
@@ -76,6 +78,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   _REG_FUNC(exclusive_prod_backward);
 
   _REG_FUNC(traverse_grid);
+  _REG_FUNC(searchsorted);
 #undef _REG_FUNC
 
   m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, torch::Tensor, bool>(&importance_sampling));
