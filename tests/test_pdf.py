@@ -110,6 +110,33 @@ def test_searchsorted():
     assert torch.allclose(y, y2)
 
 
+def test_pdf_loss():
+    from nerfacc._proposal import _lossfun_outer, pdf_loss
+    from nerfacc.data_specs import RaySegments
+
+    torch.manual_seed(42)
+
+    t = torch.rand((100, 1001), device=device)
+    t = torch.sort(t, -1)[0]
+    w = torch.rand((100, 1000), device=device)
+    t_env = torch.rand((100, 2001), device=device)
+    t_env = torch.sort(t_env, -1)[0]
+    w_env = torch.rand((100, 2000), device=device)
+
+    loss = _lossfun_outer(t, w, t_env, w_env)
+    print("loss", loss.shape, loss.sum())
+
+    cdfs = torch.cumsum(torch.cat([torch.zeros_like(w[:, :1]), w], -1), -1)
+    cdfs_env = torch.cumsum(
+        torch.cat([torch.zeros_like(w_env[:, :1]), w_env], -1), -1
+    )
+    loss2 = pdf_loss(
+        RaySegments(edges=t), cdfs, RaySegments(edges=t_env), cdfs_env
+    )
+    print("loss2", loss2.shape, loss2.sum())
+
+
 if __name__ == "__main__":
     # test_importance_sampling()
-    test_searchsorted()
+    # test_searchsorted()
+    test_pdf_loss()

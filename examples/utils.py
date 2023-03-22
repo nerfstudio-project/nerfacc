@@ -203,7 +203,7 @@ def render_image_proposal(
             rgb,
             opacity,
             depth,
-            (Ts_per_level, s_vals_per_level),
+            (cdfs_per_level, ray_segments_per_level),
         ) = rendering_proposal(
             rgb_sigma_fn=rgb_sigma_fn,
             num_samples=num_samples,
@@ -237,6 +237,6 @@ def render_image_proposal(
         colors.view((*rays_shape[:-1], -1)),
         opacities.view((*rays_shape[:-1], -1)),
         depths.view((*rays_shape[:-1], -1)),
-        Ts_per_level,
-        s_vals_per_level,
+        cdfs_per_level,
+        ray_segments_per_level,
     )

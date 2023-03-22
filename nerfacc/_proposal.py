@@ -8,11 +8,10 @@ from typing import Callable, Literal, Optional, Sequence, Tuple
 
 import torch
 
-from ._pdf import pdf_outer
 from .data_specs import RaySegments
 from .intersection import ray_aabb_intersect
-from .pdf import importance_sampling
-from .rendering import accumulate_along_rays, render_weight_from_density
+from .pdf import importance_sampling, searchsorted
+from .rendering import accumulate_along_rays, render_transmittance_from_density
 
 
 def transform_stot(
@@ -84,9 +83,10 @@ def rendering(
         ],
         dim=-1,
     )
+    ray_segments = RaySegments(edges=s_vals)
     rgbs = t_vals = None
 
-    weights_per_level, s_vals_per_level = [], []
+    cdfs_per_level, ray_segments_per_level = [], []
     for level, (level_fn, level_samples) in enumerate(
         zip(
             prop_sigma_fns + [rgb_sigma_fn],
@@ -95,12 +95,12 @@ def rendering(
     ):
         is_prop = level < len(prop_sigma_fns)
 
-        s_vals = importance_sampling(
-            RaySegments(edges=s_vals), cdfs, level_samples, stratified
-        ).edges
+        ray_segments = importance_sampling(
+            ray_segments, cdfs, level_samples, stratified
+        )
 
         t_vals = transform_stot(
-            sampling_type, s_vals, t_min[..., None], t_max[..., None]  # type: ignore
+            sampling_type, ray_segments.edges, t_min[..., None], t_max[..., None]  # type: ignore
         )
         t_starts = t_vals[..., :-1]
         t_ends = t_vals[..., 1:]
@@ -116,15 +116,16 @@ def rendering(
 
         if opaque_bkgd:
             sigmas[..., -1] = torch.inf
-        weights, trans, alphas = render_weight_from_density(
+        trans, alphas = render_transmittance_from_density(
             t_starts, t_ends, sigmas
         )
         cdfs = 1.0 - torch.cat([trans, torch.zeros_like(trans[:, :1])], dim=-1)
 
-        weights_per_level.append(weights)
-        s_vals_per_level.append(s_vals)
+        cdfs_per_level.append(cdfs)
+        ray_segments_per_level.append(ray_segments)
 
     assert rgbs is not None and t_vals is not None
+    weights = trans * alphas
     rgbs = accumulate_along_rays(weights, rgbs)
     opacities = accumulate_along_rays(weights, None)
     depths = accumulate_along_rays(
@@ -138,74 +139,51 @@ def rendering(
         rgbs,
         opacities,
         depths,
-        (weights_per_level, s_vals_per_level),
+        (cdfs_per_level, ray_segments_per_level),
     )
 
 
-def _outer(
-    t0_starts: torch.Tensor,
-    t0_ends: torch.Tensor,
-    t1_starts: torch.Tensor,
-    t1_ends: torch.Tensor,
-    y1: torch.Tensor,
+def pdf_loss(
+    segments_query: RaySegments,
+    cdfs_query: torch.Tensor,
+    segments_key: RaySegments,
+    cdfs_key: torch.Tensor,
+    eps: float = 1e-7,
 ) -> torch.Tensor:
-    """
-    Args:
-        t0_starts: (..., S0).
-        t0_ends: (..., S0).
-        t1_starts: (..., S1).
-        t1_ends: (..., S1).
-        y1: (..., S1).
-    """
-    cy1 = torch.cat(
-        [torch.zeros_like(y1[..., :1]), torch.cumsum(y1, dim=-1)], dim=-1
-    )
-
-    idx_lo = (
-        torch.searchsorted(
-            t1_starts.contiguous(), t0_starts.contiguous(), side="right"
+    ids_left, ids_right = searchsorted(segments_query, segments_key)
+    if segments_query.edges.dim() > 1:
+        w = cdfs_query[..., 1:] - cdfs_query[..., :-1]
+        ids_left = ids_left[..., :-1]
+        ids_right = ids_right[..., 1:]
+    else:
+        # TODO: not tested for this branch.
+        assert segments_query.is_left is not None
+        assert segments_query.is_right is not None
+        w = (
+            cdfs_query[segments_query.is_right]
+            - cdfs_query[segments_query.is_left]
         )
-        - 1
-    )
-    idx_lo = torch.clamp(idx_lo, min=0, max=y1.shape[-1] - 1)
-    idx_hi = torch.searchsorted(
-        t1_ends.contiguous(), t0_ends.contiguous(), side="right"
-    )
-    idx_hi = torch.clamp(idx_hi, min=0, max=y1.shape[-1] - 1)
-    cy1_lo = torch.take_along_dim(cy1[..., :-1], idx_lo, dim=-1)
-    cy1_hi = torch.take_along_dim(cy1[..., 1:], idx_hi, dim=-1)
-    y0_outer = cy1_hi - cy1_lo
+        ids_left = ids_left[segments_query.is_left]
+        ids_right = ids_right[segments_query.is_right]
 
-    return y0_outer
-
-
-def _lossfun_outer(
-    t: torch.Tensor, w: torch.Tensor, t_env: torch.Tensor, w_env: torch.Tensor
-):
-    """
-    Args:
-        t: interval edges, (..., S + 1).
-        w: weights, (..., S).
-        t_env: interval edges of the upper bound enveloping historgram, (..., S + 1).
-        w_env: weights that should upper bound the inner (t,w) histogram, (..., S).
-    """
-    eps = 1e-7  # torch.finfo(t.dtype).eps
-    w_outer = pdf_outer(t_env, w_env, None, t, None)
-    # w_outer = _outer(
-    #     t[..., :-1], t[..., 1:], t_env[..., :-1], t_env[..., 1:], w_env
-    # )
+    cdfs_key = cdfs_key.flatten()
+    w_outer = cdfs_key[ids_right] - cdfs_key[ids_left]
     return torch.clip(w - w_outer, min=0) ** 2 / (w + eps)
 
 
 def compute_prop_loss(
-    s_vals_per_level: Sequence[torch.Tensor],
-    weights_per_level: Sequence[torch.Tensor],
+    ray_segments_per_level: Sequence[RaySegments],
+    cdfs_per_level: Sequence[torch.Tensor],
 ) -> torch.Tensor:
-    c = s_vals_per_level[-1].detach()
-    w = weights_per_level[-1].detach()
+    segments_query = ray_segments_per_level[-1]
+    cdfs_query = cdfs_per_level[-1].detach()
     loss = 0.0
-    for svals, weights in zip(s_vals_per_level[:-1], weights_per_level[:-1]):
-        loss += torch.mean(_lossfun_outer(c, w, svals, weights))
+    for segments_key, cdfs_key in zip(
+        ray_segments_per_level[:-1], cdfs_per_level[:-1]
+    ):
+        loss += torch.mean(
+            pdf_loss(segments_query, cdfs_query, segments_key, cdfs_key)
+        )
     return loss
 
 
