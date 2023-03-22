@@ -258,8 +258,33 @@ __global__ void traverse_grid_kernel(
 }
 
 
+__global__ void ray_aabb_intersect_kernel(
+    float *aabb,
+    PackedRaysSpec rays, 
+    float near_plane,
+    float far_plane, 
+    // outputs
+    float *tmins,
+    float *tmaxs,
+    bool *hits)
+{
+    // parallelize over rays
+    for (int32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < rays.N; tid += blockDim.x * gridDim.x)
+    {
+        SingleRaySpec ray_spec = SingleRaySpec(rays, tid, near_plane, far_plane); 
+        AABBSpec aabb_spec = AABBSpec(aabb);
+
+        float tmin, tmax;
+        hits[tid] = device::ray_aabb_intersect(ray_spec, aabb_spec, tmin, tmax);
+        tmins[tid] = min(max(tmin, near_plane), far_plane);
+        tmaxs[tid] = min(max(tmax, near_plane), far_plane);
+    }
+}
+
+
 }  // namespace device
 }  // namespace
+
 
 RaySegmentsSpec traverse_grid(
     MultiScaleGridSpec& grid,
@@ -315,4 +340,42 @@ RaySegmentsSpec traverse_grid(
 
     cudaGetLastError();
     return ray_segments;
+}
+
+
+std::vector<torch::Tensor> ray_aabb_intersect(
+    RaysSpec& rays,
+    torch::Tensor aabb,
+    const float near_plane,
+    const float far_plane) 
+{
+    DEVICE_GUARD(rays.origins);
+    rays.check();
+    TORCH_CHECK(aabb.dim() == 1 & aabb.numel() == 6, "aabb must be a 1D tensor of length 6");
+
+    int32_t n_rays = rays.origins.size(0);
+
+    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+    int32_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int32_t maxGrid = 65535;
+    dim3 THREADS = dim3(min(maxThread, n_rays));
+    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
+
+    // outputs
+    torch::Tensor tmins = torch::zeros({n_rays}, rays.origins.options());
+    torch::Tensor tmaxs = torch::zeros({n_rays}, rays.origins.options());
+    torch::Tensor hits = torch::zeros({n_rays}, rays.origins.options().dtype(torch::kBool));
+
+    device::ray_aabb_intersect_kernel<<<BLOCKS, THREADS, 0, stream>>>(
+        aabb.data_ptr<float>(),
+        device::PackedRaysSpec(rays),
+        near_plane,
+        far_plane,
+        // outputs
+        tmins.data_ptr<float>(),
+        tmaxs.data_ptr<float>(),
+        hits.data_ptr<bool>());
+
+    cudaGetLastError();
+    return {tmins, tmaxs, hits};
 }
