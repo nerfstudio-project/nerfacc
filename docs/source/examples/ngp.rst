@@ -7,7 +7,7 @@ See code `examples/train_ngp_nerf.py` at our `github repository`_ for details.
 
 Benchmarks
 ------------
-*updated on 2023-03-14*
+*updated on 2023-03-21*
 
 Here we trained a `Instant-NGP Nerf`_ model on the `Nerf-Synthetic dataset`_. We follow the same
 settings with the Instant-NGP paper, which uses train split for training and test split for
@@ -34,9 +34,9 @@ memory footprint is about 3GB.
 +-----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
 |(training time)        | 288s  | 255s  | 247s    | 319s  | 274s  | 238s  | 247s  | 252s  | 265s  |
 +-----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
-|Ours (prop) 20k steps  | 34.06 | 34.32 | 27.93   | 34.27 | 36.47 | 31.39 | 24.39 | 30.57 | 31.68 |
+|Ours (prop) 20k steps  | 33.97 | 34.37 | 28.79   | 34.29 | 36.49 | 31.52 | 24.85 | 29.72 | 31.75 |
 +-----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
-|(training time)        | 238s  | 236s  | 250s    | 235s  | 235s  | 236s  | 236s  | 236s  | 240s  |
+|(training time)        | 230s  | 230s  | 226s    | 223s  | 227s  | 228s  | 228s  | 233s  | 228s  |
 +-----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
 
 .. _`Instant-NGP Nerf`: https://github.com/NVlabs/instant-ngp/tree/51e4107edf48338e9ab0316d56a222e0adf87143
