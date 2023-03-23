@@ -190,11 +190,10 @@ def accumulate_along_rays(
         n_rays = int(ray_indices.max()) + 1
     # assert n_rays > ray_indices.max()
 
-    index = ray_indices[:, None].expand(-1, src.shape[-1])
     outputs = torch.zeros(
         (n_rays, src.shape[-1]), device=src.device, dtype=src.dtype
     )
-    outputs.scatter_add_(0, index, src)
+    outputs.index_add_(0, ray_indices, src)
     return outputs
 
 
