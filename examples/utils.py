@@ -53,8 +53,8 @@ def render_image(
     rays: Rays,
     scene_aabb: torch.Tensor,
     # rendering options
-    near_plane: Optional[float] = None,
-    far_plane: Optional[float] = None,
+    near_plane: float = 0.0,
+    far_plane: float = 1e10,
     render_step_size: float = 1e-3,
     render_bkgd: Optional[torch.Tensor] = None,
     cone_angle: float = 0.0,

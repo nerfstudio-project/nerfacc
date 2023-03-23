@@ -31,7 +31,7 @@ torch::Tensor inclusive_sum(
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t maxGrid = 65535;
     dim3 THREADS = dim3(16, 32);
-    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
+    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.y)));
 
     torch::Tensor outputs = torch::empty_like(inputs);
     
@@ -87,7 +87,7 @@ torch::Tensor exclusive_sum(
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t maxGrid = 65535;
     dim3 THREADS = dim3(16, 32);
-    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
+    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.y)));
 
     torch::Tensor outputs = torch::empty_like(inputs);
     
@@ -139,7 +139,7 @@ torch::Tensor inclusive_prod_forward(
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t maxGrid = 65535;
     dim3 THREADS = dim3(16, 32);
-    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
+    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.y)));
 
     torch::Tensor outputs = torch::empty_like(inputs);
     
@@ -180,7 +180,7 @@ torch::Tensor inclusive_prod_backward(
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t maxGrid = 65535;
     dim3 THREADS = dim3(16, 32);
-    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
+    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.y)));
 
     torch::Tensor grad_inputs = torch::empty_like(grad_outputs);
     
@@ -223,7 +223,7 @@ torch::Tensor exclusive_prod_forward(
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t maxGrid = 65535;
     dim3 THREADS = dim3(16, 32);
-    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
+    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.y)));
 
     torch::Tensor outputs = torch::empty_like(inputs);
     
@@ -264,7 +264,7 @@ torch::Tensor exclusive_prod_backward(
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t maxGrid = 65535;
     dim3 THREADS = dim3(16, 32);
-    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
+    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.y)));
 
     torch::Tensor grad_inputs = torch::empty_like(grad_outputs);
     
