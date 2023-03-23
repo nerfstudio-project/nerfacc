@@ -1,36 +1,38 @@
 import pytest
 import torch
-
-from nerfacc import OccupancyGrid
+import tqdm
 
 device = "cuda:0"
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
-def occ_eval_fn(x: torch.Tensor) -> torch.Tensor:
-    """Pesudo occupancy function: (N, 3) -> (N, 1)."""
-    return ((x - 0.5).norm(dim=-1, keepdim=True) < 0.5).float()
+def test_ray_aabb_intersect():
+    from nerfacc.grid import ray_aabb_intersect
 
+    torch.manual_seed(42)
+    n_rays = 10000
+    n_aabbs = 100
 
-@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
-def test_occ_grid():
-    roi_aabb = [0, 0, 0, 1, 1, 1]
-    occ_grid = OccupancyGrid(roi_aabb=roi_aabb, resolution=128).to(device)
-    occ_grid.every_n_step(0, occ_eval_fn, occ_thre=0.1)
-    assert occ_grid.roi_aabb.shape == (6,)
-    assert occ_grid.binary.shape == (1, 128, 128, 128)
+    rays_o = torch.rand((n_rays, 3), device=device)
+    rays_d = torch.randn((n_rays, 3), device=device)
+    rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+    aabb_min = torch.rand((n_aabbs, 3), device=device)
+    aabb_max = aabb_min + torch.rand_like(aabb_min)
+    aabbs = torch.cat([aabb_min, aabb_max], dim=-1)
 
+    # [n_rays, n_aabbs]
+    tmins, tmaxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs)
 
-@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
-def test_query_grid():
-    roi_aabb = [0, 0, 0, 1, 1, 1]
-    occ_grid = OccupancyGrid(roi_aabb=roi_aabb, resolution=128).to(device)
-    occ_grid.every_n_step(0, occ_eval_fn, occ_thre=0.1)
-    samples = torch.rand((100, 3), device=device)
-    occs = occ_grid.query_occ(samples)
-    assert occs.shape == (100,)
+    # whether mid points are inside aabbs
+    tmids = torch.clamp((tmins + tmaxs) / 2, min=0.0)
+    points = tmids[:, :, None] * rays_d[:, None, :] + rays_o[:, None, :]
+    _hits = (
+        (points >= aabb_min[None, ...]) & (points <= aabb_max[None, ...])
+    ).all(dim=-1)
+
+    # assert correct.
+    assert torch.allclose(hits, _hits)
 
 
 if __name__ == "__main__":
-    test_occ_grid()
-    test_query_grid()
+    test_ray_aabb_intersect()
