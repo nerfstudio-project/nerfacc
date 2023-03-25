@@ -299,9 +299,9 @@ std::vector<RaySegmentsSpec> importance_sampling(
     TORCH_CHECK(cdfs.numel() == ray_segments.edges.numel());
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
-    int64_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-    int64_t maxGrid = 65535;
-    dim3 THREADS, BLOCKS;
+    int64_t max_threads = 512; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int64_t max_blocks = 65535;
+    dim3 threads, blocks;
 
     // For jittering
     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
@@ -320,9 +320,9 @@ std::vector<RaySegmentsSpec> importance_sampling(
     int64_t n_samples = samples.edges.numel();
 
     // step 1. compute the ray_ids and samples
-    THREADS = dim3(min(maxThread, n_samples));
-    BLOCKS = dim3(min(maxGrid, ceil_div<int64_t>(n_samples, THREADS.x)));
-    device::importance_sampling_kernel<<<BLOCKS, THREADS, 0, stream>>>(
+    threads = dim3(min(max_threads, n_samples));
+    blocks = dim3(min(max_blocks, ceil_div<int64_t>(n_samples, threads.x)));
+    device::importance_sampling_kernel<<<blocks, threads, 0, stream>>>(
         // cdfs
         device::PackedRaySegmentsSpec(ray_segments),
         cdfs.data_ptr<float>(),
@@ -339,7 +339,7 @@ std::vector<RaySegmentsSpec> importance_sampling(
     intervals.memalloc_data(true, false); // need the boolen masks, no need to zero init.
 
     // step 2. compute the intervals.
-    device::compute_intervels_kernel<<<BLOCKS, THREADS, 0, stream>>>(
+    device::compute_intervels_kernel<<<blocks, threads, 0, stream>>>(
         // samples
         device::PackedRaySegmentsSpec(ray_segments),
         device::PackedRaySegmentsSpec(samples),
@@ -363,9 +363,9 @@ std::vector<RaySegmentsSpec> importance_sampling(
     TORCH_CHECK(cdfs.numel() == ray_segments.edges.numel());
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
-    int64_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-    int64_t maxGrid = 65535;
-    dim3 THREADS, BLOCKS;
+    int64_t max_threads = 512; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int64_t max_blocks = 65535;
+    dim3 threads, blocks;
 
     // For jittering
     auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
@@ -392,9 +392,9 @@ std::vector<RaySegmentsSpec> importance_sampling(
     int64_t n_samples = samples.edges.numel();
     
     // step 1. compute the ray_ids and samples
-    THREADS = dim3(min(maxThread, n_samples));
-    BLOCKS = dim3(min(maxGrid, ceil_div<int64_t>(n_samples, THREADS.x)));
-    device::importance_sampling_kernel<<<BLOCKS, THREADS, 0, stream>>>(
+    threads = dim3(min(max_threads, n_samples));
+    blocks = dim3(min(max_blocks, ceil_div<int64_t>(n_samples, threads.x)));
+    device::importance_sampling_kernel<<<blocks, threads, 0, stream>>>(
         // cdfs
         device::PackedRaySegmentsSpec(ray_segments),
         cdfs.data_ptr<float>(),
@@ -405,7 +405,7 @@ std::vector<RaySegmentsSpec> importance_sampling(
         device::PackedRaySegmentsSpec(samples));
 
     // step 2. compute the intervals.
-    device::compute_intervels_kernel<<<BLOCKS, THREADS, 0, stream>>>(
+    device::compute_intervels_kernel<<<blocks, threads, 0, stream>>>(
         // samples
         device::PackedRaySegmentsSpec(ray_segments),
         device::PackedRaySegmentsSpec(samples),
@@ -435,12 +435,12 @@ std::vector<torch::Tensor> searchsorted(
         query.edges.sizes(), query.edges.options().dtype(torch::kLong));
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
-    int64_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-    int64_t maxGrid = 65535;
-    dim3 THREADS = dim3(min(maxThread, n_edges));
-    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int64_t>(n_edges, THREADS.x)));
+    int64_t max_threads = 512; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int64_t max_blocks = 65535;
+    dim3 threads = dim3(min(max_threads, n_edges));
+    dim3 blocks = dim3(min(max_blocks, ceil_div<int64_t>(n_edges, threads.x)));
 
-    device::searchsorted_kernel<<<BLOCKS, THREADS, 0, stream>>>(
+    device::searchsorted_kernel<<<blocks, threads, 0, stream>>>(
         device::PackedRaySegmentsSpec(query),
         device::PackedRaySegmentsSpec(key),
         // outputs

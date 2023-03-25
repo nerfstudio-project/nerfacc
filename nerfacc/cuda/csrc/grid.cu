@@ -27,62 +27,33 @@ inline __device__ float _calc_dt(
     return clamp(t * cone_angle, dt_min, dt_max);
 }
 
-inline __device__ void _quick_sort(
-    float *t, int *mip, int left, int right) {
-    int i = left, j = right;
-    float tmp_t;
-    int tmp_mip;
-    float pivot = t[(left + right) / 2];
- 
-    /* partition */
-    while (i <= j) {
-        while (t[i] < pivot)
-            i++;
-        while (t[j] > pivot)
-            j--;
-        if (i <= j) {
-            tmp_t = t[i];
-            t[i] = t[j];
-            t[j] = tmp_t;
-            tmp_mip = mip[i];
-            mip[i] = mip[j];
-            mip[j] = tmp_mip;
-            i++;
-            j--;
-        }
-    };
- 
-    /* recursion */
-    if (left < j)
-        _quick_sort(t, mip, left, j);
-    if (i < right)
-        _quick_sort(t, mip, i, right);
-}
-
-
-__global__ void traverse_grid_kernel(
-    PackedMultiScaleGridSpec grid, 
-    PackedRaysSpec rays, 
+__global__ void traverse_grids_kernel(
+    // rays
+    int32_t n_rays,
+    float *rays_o,  // [n_rays, 3]
+    float *rays_d,  // [n_rays, 3]
+    // grids
+    int32_t n_grids,
+    int3 resolution,
+    bool *binaries, // [n_grids, resx, resy, resz]
+    float *aabbs,   // [n_grids, 6]
+    // sorted intersections
+    bool *hits,         // [n_rays, n_grids]
+    float *t_sorted,    // [n_rays, n_grids * 2]
+    int64_t *t_indices, // [n_rays, n_grids * 2]
+    // options
     float near_plane,
-    float far_plane, 
-    // optionally do marching in grid.
+    float far_plane,
     float step_size,
     float cone_angle,
     // outputs
-    const bool first_pass,
+    bool first_pass,
     PackedRaySegmentsSpec ray_segments)
 {
     float eps = 1e-6f;
 
-    AABBSpec base_aabb = AABBSpec(grid.base_aabb);
-    float3 base_aabb_mid = (base_aabb.min + base_aabb.max) * 0.5f;
-    float3 base_aabb_half = (base_aabb.max - base_aabb.min) * 0.5f;
-
-    float3 cell_scale = base_aabb_half * 2.0f / make_float3(grid.resolution) * scalbnf(1.732f, grid.levels - 1);
-    float max_step_size = fmaxf(cell_scale.x, fmaxf(cell_scale.y, cell_scale.z));
-
     // parallelize over rays
-    for (int32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < rays.N; tid += blockDim.x * gridDim.x)
+    for (int32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_rays; tid += blockDim.x * gridDim.x)
     {
         // skip rays that are empty.
         if (!first_pass && ray_segments.chunk_cnts[tid] == 0) continue;
@@ -91,66 +62,46 @@ __global__ void traverse_grid_kernel(
         if (!first_pass)
             chunk_start = ray_segments.chunk_starts[tid];
 
-        SingleRaySpec ray = SingleRaySpec(rays, tid, near_plane, far_plane);
+        SingleRaySpec ray = SingleRaySpec(
+            rays_o + tid * 3, rays_d + tid * 3, near_plane, far_plane);
 
-        // init: compute ray aabb intersection for all levels of grid.
-        // FIXME: hardcode max level for now.
-        // Note: CUDA only support zero initialization on device.
-        float tmin[MAX_GRID_LEVELS] = {};
-        float tmax[MAX_GRID_LEVELS] = {};
-        bool hit[MAX_GRID_LEVELS] = {};
-        for (int32_t lvl = 0; lvl < grid.levels; lvl++) {
-            const float3 aabb_min = base_aabb_mid - base_aabb_half * (1 << lvl);
-            const float3 aabb_max = base_aabb_mid + base_aabb_half * (1 << lvl);
-            AABBSpec aabb = AABBSpec(aabb_min, aabb_max);
-            hit[lvl] = ray_aabb_intersect(ray, aabb, tmin[lvl], tmax[lvl]);
-            // printf(
-            //     "[ray_aabb_intersect] lvl=%lld, hit=%d, tmin=%f, tmax=%f\n", 
-            //     lvl, hit[lvl], tmin[lvl], tmax[lvl]);
-        }
+        int32_t base_hits = tid * n_grids;
+        int32_t base_t_sorted = tid * n_grids * 2;
 
-        // init: segment the rays into different mip levels and sort them.
-        float sorted_t[MAX_GRID_LEVELS * 2] = {};
-        int sorted_mip[MAX_GRID_LEVELS * 2] = {};
-        for (int lvl = 0; lvl < MAX_GRID_LEVELS; lvl++) {
-            if (!hit[lvl]) {
-                sorted_t[lvl * 2] = 1e10f;
-                sorted_t[lvl * 2 + 1] = 1e10f;
-                sorted_mip[lvl * 2] = MAX_GRID_LEVELS;
-                sorted_mip[lvl * 2 + 1] = MAX_GRID_LEVELS;     
-            } else {
-                sorted_t[lvl * 2] = tmin[lvl];
-                sorted_t[lvl * 2 + 1] = tmax[lvl];
-                // ray goes through tmin of this level means it enters this level.
-                sorted_mip[lvl * 2] = lvl;
-                // ray goes through tmax of this level means it enters next level.
-                sorted_mip[lvl * 2 + 1] = lvl + 1;
-            }
-        }
-        _quick_sort(sorted_t, sorted_mip, 0, MAX_GRID_LEVELS * 2 - 1);
-        // for (int i = 0; i < MAX_GRID_LEVELS * 2; i++) {
-        //     if (sorted_t[i] < 1e9f)
-        //         printf("[sorted], i=%d, t=%f, mip=%d\n", i, sorted_t[i], sorted_mip[i]);
-        // }
-
-        // loop over all segments along the ray.
+        // loop over all intersections along the ray.
         int64_t n_tdists_traversed = 0;
         float t_last = near_plane;
         bool continuous = false;
-        for (int32_t i = 0; i < MAX_GRID_LEVELS * 2; i++) {
-            int32_t this_mip = sorted_mip[i];
-            if (i > 0 && this_mip >= grid.levels) break; // ray is outside the grid.    
+        for (int32_t i = base_t_sorted; i < base_t_sorted + n_grids * 2 - 1; i++) {
+            // whether this is the entering or leaving for this level of grid.
+            bool is_entering = t_indices[i] < n_grids;
+            int64_t level = t_indices[i] % n_grids;
+            // printf("i=%d, level=%lld, is_entering=%d, hits=%d\n", i, level, is_entering, hits[level]);
 
-            float this_tmin = fmaxf(sorted_t[i], near_plane);
-            float this_tmax = fminf(sorted_t[i + 1], far_plane);   
-            if (this_tmin >= this_tmax) continue; // this segment is invalid. e.g. (0.0f, 0.0f)
+            if (!hits[base_hits + level]) {
+                continue; // this grid is not hit.
+            }
+            if (!is_entering) {
+                // we are leaving this grid. Are we inside the next grid?
+                bool next_is_entering = t_indices[i + 1] < n_grids;
+                if (next_is_entering) continue; // we are outside next grid.
+                level = t_indices[i + 1] % n_grids;
+                if (!hits[base_hits + level]) {
+                    continue; // this grid is not hit.
+                }
+            }
+
+            float this_tmin = fmaxf(t_sorted[i], near_plane);
+            float this_tmax = fminf(t_sorted[i + 1], far_plane);   
+            if (this_tmin >= this_tmax) continue; // this interval is invalid. e.g. (0.0f, 0.0f)
+            // printf("i=%d, this_tmin=%f, this_tmax=%f, level=%lld\n", i, this_tmin, this_tmax, level);
 
             if (!continuous) {
                 if (step_size <= 0.0f) { // march to this_tmin.
                     t_last = this_tmin;
                 } else {
                     while (true) { // march until t_mid is right after this_tmin.
-                        float dt = _calc_dt(t_last, cone_angle, step_size, max_step_size);
+                        float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
                         if (t_last + dt * 0.5f >= this_tmin) break;
                         t_last += dt;
                     }
@@ -160,16 +111,14 @@ __global__ void traverse_grid_kernel(
             //     "[traverse segment] i=%d, this_mip=%d, this_tmin=%f, this_tmax=%f\n", 
             //     i, this_mip, this_tmin, this_tmax);
 
-            const float3 aabb_min = base_aabb_mid - base_aabb_half * (1 << this_mip);
-            const float3 aabb_max = base_aabb_mid + base_aabb_half * (1 << this_mip);
-            AABBSpec aabb = AABBSpec(aabb_min, aabb_max);
+            AABBSpec aabb = AABBSpec(aabbs + level * 6);
 
             // init: pre-compute variables needed for traversal
             float3 tdist, delta;
             int3 step_index, current_index, final_index;
             setup_traversal(
                 ray, this_tmin, this_tmax, eps,
-                aabb, grid.resolution,
+                aabb, resolution,
                 // outputs
                 delta, tdist, step_index, current_index, final_index);
             // printf(
@@ -181,19 +130,19 @@ __global__ void traverse_grid_kernel(
             while (true) {
                 float t_traverse = min(tdist.x, min(tdist.y, tdist.z));
                 int64_t cell_id = (
-                    current_index.x * grid.resolution.y * grid.resolution.z
-                    + current_index.y * grid.resolution.z
+                    current_index.x * resolution.y * resolution.z
+                    + current_index.y * resolution.z
                     + current_index.z
-                    + this_mip * grid.resolution.x * grid.resolution.y * grid.resolution.z
+                    + level * resolution.x * resolution.y * resolution.z
                 );
 
-                if (!grid.occupied[cell_id]) {
+                if (!binaries[cell_id]) {
                     // skip the cell that is empty.
                     if (step_size <= 0.0f) { // march to t_traverse.
                         t_last = t_traverse;
                     } else {
                         while (true) { // march until t_mid is right after t_traverse.
-                            float dt = _calc_dt(t_last, cone_angle, step_size, max_step_size);
+                            float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
                             if (t_last + dt * 0.5f >= t_traverse) break;
                             t_last += dt;
                         }
@@ -206,7 +155,7 @@ __global__ void traverse_grid_kernel(
                         if (step_size <= 0.0f) {
                             t_next = t_traverse;
                         } else {  // march until t_mid is right after t_traverse.
-                            float dt = _calc_dt(t_last, cone_angle, step_size, max_step_size);
+                            float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
                             if (t_last + dt * 0.5f >= t_traverse) break;
                             t_next = t_last + dt;
                         }
@@ -259,25 +208,33 @@ __global__ void traverse_grid_kernel(
 
 
 __global__ void ray_aabb_intersect_kernel(
-    float *aabb,
-    PackedRaysSpec rays, 
-    float near_plane,
-    float far_plane, 
+    const int32_t n_rays, float *rays_o, float *rays_d, float near, float far,
+    const int32_t n_aabbs, float *aabbs,
     // outputs
-    float *tmins,
-    float *tmaxs,
-    bool *hits)
+    const float miss_value,
+    float *t_mins, float *t_maxs, bool *hits)
 {
+    int32_t numel = n_rays * n_aabbs;
     // parallelize over rays
-    for (int32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < rays.N; tid += blockDim.x * gridDim.x)
+    for (int32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < numel; tid += blockDim.x * gridDim.x)
     {
-        SingleRaySpec ray_spec = SingleRaySpec(rays, tid, near_plane, far_plane); 
-        AABBSpec aabb_spec = AABBSpec(aabb);
+        int32_t ray_id = tid / n_aabbs;
+        int32_t aabb_id = tid % n_aabbs;
 
-        float tmin, tmax;
-        hits[tid] = device::ray_aabb_intersect(ray_spec, aabb_spec, tmin, tmax);
-        tmins[tid] = min(max(tmin, near_plane), far_plane);
-        tmaxs[tid] = min(max(tmax, near_plane), far_plane);
+        float t_min, t_max;
+        bool hit = device::ray_aabb_intersect(
+            SingleRaySpec(rays_o + ray_id * 3, rays_d + ray_id * 3, near, far), 
+            AABBSpec(aabbs + aabb_id * 6), 
+            t_min, t_max
+        );
+        if (hit) {   
+            t_mins[tid] = t_min;
+            t_maxs[tid] = t_max;
+        } else {
+            t_mins[tid] = miss_value;
+            t_maxs[tid] = miss_value;
+        }
+        hits[tid] = hit;
     }
 }
 
@@ -286,96 +243,136 @@ __global__ void ray_aabb_intersect_kernel(
 }  // namespace
 
 
-RaySegmentsSpec traverse_grid(
-    MultiScaleGridSpec& grid,
-    RaysSpec& rays,
+RaySegmentsSpec traverse_grids(
+    // rays
+    const torch::Tensor rays_o, // [n_rays, 3]
+    const torch::Tensor rays_d, // [n_rays, 3]
+    // grids
+    const torch::Tensor binaries,  // [n_grids, resx, resy, resz]
+    const torch::Tensor aabbs,     // [n_grids, 6]
+    // intersections
+    const torch::Tensor t_mins,  // [n_rays, n_grids]
+    const torch::Tensor t_maxs,  // [n_rays, n_grids]
+    const torch::Tensor hits,    // [n_rays, n_grids]
+    // options
     const float near_plane,
     const float far_plane,
-    // optionally do marching in grid.
     const float step_size,
     const float cone_angle) 
 {
-    DEVICE_GUARD(rays.origins);
-    grid.check();
-    rays.check();  
+    DEVICE_GUARD(rays_o);
 
-    int32_t n_rays = rays.origins.size(0);
+    int32_t n_rays = rays_o.size(0);
+    int32_t n_grids = binaries.size(0);
+    int3 resolution = make_int3(binaries.size(1), binaries.size(2), binaries.size(3));
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
-    int32_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-    int32_t maxGrid = 65535;
-    dim3 THREADS = dim3(min(maxThread, n_rays));
-    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
+    int32_t max_threads = 512; 
+    int32_t max_blocks = 65535;
+    dim3 threads = dim3(min(max_threads, n_rays));
+    dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rays, threads.x)));
+
+    // Sort the intersections. [n_rays, n_grids * 2]
+    torch::Tensor t_sorted, t_indices;
+    std::tie(t_sorted, t_indices) = torch::sort(torch::cat({t_mins, t_maxs}, -1), -1);
 
     // outputs
     RaySegmentsSpec ray_segments;
 
     // first pass to count the number of segments along each ray.
-    ray_segments.memalloc_cnts(n_rays, rays.origins.options());
-    device::traverse_grid_kernel<<<BLOCKS, THREADS, 0, stream>>>(
-        device::PackedMultiScaleGridSpec(grid),
-        device::PackedRaysSpec(rays),
+    ray_segments.memalloc_cnts(n_rays, rays_o.options());
+    device::traverse_grids_kernel<<<blocks, threads, 0, stream>>>(
+        // rays
+        n_rays,
+        rays_o.data_ptr<float>(),  // [n_rays, 3]
+        rays_d.data_ptr<float>(),  // [n_rays, 3]
+        // grids
+        n_grids,
+        resolution,
+        binaries.data_ptr<bool>(), // [n_grids, resx, resy, resz]
+        aabbs.data_ptr<float>(),   // [n_grids, 6]
+        // sorted intersections
+        hits.data_ptr<bool>(),         // [n_rays, n_grids]
+        t_sorted.data_ptr<float>(),    // [n_rays, n_grids * 2]
+        t_indices.data_ptr<int64_t>(), // [n_rays, n_grids * 2]
+        // options
         near_plane,
         far_plane,
-        // optionally do marching in grid.
         step_size,
         cone_angle,
         // outputs
         true,
         device::PackedRaySegmentsSpec(ray_segments));
-
+    
     // second pass to record the segments.
     ray_segments.memalloc_data();
-    device::traverse_grid_kernel<<<BLOCKS, THREADS, 0, stream>>>(
-        device::PackedMultiScaleGridSpec(grid),
-        device::PackedRaysSpec(rays),
+    device::traverse_grids_kernel<<<blocks, threads, 0, stream>>>(
+        // rays
+        n_rays,
+        rays_o.data_ptr<float>(),  // [n_rays, 3]
+        rays_d.data_ptr<float>(),  // [n_rays, 3]
+        // grids
+        n_grids,
+        resolution,
+        binaries.data_ptr<bool>(), // [n_grids, resx, resy, resz]
+        aabbs.data_ptr<float>(),   // [n_grids, 6]
+        // sorted intersections
+        hits.data_ptr<bool>(),         // [n_rays, n_grids]
+        t_sorted.data_ptr<float>(),    // [n_rays, n_grids * 2]
+        t_indices.data_ptr<int64_t>(), // [n_rays, n_grids * 2]
+        // options
         near_plane,
         far_plane,
-        // optionally do marching in grid.
         step_size,
         cone_angle,
         // outputs
         false,
         device::PackedRaySegmentsSpec(ray_segments));
 
-    cudaGetLastError();
     return ray_segments;
 }
 
 
 std::vector<torch::Tensor> ray_aabb_intersect(
-    RaysSpec& rays,
-    torch::Tensor aabb,
+    const torch::Tensor rays_o, // [n_rays, 3]
+    const torch::Tensor rays_d, // [n_rays, 3]
+    const torch::Tensor aabbs,  // [n_aabbs, 6]
     const float near_plane,
-    const float far_plane) 
+    const float far_plane, 
+    const float miss_value)  
 {
-    DEVICE_GUARD(rays.origins);
-    rays.check();
-    TORCH_CHECK(aabb.dim() == 1 & aabb.numel() == 6, "aabb must be a 1D tensor of length 6");
+    DEVICE_GUARD(rays_o);
 
-    int32_t n_rays = rays.origins.size(0);
+    int32_t n_rays = rays_o.size(0);
+    int32_t n_aabbs = aabbs.size(0);
+    int32_t numel = n_rays * n_aabbs;
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
-    int32_t maxThread = 256; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-    int32_t maxGrid = 65535;
-    dim3 THREADS = dim3(min(maxThread, n_rays));
-    dim3 BLOCKS = dim3(min(maxGrid, ceil_div<int32_t>(n_rays, THREADS.x)));
+    int32_t max_threads = 512; 
+    int32_t max_blocks = 65535;
+    dim3 threads = dim3(min(max_threads, numel));
+    dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(numel, threads.x)));
 
     // outputs
-    torch::Tensor tmins = torch::zeros({n_rays}, rays.origins.options());
-    torch::Tensor tmaxs = torch::zeros({n_rays}, rays.origins.options());
-    torch::Tensor hits = torch::zeros({n_rays}, rays.origins.options().dtype(torch::kBool));
+    torch::Tensor t_mins = torch::empty({n_rays, n_aabbs}, rays_o.options());
+    torch::Tensor t_maxs = torch::empty({n_rays, n_aabbs}, rays_o.options());
+    torch::Tensor hits = torch::empty({n_rays, n_aabbs}, rays_d.options().dtype(torch::kBool));
 
-    device::ray_aabb_intersect_kernel<<<BLOCKS, THREADS, 0, stream>>>(
-        aabb.data_ptr<float>(),
-        device::PackedRaysSpec(rays),
+    device::ray_aabb_intersect_kernel<<<blocks, threads, 0, stream>>>(
+        // rays
+        n_rays,
+        rays_o.data_ptr<float>(),  // [n_rays, 3]
+        rays_d.data_ptr<float>(),  // [n_rays, 3]
         near_plane,
         far_plane,
+        // aabbs
+        n_aabbs,
+        aabbs.data_ptr<float>(),   // [n_aabbs, 6]
         // outputs
-        tmins.data_ptr<float>(),
-        tmaxs.data_ptr<float>(),
-        hits.data_ptr<bool>());
+        miss_value,
+        t_mins.data_ptr<float>(),   // [n_rays, n_aabbs]
+        t_maxs.data_ptr<float>(),   // [n_rays, n_aabbs]
+        hits.data_ptr<bool>());     // [n_rays, n_aabbs]
 
-    cudaGetLastError();
-    return {tmins, tmaxs, hits};
+    return {t_mins, t_maxs, hits};
 }

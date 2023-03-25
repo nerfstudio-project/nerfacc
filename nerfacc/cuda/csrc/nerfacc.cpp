@@ -42,19 +42,29 @@ torch::Tensor exclusive_prod_backward(
     torch::Tensor grad_outputs);
 
 // grid
-RaySegmentsSpec traverse_grid(
-    MultiScaleGridSpec& grid,
-    RaysSpec& rays,
+std::vector<torch::Tensor> ray_aabb_intersect(
+    const torch::Tensor rays_o, // [n_rays, 3]
+    const torch::Tensor rays_d, // [n_rays, 3]
+    const torch::Tensor aabbs,  // [n_aabbs, 6]
+    const float near_plane,
+    const float far_plane, 
+    const float miss_value);
+RaySegmentsSpec traverse_grids(
+    // rays
+    const torch::Tensor rays_o, // [n_rays, 3]
+    const torch::Tensor rays_d, // [n_rays, 3]
+    // grids
+    const torch::Tensor binaries,  // [n_grids, resx, resy, resz]
+    const torch::Tensor aabbs,     // [n_grids, 6]
+    // intersections
+    const torch::Tensor t_mins,  // [n_rays, n_grids]
+    const torch::Tensor t_maxs,  // [n_rays, n_grids]
+    const torch::Tensor hits,    // [n_rays, n_grids]
+    // options
     const float near_plane,
     const float far_plane,
-    // optionally do marching in grid.
     const float step_size,
     const float cone_angle);
-std::vector<torch::Tensor> ray_aabb_intersect(
-    RaysSpec& rays,
-    torch::Tensor aabb,
-    const float near_plane,
-    const float far_plane);
 
 // pdf
 std::vector<RaySegmentsSpec> importance_sampling(
@@ -83,7 +93,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   _REG_FUNC(exclusive_prod_backward);
 
   _REG_FUNC(ray_aabb_intersect);
-  _REG_FUNC(traverse_grid);
+  _REG_FUNC(traverse_grids);
   _REG_FUNC(searchsorted);
 #undef _REG_FUNC
 

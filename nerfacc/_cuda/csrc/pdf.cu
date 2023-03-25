@@ -207,10 +207,10 @@ torch::Tensor pdf_sampling(
   torch::Tensor ts_out = torch::full({ts.size(0), n_samples}, -1.0f, ts.options());
   int64_t numel = ts_out.numel();
 
-  int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-  int64_t maxGrid = 1024;
-  dim3 block = dim3(min(maxThread, numel));
-  dim3 grid = dim3(min(maxGrid, ceil_div<int64_t>(numel, block.x)));
+  int64_t max_threads = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+  int64_t max_blocks = 65535;
+  dim3 block = dim3(min(max_threads, numel));
+  dim3 grid = dim3(min(max_blocks, ceil_div<int64_t>(numel, block.x)));
   at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
 
   // For jittering
@@ -337,12 +337,12 @@ torch::Tensor pdf_readout(
 
   torch::Tensor weights_out = torch::empty({n_rays, n_bins_out}, weights.options());
 
-  int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-  int64_t maxGrid = 1024;
+  int64_t max_threads = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+  int64_t max_blocks = 65535;
   at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
   int64_t numel = weights_out.numel();
-  dim3 block = dim3(min(maxThread, numel));
-  dim3 grid = dim3(min(maxGrid, ceil_div<int64_t>(numel, block.x)));
+  dim3 block = dim3(min(max_threads, numel));
+  dim3 grid = dim3(min(max_blocks, ceil_div<int64_t>(numel, block.x)));
 
   AT_DISPATCH_ALL_TYPES(
       weights.scalar_type(),
@@ -492,8 +492,8 @@ std::vector<torch::Tensor> importance_sampling(
   int64_t all_samples = sdists.size(0);
   int64_t n_rays = info.size(0);
 
-  int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-  int64_t maxGrid = 1024;
+  int64_t max_threads = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+  int64_t max_blocks = 65535;
   at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
   dim3 block, grid;
 
@@ -509,8 +509,8 @@ std::vector<torch::Tensor> importance_sampling(
 
   // The first pass: count the number of samples for each ray
   torch::Tensor cnts_out = torch::zeros({n_rays}, info.options());
-  block = dim3(min(maxThread, n_rays));
-  grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+  block = dim3(min(max_threads, n_rays));
+  grid = dim3(min(max_blocks, ceil_div<int64_t>(n_rays, block.x)));
   importance_sampling_kernel_naive<<<grid, block, 0, stream>>>(
       n_rays,
       sdists.data_ptr<float>(),
@@ -531,8 +531,8 @@ std::vector<torch::Tensor> importance_sampling(
   // The second pass: allocate memory for samples
   int64_t total_samples = cnts_out.sum().item<int64_t>();
   torch::Tensor sdists_out = torch::empty({total_samples}, sdists.options());
-  block = dim3(min(maxThread, n_rays));
-  grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+  block = dim3(min(max_threads, n_rays));
+  grid = dim3(min(max_blocks, ceil_div<int64_t>(n_rays, block.x)));
   importance_sampling_kernel_naive<<<grid, block, 0, stream>>>(
       n_rays,
       sdists.data_ptr<float>(),
@@ -598,15 +598,15 @@ torch::Tensor compute_intervals(
 
     int64_t n_rays = info.size(0);
 
-    int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-    int64_t maxGrid = 1024;
+    int64_t max_threads = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int64_t max_blocks = 65535;
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     dim3 block, grid;
 
     torch::Tensor intervals = torch::empty({sdists.size(0), 2}, sdists.options());
     int64_t all_samples = sdists.numel();
-    block = dim3(min(maxThread, all_samples));
-    grid = dim3(min(maxGrid, ceil_div<int64_t>(all_samples, block.x)));
+    block = dim3(min(max_threads, all_samples));
+    grid = dim3(min(max_blocks, ceil_div<int64_t>(all_samples, block.x)));
 
     compute_intervals_kernel<<<grid, block, 0, stream>>>(
         n_rays,
@@ -729,14 +729,14 @@ std::vector<torch::Tensor> compute_intervals_v2(
 
     int64_t n_rays = info.size(0);
 
-    int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-    int64_t maxGrid = 1024;
+    int64_t max_threads = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+    int64_t max_blocks = 65535;
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     dim3 block, grid;
 
     torch::Tensor cnts_out = torch::zeros({n_rays,}, info.options());
-    block = dim3(min(maxThread, n_rays));
-    grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+    block = dim3(min(max_threads, n_rays));
+    grid = dim3(min(max_blocks, ceil_div<int64_t>(n_rays, block.x)));
 
     compute_intervals_v2_native_kernel<<<grid, block, 0, stream>>>(
         n_rays,
@@ -758,8 +758,8 @@ std::vector<torch::Tensor> compute_intervals_v2(
     torch::Tensor sdists_out = torch::empty({total_samples}, sdists.options());
     torch::Tensor masks_l_out = torch::zeros({total_samples}, sdists.options().dtype(torch::kBool));
     torch::Tensor masks_r_out = torch::zeros({total_samples}, sdists.options().dtype(torch::kBool));
-    block = dim3(min(maxThread, n_rays));
-    grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+    block = dim3(min(max_threads, n_rays));
+    grid = dim3(min(max_blocks, ceil_div<int64_t>(n_rays, block.x)));
 
     compute_intervals_v2_native_kernel<<<grid, block, 0, stream>>>(
         n_rays,
@@ -863,8 +863,8 @@ std::vector<torch::Tensor> searchsorted_packed(
 
   int64_t n_rays = info_q.size(0);
 
-  int64_t maxThread = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-  int64_t maxGrid = 1024;
+  int64_t max_threads = at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
+  int64_t max_blocks = 65535;
   at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
   dim3 block, grid;
 
@@ -872,8 +872,8 @@ std::vector<torch::Tensor> searchsorted_packed(
   // sdist_k[ids_l] <= sdist_q < sdist_k[ids_r]
   torch::Tensor ids_l = torch::empty({sdists_q.numel()}, sdists_q.options().dtype(torch::kLong));
   torch::Tensor ids_r = torch::empty({sdists_q.numel()}, sdists_q.options().dtype(torch::kLong));
-  block = dim3(min(maxThread, n_rays));
-  grid = dim3(min(maxGrid, ceil_div<int64_t>(n_rays, block.x)));
+  block = dim3(min(max_threads, n_rays));
+  grid = dim3(min(max_blocks, ceil_div<int64_t>(n_rays, block.x)));
 
   searchsorted_packed_kernel_naive<<<grid, block, 0, stream>>>(
       n_rays,

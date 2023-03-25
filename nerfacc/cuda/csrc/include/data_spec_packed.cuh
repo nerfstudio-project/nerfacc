@@ -67,6 +67,16 @@ struct PackedRaysSpec {
 };
 
 struct SingleRaySpec {
+    // TODO: check inv_dir if dir is zero.
+    __device__ SingleRaySpec(
+        float *rays_o, float *rays_d, float tmin, float tmax) :
+        origin{rays_o[0], rays_o[1], rays_o[2]},
+        dir{rays_d[0], rays_d[1], rays_d[2]},
+        inv_dir{1.0f/rays_d[0], 1.0f/rays_d[1], 1.0f/rays_d[2]},
+        tmin{tmin},
+        tmax{tmax}
+    { }
+
     __device__ SingleRaySpec(
         PackedRaysSpec& rays, int32_t id, float tmin, float tmax) :
         origin{

@@ -49,8 +49,8 @@ inline __device__ bool ray_aabb_intersect(
 
     if (tmax <= 0) return false;
 
-    // tmin = fmaxf(tmin, ray.tmin);
-    // tmax = fminf(tmax, ray.tmax);
+    tmin = fmaxf(tmin, ray.tmin);
+    tmax = fminf(tmax, ray.tmax);
     return true;
 }
 
