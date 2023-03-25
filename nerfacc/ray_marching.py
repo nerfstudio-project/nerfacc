@@ -282,8 +282,8 @@ def ray_marching(
         cone_angle,
     )
 
-    t_starts = intervals.edges[intervals.is_left, None]
-    t_ends = intervals.edges[intervals.is_right, None]
+    t_starts = intervals.edges[intervals.is_left]
+    t_ends = intervals.edges[intervals.is_right]
     ray_indices = samples.ray_ids
 
     # skip invisible space
@@ -298,11 +298,11 @@ def ray_marching(
             sigmas = sigma_fn(t_starts, t_ends, ray_indices)
             assert (
                 sigmas.shape == t_starts.shape
-            ), "sigmas must have shape of (N, 1)! Got {}".format(sigmas.shape)
+            ), "sigmas must have shape of (N,)! Got {}".format(sigmas.shape)
             masks = render_visibility_from_density(
-                t_starts=t_starts.squeeze(-1),
-                t_ends=t_ends.squeeze(-1),
-                sigmas=sigmas.squeeze(-1),
+                t_starts=t_starts,
+                t_ends=t_ends,
+                sigmas=sigmas,
                 chunk_starts=samples.chunk_starts,
                 chunk_cnts=samples.chunk_cnts,
                 early_stop_eps=early_stop_eps,
@@ -312,9 +312,9 @@ def ray_marching(
             alphas = alpha_fn(t_starts, t_ends, ray_indices)
             assert (
                 alphas.shape == t_starts.shape
-            ), "alphas must have shape of (N, 1)! Got {}".format(alphas.shape)
+            ), "alphas must have shape of (N,)! Got {}".format(alphas.shape)
             masks = render_visibility_from_alpha(
-                alphas=alphas.squeeze(-1),
+                alphas=alphas,
                 chunk_starts=samples.chunk_starts,
                 chunk_cnts=samples.chunk_cnts,
                 early_stop_eps=early_stop_eps,

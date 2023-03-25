@@ -2,11 +2,87 @@
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
 
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import torch
 
+from .pack import pack_info
 from .scan import exclusive_prod, exclusive_sum
+
+
+def rendering(
+    # ray marching results
+    t_starts: torch.Tensor,
+    t_ends: torch.Tensor,
+    ray_indices: torch.Tensor,
+    n_rays: int,
+    # radiance field
+    rgb_sigma_fn: Optional[Callable] = None,
+    rgb_alpha_fn: Optional[Callable] = None,
+    # rendering options
+    render_bkgd: Optional[torch.Tensor] = None,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Render the rays through the radience field defined by `rgb_sigma_fn`."""
+    if rgb_sigma_fn is None and rgb_alpha_fn is None:
+        raise ValueError(
+            "At least one of `rgb_sigma_fn` and `rgb_alpha_fn` should be specified."
+        )
+
+    # Query sigma/alpha and color with gradients
+    if rgb_sigma_fn is not None:
+        rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
+        sigmas = sigmas.squeeze(-1)
+        assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
+            rgbs.shape
+        )
+        assert (
+            sigmas.shape == t_starts.shape
+        ), "sigmas must have shape of (N,)! Got {}".format(sigmas.shape)
+        # Rendering: compute weights.
+        chunk_starts, chunk_cnts = pack_info(ray_indices, n_rays)
+        weights, _, _ = render_weight_from_density(
+            t_starts,
+            t_ends,
+            sigmas,
+            chunk_starts=chunk_starts,
+            chunk_cnts=chunk_cnts,
+        )
+    elif rgb_alpha_fn is not None:
+        rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
+        alphas = alphas.squeeze(-1)
+        assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
+            rgbs.shape
+        )
+        assert (
+            alphas.shape == t_starts.shape
+        ), "alphas must have shape of (N,)! Got {}".format(alphas.shape)
+        # Rendering: compute weights.
+        chunk_starts, chunk_cnts = pack_info(ray_indices, n_rays)
+        weights, _ = render_weight_from_alpha(
+            alphas,
+            chunk_starts=chunk_starts,
+            chunk_cnts=chunk_cnts,
+        )
+
+    # Rendering: accumulate rgbs, opacities, and depths along the rays.
+    colors = accumulate_along_rays(
+        weights, ray_indices=ray_indices, values=rgbs, n_rays=n_rays
+    )
+    opacities = accumulate_along_rays(
+        weights, ray_indices=ray_indices, values=None, n_rays=n_rays
+    )
+    depths = accumulate_along_rays(
+        weights,
+        ray_indices=ray_indices,
+        values=(t_starts + t_ends)[:, None] / 2.0,
+        n_rays=n_rays,
+    )
+
+    # Background composition.
+    if render_bkgd is not None:
+        colors = colors + render_bkgd * (1.0 - opacities)
+
+    return colors, opacities, depths
 
 
 def render_transmittance_from_alpha(

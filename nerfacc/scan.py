@@ -1,16 +1,17 @@
 from typing import Optional
 
 import torch
+from torch import Tensor
 
 import nerfacc.cuda as _C
 
 
 def inclusive_sum(
-    inputs: torch.Tensor,
-    chunk_starts: Optional[torch.Tensor] = None,
-    chunk_cnts: Optional[torch.Tensor] = None,
+    inputs: Tensor,
+    chunk_starts: Optional[Tensor] = None,
+    chunk_cnts: Optional[Tensor] = None,
     normalize: bool = False,
-) -> torch.Tensor:
+) -> Tensor:
     """Inclusive Sum on a Tensor."""
     if chunk_starts is None or chunk_cnts is None:
         outputs = torch.cumsum(inputs, dim=-1)
@@ -24,11 +25,11 @@ def inclusive_sum(
 
 
 def exclusive_sum(
-    inputs: torch.Tensor,
-    chunk_starts: Optional[torch.Tensor] = None,
-    chunk_cnts: Optional[torch.Tensor] = None,
+    inputs: Tensor,
+    chunk_starts: Optional[Tensor] = None,
+    chunk_cnts: Optional[Tensor] = None,
     normalize: bool = False,
-) -> torch.Tensor:
+) -> Tensor:
     """Inclusive Sum on a Tensor."""
     if chunk_starts is None or chunk_cnts is None:
         outputs = torch.cumsum(
@@ -47,10 +48,10 @@ def exclusive_sum(
 
 
 def inclusive_prod(
-    inputs: torch.Tensor,
-    chunk_starts: Optional[torch.Tensor] = None,
-    chunk_cnts: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
+    inputs: Tensor,
+    chunk_starts: Optional[Tensor] = None,
+    chunk_cnts: Optional[Tensor] = None,
+) -> Tensor:
     """Inclusive Product on a Tensor."""
     if chunk_starts is None or chunk_cnts is None:
         outputs = torch.cumprod(inputs, dim=-1)
@@ -60,10 +61,10 @@ def inclusive_prod(
 
 
 def exclusive_prod(
-    inputs: torch.Tensor,
-    chunk_starts: Optional[torch.Tensor] = None,
-    chunk_cnts: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
+    inputs: Tensor,
+    chunk_starts: Optional[Tensor] = None,
+    chunk_cnts: Optional[Tensor] = None,
+) -> Tensor:
     """Exclusive Product on a Tensor."""
     if chunk_starts is None or chunk_cnts is None:
         outputs = torch.cumprod(

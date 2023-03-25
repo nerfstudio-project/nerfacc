@@ -10,8 +10,9 @@ import torch
 from datasets.utils import Rays, namedtuple_map
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
-from nerfacc import OccupancyGrid, ray_marching, rendering
+from nerfacc import OccupancyGrid, ray_marching
 from nerfacc._proposal import rendering as rendering_proposal
+from nerfacc.rendering import rendering
 
 NERF_SYNTHETIC_SCENES = [
     "chair",
@@ -78,7 +79,7 @@ def render_image(
     def sigma_fn(t_starts, t_ends, ray_indices):
         t_origins = chunk_rays.origins[ray_indices]
         t_dirs = chunk_rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+        positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
         if timestamps is not None:
             # dnerf
             t = (
@@ -87,12 +88,12 @@ def render_image(
                 else timestamps.expand_as(positions[:, :1])
             )
             return radiance_field.query_density(positions, t)
-        return radiance_field.query_density(positions)
+        return radiance_field.query_density(positions).squeeze(-1)
 
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         t_origins = chunk_rays.origins[ray_indices]
         t_dirs = chunk_rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+        positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
         if timestamps is not None:
             # dnerf
             t = (

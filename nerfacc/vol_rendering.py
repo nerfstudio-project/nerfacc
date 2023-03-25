@@ -9,7 +9,7 @@ from torch import Tensor
 
 import nerfacc._cuda as _C
 
-from .pack import pack_info
+from ._pack import pack_info
 
 
 def rendering(

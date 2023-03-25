@@ -4,6 +4,75 @@
 
 #include <thrust/iterator/reverse_iterator.h>
 #include "include/utils_scan.cuh"
+#if CUB_SUPPORTS_SCAN_BY_KEY()
+#include <cub/cub.cuh>
+#endif
+
+
+namespace {
+namespace device {
+    
+#if CUB_SUPPORTS_SCAN_BY_KEY()
+struct Product
+{
+    template <typename T>
+    __host__ __device__ __forceinline__ T operator()(const T &a, const T &b) const { return a * b; }
+};
+
+template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT>
+inline void exclusive_sum_by_key(
+    KeysInputIteratorT keys, ValuesInputIteratorT input, ValuesOutputIteratorT output, int64_t num_items)
+{
+    TORCH_CHECK(num_items <= std::numeric_limits<int64_t>::max(),
+                "cub ExclusiveSumByKey does not support more than LONG_MAX elements");
+    CUB_WRAPPER(cub::DeviceScan::ExclusiveSumByKey, keys, input, output,
+                num_items, cub::Equality(), at::cuda::getCurrentCUDAStream());
+}
+
+template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT>
+inline void exclusive_prod_by_key(
+    KeysInputIteratorT keys, ValuesInputIteratorT input, ValuesOutputIteratorT output, int64_t num_items)
+{
+    TORCH_CHECK(num_items <= std::numeric_limits<int64_t>::max(),
+                "cub ExclusiveScanByKey does not support more than LONG_MAX elements");
+    CUB_WRAPPER(cub::DeviceScan::ExclusiveScanByKey, keys, input, output, Product(), 1.0f,
+                num_items, cub::Equality(), at::cuda::getCurrentCUDAStream());
+}
+#endif
+
+
+} // namespace device
+} // namespace
+
+
+torch::Tensor exclusive_sum_by_key(
+    torch::Tensor indices,
+    torch::Tensor inputs,
+    bool backward) 
+{
+    DEVICE_GUARD(inputs);
+
+    torch::Tensor outputs = torch::empty_like(inputs);
+    int64_t n_items = inputs.size(0);
+#if CUB_SUPPORTS_SCAN_BY_KEY()
+    if (backward)
+        device::exclusive_sum_by_key(
+            thrust::make_reverse_iterator(indices.data_ptr<int64_t>() + n_items),
+            thrust::make_reverse_iterator(inputs.data_ptr<float>() + n_items),
+            thrust::make_reverse_iterator(outputs.data_ptr<float>() + n_items),
+            n_items);
+    else
+        device::exclusive_sum_by_key(
+            indices.data_ptr<int64_t>(),
+            inputs.data_ptr<float>(),
+            outputs.data_ptr<float>(),
+            n_items);
+#else
+    std::runtime_error("CUB functions are only supported in CUDA >= 11.6.");
+#endif
+    cudaGetLastError();
+    return outputs;
+}
 
 
 torch::Tensor inclusive_sum(
