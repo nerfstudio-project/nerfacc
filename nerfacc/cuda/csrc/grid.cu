@@ -100,8 +100,8 @@ __global__ void traverse_grids_kernel(
                 if (step_size <= 0.0f) { // march to this_tmin.
                     t_last = this_tmin;
                 } else {
+                    float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
                     while (true) { // march until t_mid is right after this_tmin.
-                        float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
                         if (t_last + dt * 0.5f >= this_tmin) break;
                         t_last += dt;
                     }
@@ -141,8 +141,8 @@ __global__ void traverse_grids_kernel(
                     if (step_size <= 0.0f) { // march to t_traverse.
                         t_last = t_traverse;
                     } else {
+                        float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
                         while (true) { // march until t_mid is right after t_traverse.
-                            float dt = _calc_dt(t_last, cone_angle, step_size, 1e10f);
                             if (t_last + dt * 0.5f >= t_traverse) break;
                             t_last += dt;
                         }
@@ -274,13 +274,21 @@ RaySegmentsSpec traverse_grids(
 
     // Sort the intersections. [n_rays, n_grids * 2]
     torch::Tensor t_sorted, t_indices;
-    std::tie(t_sorted, t_indices) = torch::sort(torch::cat({t_mins, t_maxs}, -1), -1);
-
+    if (n_grids > 1) {
+        std::tie(t_sorted, t_indices) = torch::sort(torch::cat({t_mins, t_maxs}, -1), -1);
+    }
+    else {
+        t_sorted = torch::cat({t_mins, t_maxs}, -1);
+        t_indices = torch::arange(
+            0, n_grids * 2, t_mins.options().dtype(torch::kLong)
+        ).expand({n_rays, n_grids * 2}).contiguous();
+    }
+    
     // outputs
     RaySegmentsSpec ray_segments;
 
     // first pass to count the number of segments along each ray.
-    ray_segments.memalloc_cnts(n_rays, rays_o.options());
+    ray_segments.memalloc_cnts(n_rays, rays_o.options(), false);
     device::traverse_grids_kernel<<<blocks, threads, 0, stream>>>(
         // rays
         n_rays,
@@ -305,7 +313,7 @@ RaySegmentsSpec traverse_grids(
         device::PackedRaySegmentsSpec(ray_segments));
     
     // second pass to record the segments.
-    ray_segments.memalloc_data();
+    ray_segments.memalloc_data(true, false);
     device::traverse_grids_kernel<<<blocks, threads, 0, stream>>>(
         // rays
         n_rays,

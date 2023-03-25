@@ -69,7 +69,7 @@ def test_traverse_grids():
         return torch.cat([center - extent * factor, center + extent * factor])
 
     torch.manual_seed(42)
-    n_rays = 10000
+    n_rays = 1000
     n_aabbs = 8
 
     rays_o = torch.randn((n_rays, 3), device=device)
@@ -84,56 +84,57 @@ def test_traverse_grids():
     binaries = torch.rand((n_aabbs, 128, 128, 128), device=device) > 0.5
 
     ray_segments = traverse_grids(
-        rays_o, rays_d, binaries, aabbs, 0.0, 1e10, -1, 0.0
+        rays_o, rays_d, binaries, aabbs, 0.0, 1e10, 1e-3, 0.0
     )
     torch.cuda.synchronize()
-    for _ in tqdm.trange(1000):
+    for _ in tqdm.trange(100):
         ray_segments = traverse_grids(
-            rays_o, rays_d, binaries, aabbs, 0.0, 1e10, -1, 0.0
+            rays_o, rays_d, binaries, aabbs, 0.0, 1e10, 1e-2, 0.0
+        )
+        torch.cuda.synchronize()
+    print("ray_segments", ray_segments.is_left.sum())
+
+    import nerfacc._cuda as _C
+    from nerfacc.contraction import ContractionType
+    from nerfacc.intersection import ray_aabb_intersect
+
+    t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabbs[-1])
+
+    # marching with grid-based skipping
+    packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
+        # rays
+        rays_o,
+        rays_d,
+        t_min,
+        t_max,
+        # coontraction and grid
+        base_aabb.contiguous(),
+        binaries.contiguous(),
+        ContractionType.AABB.to_cpp_version(),
+        # sampling
+        1e-2,
+        0.0,
+    )
+    torch.cuda.synchronize()
+    for _ in tqdm.trange(100):
+        t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabbs[-1])
+        packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
+            # rays
+            rays_o,
+            rays_d,
+            t_min,
+            t_max,
+            # coontraction and grid
+            base_aabb.contiguous(),
+            binaries.contiguous(),
+            ContractionType.AABB.to_cpp_version(),
+            # sampling
+            1e-2,
+            0.0,
         )
         torch.cuda.synchronize()
 
-    # import nerfacc._cuda as _C
-    # from nerfacc.intersection import ray_aabb_intersect
-
-    # # marching with grid-based skipping
-    # packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
-    #     # rays
-    #     rays_o,
-    #     rays_d,
-    #     t_min.contiguous(),
-    #     t_max.contiguous(),
-    #     # coontraction and grid
-    #     grid_roi_aabb.contiguous(),
-    #     grid_binary.contiguous(),
-    #     contraction_type,
-    #     # sampling
-    #     render_step_size,
-    #     cone_angle,
-    # )
-
-    # print(ray_segments.chunk_cnts)
-    # print(ray_segments.edges[-100:].sum())
-
-    # import nerfacc.cuda as _C
-    # from nerfacc.data_specs import MultiScaleGrid, Rays
-
-    # grid = MultiScaleGrid(
-    #     data=binaries.float(), occupied=binaries, base_aabb=base_aabb
-    # )
-    # rays = Rays(rays_o, rays_d)
-
-    # torch.cuda.synchronize()
-    # _ray_segments = _C.traverse_grid(
-    #     grid._to_cpp(), rays._to_cpp(), 0.0, 1e10, -1, 0.0
-    # )
-    # for _ in tqdm.trange(1000):
-    #     _ray_segments = _C.traverse_grid(
-    #         grid._to_cpp(), rays._to_cpp(), 0.0, 1e10, -1, 0.0
-    #     )
-    #     torch.cuda.synchronize()
-    # print(ray_segments.chunk_cnts)
-    # print(_ray_segments.edges[-100:].sum())
+    print("ray_indices", ray_indices.shape)
 
 
 if __name__ == "__main__":
