@@ -9,7 +9,7 @@ import torch.nn as nn
 
 import nerfacc._cuda as _C
 
-from .contraction import ContractionType, contract_inv
+from ._contraction import ContractionType, contract_inv
 
 # TODO: check torch.scatter_reduce_
 # from torch_scatter import scatter_max

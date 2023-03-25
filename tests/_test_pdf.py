@@ -17,7 +17,7 @@ def test_importance_sampling():
         render_weight_from_density,
         sample_from_weighted,
     )
-    from nerfacc.vol_rendering import render_transmittance_from_alpha
+    from nerfacc._vol_rendering import render_transmittance_from_alpha
 
     torch.manual_seed(42)
 

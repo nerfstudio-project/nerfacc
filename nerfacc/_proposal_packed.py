@@ -4,7 +4,7 @@ import torch
 
 from ._pdf import transmittance_loss_native_packed
 from .data_specs import RaySegments
-from .intersection import ray_aabb_intersect
+from ._intersection import ray_aabb_intersect
 from .pdf import importance_sampling
 from .rendering import accumulate_along_rays, render_transmittance_from_alpha
 

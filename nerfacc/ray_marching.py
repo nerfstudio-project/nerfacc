@@ -7,9 +7,9 @@ from nerfacc.data_specs import MultiScaleGrid, Rays
 from nerfacc.grid import traverse_grids
 
 from ._grid import Grid
-from .contraction import ContractionType
-from .intersection import ray_aabb_intersect
-from .vol_rendering import render_visibility
+from ._contraction import ContractionType
+from ._intersection import ray_aabb_intersect
+from ._vol_rendering import render_visibility
 
 
 @torch.no_grad()

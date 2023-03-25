@@ -10,7 +10,7 @@ def test_render():
 
     torch.manual_seed(42)
 
-    import nerfacc.vol_rendering as _legacy
+    import nerfacc._vol_rendering as _legacy
 
     ts = torch.rand((2, 101), device=device)
     ts = torch.sort(ts, dim=-1)[0]

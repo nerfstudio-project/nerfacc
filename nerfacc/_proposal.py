@@ -9,7 +9,7 @@ from typing import Callable, Literal, Optional, Sequence, Tuple
 import torch
 
 from .data_specs import RaySegments
-from .intersection import ray_aabb_intersect
+from ._intersection import ray_aabb_intersect
 from .pdf import importance_sampling, searchsorted
 from .rendering import accumulate_along_rays, render_transmittance_from_density
 

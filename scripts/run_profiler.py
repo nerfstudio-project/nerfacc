@@ -99,7 +99,7 @@ def main():
 
     packed_info = nerfacc.pack_info(ray_indices, n_rays=batch_size)
     fn = (
-        lambda: nerfacc.vol_rendering._RenderingDensity.apply(
+        lambda: nerfacc._vol_rendering._RenderingDensity.apply(
             packed_info, t_starts, t_ends, sigmas, 0
         )
         .sum()

@@ -49,7 +49,7 @@ def test_ray_aabb_intersect():
             _ = _ray_aabb_intersect(rays_o, rays_d, aabbs)
             torch.cuda.synchronize()
 
-        from nerfacc.intersection import ray_aabb_intersect
+        from nerfacc._intersection import ray_aabb_intersect
 
         _ = ray_aabb_intersect(rays_o, rays_d, aabbs[0])
         torch.cuda.synchronize()
@@ -95,8 +95,8 @@ def test_traverse_grids():
     print(samples.edges.shape)
 
     import nerfacc._cuda as _C
-    from nerfacc.contraction import ContractionType
-    from nerfacc.intersection import ray_aabb_intersect
+    from nerfacc._contraction import ContractionType
+    from nerfacc._intersection import ray_aabb_intersect
 
     t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabbs[-1])
 
