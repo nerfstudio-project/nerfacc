@@ -52,7 +52,7 @@ def test_importance_sampling():
     stratified = True
 
     torch.manual_seed(36)
-    intervels, samples = importance_sampling(
+    intervals, samples = importance_sampling(
         traversal,
         cdfs.contiguous(),
         n_intervels_per_ray.contiguous(),
@@ -62,7 +62,7 @@ def test_importance_sampling():
     intervels3, samples3 = importance_sampling(
         traversal, cdfs.contiguous(), 100, stratified
     )
-    assert torch.allclose(intervels.edges, intervels3.edges.flatten())
+    assert torch.allclose(intervals.edges, intervels3.edges.flatten())
 
     from nerfacc._proposal import sample_from_weighted
 
@@ -85,7 +85,7 @@ def test_importance_sampling():
     intervels2 = torch.cat(intervels2)
     samples2 = torch.cat(samples2)
 
-    assert torch.allclose(intervels.edges, intervels2, atol=1e-4)
+    assert torch.allclose(intervals.edges, intervels2, atol=1e-4)
     assert torch.allclose(samples.edges, samples2, atol=1e-4)
 
 

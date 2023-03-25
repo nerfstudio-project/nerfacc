@@ -49,7 +49,7 @@ std::vector<torch::Tensor> ray_aabb_intersect(
     const float near_plane,
     const float far_plane, 
     const float miss_value);
-RaySegmentsSpec traverse_grids(
+std::vector<RaySegmentsSpec> traverse_grids(
     // rays
     const torch::Tensor rays_o, // [n_rays, 3]
     const torch::Tensor rays_d, // [n_rays, 3]
@@ -64,7 +64,9 @@ RaySegmentsSpec traverse_grids(
     const float near_plane,
     const float far_plane,
     const float step_size,
-    const float cone_angle);
+    const float cone_angle,
+    const bool compute_intervals,
+    const bool compute_samples);
 
 // pdf
 std::vector<RaySegmentsSpec> importance_sampling(

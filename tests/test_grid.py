@@ -83,16 +83,16 @@ def test_traverse_grids():
 
     binaries = torch.rand((n_aabbs, 128, 128, 128), device=device) > 0.5
 
-    ray_segments = traverse_grids(
+    _, samples = traverse_grids(
         rays_o, rays_d, binaries, aabbs, 0.0, 1e10, 1e-3, 0.0
     )
     torch.cuda.synchronize()
     for _ in tqdm.trange(100):
-        ray_segments = traverse_grids(
+        _, samples = traverse_grids(
             rays_o, rays_d, binaries, aabbs, 0.0, 1e10, 1e-2, 0.0
         )
         torch.cuda.synchronize()
-    print("ray_segments", ray_segments.is_left.sum())
+    print(samples.edges.shape)
 
     import nerfacc._cuda as _C
     from nerfacc.contraction import ContractionType

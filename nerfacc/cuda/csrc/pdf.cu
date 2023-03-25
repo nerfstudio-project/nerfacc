@@ -336,7 +336,7 @@ std::vector<RaySegmentsSpec> importance_sampling(
     RaySegmentsSpec intervals;
     intervals.chunk_cnts = (
       (samples.chunk_cnts + 1) * (samples.chunk_cnts > 0)).to(samples.chunk_cnts.options());
-    intervals.memalloc_data(true, false); // need the boolen masks, no need to zero init.
+    intervals.memalloc_data(true, true); // need the boolen masks, need to zero init.
 
     // step 2. compute the intervals.
     device::compute_intervels_kernel<<<blocks, threads, 0, stream>>>(

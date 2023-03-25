@@ -118,7 +118,7 @@ def traverse_grids(
     # Compute ray aabb intersection for all levels of grid. [n_rays, m]
     t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs)
 
-    ray_segments = _C.traverse_grids(
+    intervals, samples = _C.traverse_grids(
         # rays
         rays_o.contiguous(),  # [n_rays, 3]
         rays_d.contiguous(),  # [n_rays, 3]
@@ -134,5 +134,7 @@ def traverse_grids(
         far_plane,
         step_size,
         cone_angle,
+        True,
+        True,
     )
-    return ray_segments
+    return intervals, samples

@@ -120,16 +120,3 @@ def accumulate_along_rays(
     else:
         outputs = torch.sum(src, dim=-2)
     return outputs
-
-
-def masked_select(
-    masks: torch.Tensor, ray_indices: torch.Tensor, n_rays: int
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    assert masks.shape == ray_indices.shape
-    ray_indices_m = ray_indices[masks]
-    chunk_cnts_m = torch.zeros(
-        (n_rays), device=ray_indices.device, dtype=ray_indices.dtype
-    )
-    chunk_cnts_m.scatter_add_(0, ray_indices, masks.to(chunk_cnts_m.dtype))
-    chunk_starts_m = torch.cumsum(chunk_cnts_m, -1) - chunk_cnts_m
-    return ray_indices_m, chunk_starts_m, chunk_cnts_m

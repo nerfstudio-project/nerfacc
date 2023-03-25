@@ -231,7 +231,6 @@ def ray_marching2(
 
 
 from .rendering import (
-    masked_select,
     render_visibility_from_alpha,
     render_visibility_from_density,
 )
@@ -272,7 +271,7 @@ def ray_marching(
     aabbs = torch.stack(
         [_enlarge_aabb(grid.roi_aabb, 2**i) for i in range(grid.levels)]
     )
-    traversal = traverse_grids(
+    intervals, samples = traverse_grids(
         rays_o,
         rays_d,
         grid.binary,
@@ -283,11 +282,9 @@ def ray_marching(
         cone_angle,
     )
 
-    t_starts = traversal.edges[traversal.is_left, None]
-    t_ends = traversal.edges[traversal.is_right, None]
-    ray_indices, chunk_starts, chunk_cnts = masked_select(
-        traversal.is_left, traversal.ray_ids, rays_o.shape[0]
-    )
+    t_starts = intervals.edges[intervals.is_left, None]
+    t_ends = intervals.edges[intervals.is_right, None]
+    ray_indices = samples.ray_ids
 
     # skip invisible space
     if (alpha_thre > 0.0 or early_stop_eps > 0.0) and (
@@ -306,8 +303,8 @@ def ray_marching(
                 t_starts=t_starts.squeeze(-1),
                 t_ends=t_ends.squeeze(-1),
                 sigmas=sigmas.squeeze(-1),
-                chunk_starts=chunk_starts,
-                chunk_cnts=chunk_cnts,
+                chunk_starts=samples.chunk_starts,
+                chunk_cnts=samples.chunk_cnts,
                 early_stop_eps=early_stop_eps,
                 alpha_thre=alpha_thre,
             )
@@ -318,8 +315,8 @@ def ray_marching(
             ), "alphas must have shape of (N, 1)! Got {}".format(alphas.shape)
             masks = render_visibility_from_alpha(
                 alphas=alphas.squeeze(-1),
-                chunk_starts=chunk_starts,
-                chunk_cnts=chunk_cnts,
+                chunk_starts=samples.chunk_starts,
+                chunk_cnts=samples.chunk_cnts,
                 early_stop_eps=early_stop_eps,
                 alpha_thre=alpha_thre,
             )

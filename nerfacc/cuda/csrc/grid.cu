@@ -48,7 +48,8 @@ __global__ void traverse_grids_kernel(
     float cone_angle,
     // outputs
     bool first_pass,
-    PackedRaySegmentsSpec ray_segments)
+    PackedRaySegmentsSpec intervals,
+    PackedRaySegmentsSpec samples)
 {
     float eps = 1e-6f;
 
@@ -56,11 +57,18 @@ __global__ void traverse_grids_kernel(
     for (int32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_rays; tid += blockDim.x * gridDim.x)
     {
         // skip rays that are empty.
-        if (!first_pass && ray_segments.chunk_cnts[tid] == 0) continue;
+        if (intervals.chunk_cnts != nullptr)
+            if (!first_pass && intervals.chunk_cnts[tid] == 0) continue;
+        if (samples.chunk_cnts != nullptr)
+            if (!first_pass && samples.chunk_cnts[tid] == 0) continue;
 
-        int64_t chunk_start;
-        if (!first_pass)
-            chunk_start = ray_segments.chunk_starts[tid];
+        int64_t chunk_start, chunk_start_bin;
+        if (!first_pass) {
+            if (intervals.chunk_cnts != nullptr)
+                chunk_start = intervals.chunk_starts[tid];
+            if (samples.chunk_cnts != nullptr)
+                chunk_start_bin = samples.chunk_starts[tid];
+        }
 
         SingleRaySpec ray = SingleRaySpec(
             rays_o + tid * 3, rays_d + tid * 3, near_plane, far_plane);
@@ -69,7 +77,8 @@ __global__ void traverse_grids_kernel(
         int32_t base_t_sorted = tid * n_grids * 2;
 
         // loop over all intersections along the ray.
-        int64_t n_tdists_traversed = 0;
+        int64_t n_intervals = 0;
+        int64_t n_samples = 0;
         float t_last = near_plane;
         bool continuous = false;
         for (int32_t i = base_t_sorted; i < base_t_sorted + n_grids * 2 - 1; i++) {
@@ -159,31 +168,46 @@ __global__ void traverse_grids_kernel(
                             if (t_last + dt * 0.5f >= t_traverse) break;
                             t_next = t_last + dt;
                         }
-                        if (!continuous) {
-                            if (!first_pass) {  // left side of the intervel
-                                int64_t idx = chunk_start + n_tdists_traversed;
-                                ray_segments.edges[idx] = t_last;
-                                ray_segments.ray_ids[idx] = tid;
-                                ray_segments.is_left[idx] = true;
+
+                        // writeout the interval.
+                        if (intervals.chunk_cnts != nullptr) {
+                            if (!continuous) {
+                                if (!first_pass) {  // left side of the intervel
+                                    int64_t idx = chunk_start + n_intervals;
+                                    intervals.edges[idx] = t_last;
+                                    intervals.ray_ids[idx] = tid;
+                                    intervals.is_left[idx] = true;
+                                }
+                                n_intervals++;
+                                if (!first_pass) {  // right side of the intervel
+                                    int64_t idx = chunk_start + n_intervals;
+                                    intervals.edges[idx] = t_next;
+                                    intervals.ray_ids[idx] = tid;
+                                    intervals.is_right[idx] = true;
+                                }
+                                n_intervals++;
+                            } else {
+                                if (!first_pass) {  // right side of the intervel
+                                    int64_t idx = chunk_start + n_intervals;
+                                    intervals.edges[idx] = t_next;
+                                    intervals.ray_ids[idx] = tid;
+                                    intervals.is_left[idx - 1] = true;
+                                    intervals.is_right[idx] = true;
+                                }
+                                n_intervals++;
                             }
-                            n_tdists_traversed++;
-                            if (!first_pass) {  // right side of the intervel
-                                int64_t idx = chunk_start + n_tdists_traversed;
-                                ray_segments.edges[idx] = t_next;
-                                ray_segments.ray_ids[idx] = tid;
-                                ray_segments.is_right[idx] = true;
-                            }
-                            n_tdists_traversed++;
-                        } else {
-                            if (!first_pass) {  // right side of the intervel
-                                int64_t idx = chunk_start + n_tdists_traversed;
-                                ray_segments.edges[idx] = t_next;
-                                ray_segments.ray_ids[idx] = tid;
-                                ray_segments.is_left[idx - 1] = true;
-                                ray_segments.is_right[idx] = true;
-                            }
-                            n_tdists_traversed++;
                         }
+
+                        // writeout the sample.
+                        if (samples.chunk_cnts != nullptr) {
+                            if (!first_pass) {
+                                int64_t idx = chunk_start_bin + n_samples;
+                                samples.edges[idx] = (t_next + t_last) * 0.5f;
+                                samples.ray_ids[idx] = tid;
+                            }
+                            n_samples++;
+                        }
+
                         continuous = true;
                         t_last = t_next;
                         if (t_next >= t_traverse) break;
@@ -201,8 +225,12 @@ __global__ void traverse_grids_kernel(
             }
         }
         
-        if (first_pass)
-            ray_segments.chunk_cnts[tid] = n_tdists_traversed;
+        if (first_pass) {
+            if (intervals.chunk_cnts != nullptr)
+                intervals.chunk_cnts[tid] = n_intervals;
+            if (samples.chunk_cnts != nullptr)
+                samples.chunk_cnts[tid] = n_samples;
+        }
     }
 }
 
@@ -243,7 +271,7 @@ __global__ void ray_aabb_intersect_kernel(
 }  // namespace
 
 
-RaySegmentsSpec traverse_grids(
+std::vector<RaySegmentsSpec> traverse_grids(
     // rays
     const torch::Tensor rays_o, // [n_rays, 3]
     const torch::Tensor rays_d, // [n_rays, 3]
@@ -258,7 +286,9 @@ RaySegmentsSpec traverse_grids(
     const float near_plane,
     const float far_plane,
     const float step_size,
-    const float cone_angle) 
+    const float cone_angle,
+    const bool compute_intervals,
+    const bool compute_samples) 
 {
     DEVICE_GUARD(rays_o);
 
@@ -285,10 +315,13 @@ RaySegmentsSpec traverse_grids(
     }
     
     // outputs
-    RaySegmentsSpec ray_segments;
+    RaySegmentsSpec intervals, samples;
 
     // first pass to count the number of segments along each ray.
-    ray_segments.memalloc_cnts(n_rays, rays_o.options(), false);
+    if (compute_intervals)
+        intervals.memalloc_cnts(n_rays, rays_o.options(), false);
+    if (compute_samples)
+        samples.memalloc_cnts(n_rays, rays_o.options(), false);
     device::traverse_grids_kernel<<<blocks, threads, 0, stream>>>(
         // rays
         n_rays,
@@ -310,10 +343,14 @@ RaySegmentsSpec traverse_grids(
         cone_angle,
         // outputs
         true,
-        device::PackedRaySegmentsSpec(ray_segments));
+        device::PackedRaySegmentsSpec(intervals),
+        device::PackedRaySegmentsSpec(samples));
     
     // second pass to record the segments.
-    ray_segments.memalloc_data(true, false);
+    if (compute_intervals)
+        intervals.memalloc_data(true, true);
+    if (compute_samples)
+        samples.memalloc_data(false, false);
     device::traverse_grids_kernel<<<blocks, threads, 0, stream>>>(
         // rays
         n_rays,
@@ -335,9 +372,10 @@ RaySegmentsSpec traverse_grids(
         cone_angle,
         // outputs
         false,
-        device::PackedRaySegmentsSpec(ray_segments));
+        device::PackedRaySegmentsSpec(intervals),
+        device::PackedRaySegmentsSpec(samples));
 
-    return ray_segments;
+    return {intervals, samples};
 }
 
 
