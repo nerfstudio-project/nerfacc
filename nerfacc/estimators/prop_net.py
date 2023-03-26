@@ -57,7 +57,6 @@ class ProposalNet(AbstractTransEstimator):
             t_ends = t_vals[..., 1:]
 
             with torch.set_grad_enabled(requires_grid):
-                # (N, S, 1).
                 sigmas = level_fn(t_starts, t_ends)
                 assert sigmas.shape == t_starts.shape
                 trans, _ = render_transmittance_from_density(
