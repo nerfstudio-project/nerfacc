@@ -13,7 +13,7 @@ import torch
 import torch.nn.functional as F
 import tqdm
 from radiance_fields.mlp import VanillaNeRFRadianceField
-from utils import render_image, set_random_seed
+from examples._utils import render_image, set_random_seed
 
 from nerfacc import ContractionType, OccupancyGrid
 

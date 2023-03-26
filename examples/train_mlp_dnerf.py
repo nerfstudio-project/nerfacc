@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import tqdm
 from datasets.dnerf_synthetic import SubjectLoader
 from radiance_fields.mlp import DNeRFRadianceField
-from utils import render_image, set_random_seed
+from examples._utils import render_image, set_random_seed
 
 from nerfacc import OccupancyGrid
 

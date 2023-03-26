@@ -73,7 +73,7 @@ def main():
     rays_d = torch.randn((batch_size, 3), device=device)
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
-    ray_indices, t_starts, t_ends = nerfacc.ray_marching(
+    ray_indices, t_starts, t_ends = nerfacc._ray_marching(
         rays_o,
         rays_d,
         near_plane=0.1,

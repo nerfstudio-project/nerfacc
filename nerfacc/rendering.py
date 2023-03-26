@@ -14,8 +14,8 @@ def rendering(
     # ray marching results
     t_starts: torch.Tensor,
     t_ends: torch.Tensor,
-    ray_indices: torch.Tensor,
-    n_rays: int,
+    ray_indices: Optional[torch.Tensor] = None,
+    n_rays: Optional[int] = None,
     # radiance field
     rgb_sigma_fn: Optional[Callable] = None,
     rgb_alpha_fn: Optional[Callable] = None,
@@ -30,7 +30,10 @@ def rendering(
 
     # Query sigma/alpha and color with gradients
     if rgb_sigma_fn is not None:
-        rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
+        if ray_indices is not None:
+            rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
+        else:
+            rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends)
         sigmas = sigmas.squeeze(-1)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
@@ -39,8 +42,11 @@ def rendering(
             sigmas.shape == t_starts.shape
         ), "sigmas must have shape of (N,)! Got {}".format(sigmas.shape)
         # Rendering: compute weights.
-        chunk_starts, chunk_cnts = pack_info(ray_indices, n_rays)
-        weights, _, _ = render_weight_from_density(
+        if ray_indices is not None:
+            chunk_starts, chunk_cnts = pack_info(ray_indices, n_rays)
+        else:
+            chunk_starts, chunk_cnts = None, None
+        weights, trans, _ = render_weight_from_density(
             t_starts,
             t_ends,
             sigmas,
@@ -48,7 +54,10 @@ def rendering(
             chunk_cnts=chunk_cnts,
         )
     elif rgb_alpha_fn is not None:
-        rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
+        if ray_indices is not None:
+            rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
+        else:
+            rgbs, alphas = rgb_alpha_fn(t_starts, t_ends)
         alphas = alphas.squeeze(-1)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
@@ -57,8 +66,11 @@ def rendering(
             alphas.shape == t_starts.shape
         ), "alphas must have shape of (N,)! Got {}".format(alphas.shape)
         # Rendering: compute weights.
-        chunk_starts, chunk_cnts = pack_info(ray_indices, n_rays)
-        weights, _ = render_weight_from_alpha(
+        if ray_indices is not None:
+            chunk_starts, chunk_cnts = pack_info(ray_indices, n_rays)
+        else:
+            chunk_starts, chunk_cnts = None, None
+        weights, trans = render_weight_from_alpha(
             alphas,
             chunk_starts=chunk_starts,
             chunk_cnts=chunk_cnts,
@@ -74,7 +86,7 @@ def rendering(
     depths = accumulate_along_rays(
         weights,
         ray_indices=ray_indices,
-        values=(t_starts + t_ends)[:, None] / 2.0,
+        values=(t_starts + t_ends)[..., None] / 2.0,
         n_rays=n_rays,
     )
 
@@ -82,7 +94,7 @@ def rendering(
     if render_bkgd is not None:
         colors = colors + render_bkgd * (1.0 - opacities)
 
-    return colors, opacities, depths
+    return colors, opacities, depths, trans
 
 
 def render_transmittance_from_alpha(

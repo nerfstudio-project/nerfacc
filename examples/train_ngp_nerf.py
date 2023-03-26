@@ -14,15 +14,14 @@ import torch.nn.functional as F
 import tqdm
 from lpips import LPIPS
 from radiance_fields.ngp import NGPRadianceField
-from utils import (
+
+from examples.utils import (
     MIPNERF360_UNBOUNDED_SCENES,
     NERF_SYNTHETIC_SCENES,
-    enlarge_aabb,
-    render_image,
+    render_image_with_occgrid,
     set_random_seed,
 )
-
-from nerfacc import OccupancyGrid
+from nerfacc.estimators.occ_grid import OccupancyGrid
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -122,12 +121,13 @@ test_dataset = SubjectLoader(
     **test_dataset_kwargs,
 )
 
-# setup scene aabb
-scene_aabb = enlarge_aabb(aabb, 1 << (grid_nlvl - 1))
+estimator = OccupancyGrid(
+    roi_aabb=aabb, resolution=grid_resolution, levels=grid_nlvl
+).to(device)
 
 # setup the radiance field we want to train.
 grad_scaler = torch.cuda.amp.GradScaler(2**10)
-radiance_field = NGPRadianceField(aabb=scene_aabb).to(device)
+radiance_field = NGPRadianceField(aabb=estimator.aabbs[-1]).to(device)
 optimizer = torch.optim.Adam(
     radiance_field.parameters(), lr=1e-2, eps=1e-15, weight_decay=weight_decay
 )
@@ -147,10 +147,6 @@ scheduler = torch.optim.lr_scheduler.ChainedScheduler(
         ),
     ]
 )
-occupancy_grid = OccupancyGrid(
-    roi_aabb=aabb, resolution=grid_resolution, levels=grid_nlvl
-).to(device)
-
 lpips_net = LPIPS(net="vgg").to(device)
 lpips_norm_fn = lambda x: x[None, ...].permute(0, 3, 1, 2) * 2 - 1
 lpips_fn = lambda x, y: lpips_net(lpips_norm_fn(x), lpips_norm_fn(y)).mean()
@@ -172,18 +168,17 @@ for step in range(max_steps + 1):
         return density * render_step_size
 
     # update occupancy grid
-    occupancy_grid.every_n_step(
+    estimator.update_every_n_steps(
         step=step,
         occ_eval_fn=occ_eval_fn,
         occ_thre=1e-2,
     )
 
     # render
-    rgb, acc, depth, n_rendering_samples = render_image(
+    rgb, acc, depth, n_rendering_samples = render_image_with_occgrid(
         radiance_field,
-        occupancy_grid,
+        estimator,
         rays,
-        scene_aabb=scene_aabb,
         # rendering options
         near_plane=near_plane,
         render_step_size=render_step_size,
@@ -236,11 +231,10 @@ for step in range(max_steps + 1):
                 pixels = data["pixels"]
 
                 # rendering
-                rgb, acc, depth, _ = render_image(
+                rgb, acc, depth, _ = render_image_with_occgrid(
                     radiance_field,
-                    occupancy_grid,
+                    estimator,
                     rays,
-                    scene_aabb=scene_aabb,
                     # rendering options
                     near_plane=near_plane,
                     render_step_size=render_step_size,

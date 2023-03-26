@@ -5,7 +5,7 @@ from ._contraction import ContractionType, contract, contract_inv
 from ._grid import Grid, OccupancyGrid, query_grid
 from ._intersection import ray_aabb_intersect
 from ._pack import pack_data, pack_info, unpack_data, unpack_info
-from .ray_marching import ray_marching
+from ._ray_marching import ray_marching
 from .version import __version__
 from ._vol_rendering import (
     accumulate_along_rays,
@@ -29,7 +29,7 @@ __all__ = [
     "contract_inv",
     # marching
     "ray_aabb_intersect",
-    "ray_marching",
+    "_ray_marching",
     # rendering
     "accumulate_along_rays",
     "render_visibility",
