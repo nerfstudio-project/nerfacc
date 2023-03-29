@@ -96,11 +96,11 @@ def traverse_grids(
     # rays
     rays_o: Tensor,  # [n_rays, 3]
     rays_d: Tensor,  # [n_rays, 3]
+    near_planes: Tensor,  # [n_rays]
+    far_planes: Tensor,  # [n_rays]
     # grids
     binaries: Tensor,  # [m, resx, resy, resz]
     aabbs: Tensor,  # [m, 6]
-    near_plane: float,
-    far_plane: float,
     # options
     step_size: float,
     cone_angle: float,
@@ -130,8 +130,8 @@ def traverse_grids(
         t_maxs.contiguous(),  # [n_rays, m]
         hits.contiguous(),  # [n_rays, m]
         # options
-        near_plane,
-        far_plane,
+        near_planes.contiguous(),  # [n_rays]
+        far_planes.contiguous(),  # [n_rays]
         step_size,
         cone_angle,
         True,

@@ -42,8 +42,8 @@ __global__ void traverse_grids_kernel(
     float *t_sorted,    // [n_rays, n_grids * 2]
     int64_t *t_indices, // [n_rays, n_grids * 2]
     // options
-    float near_plane,
-    float far_plane,
+    float *near_planes,
+    float *far_planes,
     float step_size,
     float cone_angle,
     // outputs
@@ -69,6 +69,8 @@ __global__ void traverse_grids_kernel(
             if (samples.chunk_cnts != nullptr)
                 chunk_start_bin = samples.chunk_starts[tid];
         }
+        float near_plane = near_planes[tid];
+        float far_plane = far_planes[tid];
 
         SingleRaySpec ray = SingleRaySpec(
             rays_o + tid * 3, rays_d + tid * 3, near_plane, far_plane);
@@ -283,8 +285,8 @@ std::vector<RaySegmentsSpec> traverse_grids(
     const torch::Tensor t_maxs,  // [n_rays, n_grids]
     const torch::Tensor hits,    // [n_rays, n_grids]
     // options
-    const float near_plane,
-    const float far_plane,
+    const torch::Tensor near_planes,
+    const torch::Tensor far_planes,
     const float step_size,
     const float cone_angle,
     const bool compute_intervals,
@@ -337,8 +339,8 @@ std::vector<RaySegmentsSpec> traverse_grids(
         t_sorted.data_ptr<float>(),    // [n_rays, n_grids * 2]
         t_indices.data_ptr<int64_t>(), // [n_rays, n_grids * 2]
         // options
-        near_plane,
-        far_plane,
+        near_planes.data_ptr<float>(), // [n_rays]
+        far_planes.data_ptr<float>(),  // [n_rays]
         step_size,
         cone_angle,
         // outputs
@@ -366,8 +368,8 @@ std::vector<RaySegmentsSpec> traverse_grids(
         t_sorted.data_ptr<float>(),    // [n_rays, n_grids * 2]
         t_indices.data_ptr<int64_t>(), // [n_rays, n_grids * 2]
         // options
-        near_plane,
-        far_plane,
+        near_planes.data_ptr<float>(), // [n_rays]
+        far_planes.data_ptr<float>(),  // [n_rays]
         step_size,
         cone_angle,
         // outputs

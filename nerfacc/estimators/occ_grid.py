@@ -90,21 +90,25 @@ class OccupancyGrid(AbstractTransEstimator):
         stratified: bool = False,
         cone_angle: float = 0.0,
     ) -> Tuple[Tensor, Tensor, Tensor]:
+        near_planes = torch.full_like(rays_o[..., 0], fill_value=near_plane)
+        far_planes = torch.full_like(rays_o[..., 0], fill_value=far_plane)
         if stratified:
-            near_plane += torch.rand(()).item() * render_step_size
+            near_planes += torch.rand_like(near_planes) * render_step_size
         intervals, samples = traverse_grids(
             rays_o,
             rays_d,
+            near_planes,
+            far_planes,
             self.binaries,
             self.aabbs,
-            near_plane,
-            far_plane,
             render_step_size,
             cone_angle,
         )
         t_starts = intervals.edges[intervals.is_left]
         t_ends = intervals.edges[intervals.is_right]
         ray_indices = samples.ray_ids
+        chunk_starts = samples.chunk_starts
+        chunk_cnts = samples.chunk_cnts
 
         # skip invisible space
         if (alpha_thre > 0.0 or early_stop_eps > 0.0) and (
@@ -122,8 +126,8 @@ class OccupancyGrid(AbstractTransEstimator):
                     t_starts=t_starts,
                     t_ends=t_ends,
                     sigmas=sigmas,
-                    chunk_starts=samples.chunk_starts,
-                    chunk_cnts=samples.chunk_cnts,
+                    chunk_starts=chunk_starts,
+                    chunk_cnts=chunk_cnts,
                     early_stop_eps=early_stop_eps,
                     alpha_thre=alpha_thre,
                 )
@@ -134,8 +138,8 @@ class OccupancyGrid(AbstractTransEstimator):
                 ), "alphas must have shape of (N,)! Got {}".format(alphas.shape)
                 masks = render_visibility_from_alpha(
                     alphas=alphas,
-                    chunk_starts=samples.chunk_starts,
-                    chunk_cnts=samples.chunk_cnts,
+                    chunk_starts=chunk_starts,
+                    chunk_cnts=chunk_cnts,
                     early_stop_eps=early_stop_eps,
                     alpha_thre=alpha_thre,
                 )

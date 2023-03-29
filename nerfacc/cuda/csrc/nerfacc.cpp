@@ -66,8 +66,8 @@ std::vector<RaySegmentsSpec> traverse_grids(
     const torch::Tensor t_maxs,  // [n_rays, n_grids]
     const torch::Tensor hits,    // [n_rays, n_grids]
     // options
-    const float near_plane,
-    const float far_plane,
+    const torch::Tensor near_planes,
+    const torch::Tensor far_planes,
     const float step_size,
     const float cone_angle,
     const bool compute_intervals,

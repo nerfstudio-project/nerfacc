@@ -65,7 +65,7 @@ if args.scene in MIPNERF360_UNBOUNDED_SCENES:
     weight_decay = 0.0
     # scene parameters
     aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device)
-    near_plane = 0.02
+    near_plane = 0.2
     far_plane = 1.0e10
     # dataset parameters
     train_dataset_kwargs = {"color_bkgd_aug": "random", "factor": 4}
