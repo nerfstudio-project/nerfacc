@@ -155,6 +155,7 @@ lpips_fn = lambda x, y: lpips_net(lpips_norm_fn(x), lpips_norm_fn(y)).mean()
 tic = time.time()
 for step in range(max_steps + 1):
     radiance_field.train()
+    estimator.train()
 
     i = torch.randint(0, len(train_dataset), (1,)).item()
     data = train_dataset[i]
@@ -220,6 +221,7 @@ for step in range(max_steps + 1):
     if step > 0 and step % max_steps == 0:
         # evaluation
         radiance_field.eval()
+        estimator.eval()
 
         psnrs = []
         lpips = []

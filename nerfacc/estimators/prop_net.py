@@ -85,17 +85,22 @@ class ProposalNet(AbstractTransEstimator):
         ray_segments: RaySegments,
         cdfs: Tensor,
         requires_grid: bool = False,
+        loss_scaler: float = 1.0,
     ) -> float:
         """Update the grid every n steps during training."""
         if requires_grid:
-            return self._update(ray_segments=ray_segments, cdfs=cdfs)
+            return self._update(
+                ray_segments=ray_segments, cdfs=cdfs, loss_scaler=loss_scaler
+            )
         else:
             if self.scheduler is not None:
                 self.scheduler.step()
             return 0.0
 
     @torch.enable_grad()
-    def _update(self, ray_segments: RaySegments, cdfs: Tensor) -> float:
+    def _update(
+        self, ray_segments: RaySegments, cdfs: Tensor, loss_scaler: float = 1.0
+    ) -> float:
         assert len(self.prop_cache) > 0
         cdfs = cdfs.detach()
 
@@ -107,7 +112,7 @@ class ProposalNet(AbstractTransEstimator):
             ).mean()
 
         self.optimizer.zero_grad()
-        loss.backward()
+        (loss * loss_scaler).backward()
         self.optimizer.step()
         if self.scheduler is not None:
             self.scheduler.step()

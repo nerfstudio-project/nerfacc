@@ -206,6 +206,7 @@ for step in range(max_steps + 1):
     radiance_field.train()
     for p in proposal_networks:
         p.train()
+    estimator.train()
 
     i = torch.randint(0, len(train_dataset), (1,)).item()
     data = train_dataset[i]
@@ -232,7 +233,9 @@ for step in range(max_steps + 1):
         # train options
         proposal_requires_grad=proposal_requires_grad,
     )
-    estimator.update_every_n_steps(ray_segments, cdfs, proposal_requires_grad)
+    estimator.update_every_n_steps(
+        ray_segments, cdfs, proposal_requires_grad, loss_scaler=1024
+    )
 
     # compute loss
     loss = F.smooth_l1_loss(rgb, pixels)
@@ -259,6 +262,7 @@ for step in range(max_steps + 1):
         radiance_field.eval()
         for p in proposal_networks:
             p.eval()
+        estimator.eval()
 
         psnrs = []
         lpips = []
