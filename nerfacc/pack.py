@@ -1,9 +1,7 @@
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 from torch import Tensor
-
-import nerfacc._cuda as _C
 
 
 def pack_info(ray_indices: Tensor, n_rays: Optional[int] = None) -> Tensor:

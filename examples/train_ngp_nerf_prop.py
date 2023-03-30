@@ -1,11 +1,11 @@
 """
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
-
 import argparse
 import itertools
 import pathlib
 import time
+from typing import Callable
 
 import imageio
 import numpy as np
@@ -21,8 +21,27 @@ from examples.utils import (
     render_image_with_propnet,
     set_random_seed,
 )
-from nerfacc._proposal import get_proposal_requires_grad_fn
 from nerfacc.estimators.prop_net import ProposalNet
+
+
+def get_proposal_requires_grad_fn(
+    target: float = 5.0, num_steps: int = 1000
+) -> Callable:
+    schedule = lambda s: min(s / num_steps, 1.0) * target
+
+    steps_since_last_grad = 0
+
+    def proposal_requires_grad_fn(step: int) -> bool:
+        nonlocal steps_since_last_grad
+        target_steps_since_last_grad = schedule(step)
+        requires_grad = steps_since_last_grad > target_steps_since_last_grad
+        if requires_grad:
+            steps_since_last_grad = 0
+        steps_since_last_grad += 1
+        return requires_grad
+
+    return proposal_requires_grad_fn
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

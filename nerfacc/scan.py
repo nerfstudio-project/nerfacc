@@ -7,66 +7,129 @@ import nerfacc.cuda as _C
 
 
 def inclusive_sum(
-    inputs: Tensor,
-    chunk_starts: Optional[Tensor] = None,
-    chunk_cnts: Optional[Tensor] = None,
-    normalize: bool = False,
+    inputs: Tensor, packed_info: Optional[Tensor] = None
 ) -> Tensor:
-    """Inclusive Sum on a Tensor."""
-    if chunk_starts is None or chunk_cnts is None:
+    """Inclusive Sum that supports flattened tensor.
+
+    This function is equivalent to `torch.cumsum(inputs, dim=-1)`, but allows
+    for a flattened input tensor and a `packed_info` tensor that specifies the
+    chunks in the flattened input.
+
+    Args:
+        inputs: The tensor to be summed. Can be either a N-D tensor, or a flattened
+            tensor with `packed_info` specified.
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
+            of each chunk in the flattened input tensor, with in total n_rays chunks.
+            If None, the input is assumed to be a N-D tensor and the sum is computed
+            along the last dimension. Default is None.
+
+    Returns:
+        The inclusive sum with the same shape as the input tensor.
+    """
+    if packed_info is None:
+        # Batched inclusive sum on the last dimension.
         outputs = torch.cumsum(inputs, dim=-1)
-        if normalize:
-            outputs = outputs / outputs[..., -1:].clamp_min(1e-10)
     else:
-        outputs = _InclusiveSum.apply(
-            chunk_starts, chunk_cnts, inputs, normalize
-        )
+        # Flattened inclusive sum.
+        assert inputs.dim() == 1, "inputs must be flattened."
+        assert (
+            packed_info.dim() == 2 and packed_info.shape[-1] == 2
+        ), "packed_info must be 2-D with shape (B, 2)."
+        chunk_starts, chunk_cnts = packed_info.unbind(dim=-1)
+        outputs = _InclusiveSum.apply(chunk_starts, chunk_cnts, inputs, False)
     return outputs
 
 
 def exclusive_sum(
-    inputs: Tensor,
-    chunk_starts: Optional[Tensor] = None,
-    chunk_cnts: Optional[Tensor] = None,
-    normalize: bool = False,
+    inputs: Tensor, packed_info: Optional[Tensor] = None
 ) -> Tensor:
-    """Inclusive Sum on a Tensor."""
-    if chunk_starts is None or chunk_cnts is None:
+    """Exclusive Sum that supports flattened tensor.
+
+    Similar to :func:`nerfacc.inclusive_sum`, but computes the exclusive sum.
+
+    Args:
+        inputs: The tensor to be summed. Can be either a N-D tensor, or a flattened
+            tensor with `packed_info` specified.
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
+            of each chunk in the flattened input tensor, with in total n_rays chunks.
+            If None, the input is assumed to be a N-D tensor and the sum is computed
+            along the last dimension. Default is None.
+
+    Returns:
+        The exclusive sum with the same shape as the input tensor.
+    """
+    if packed_info is None:
+        # Batched exclusive sum on the last dimension.
         outputs = torch.cumsum(
-            torch.cat([torch.zeros_like(inputs[..., :1]), inputs], dim=-1),
+            torch.cat(
+                [torch.zeros_like(inputs[..., :1]), inputs[..., :-1]], dim=-1
+            ),
             dim=-1,
         )
-        if normalize:
-            outputs = outputs[..., :-1] / outputs[..., -1:].clamp_min(1e-10)
-        else:
-            outputs = outputs[..., :-1]
     else:
-        outputs = _ExclusiveSum.apply(
-            chunk_starts, chunk_cnts, inputs, normalize
-        )
+        # Flattened exclusive sum.
+        assert inputs.dim() == 1, "inputs must be flattened."
+        assert (
+            packed_info.dim() == 2 and packed_info.shape[-1] == 2
+        ), "packed_info must be 2-D with shape (B, 2)."
+        chunk_starts, chunk_cnts = packed_info.unbind(dim=-1)
+        outputs = _ExclusiveSum.apply(chunk_starts, chunk_cnts, inputs, False)
     return outputs
 
 
 def inclusive_prod(
-    inputs: Tensor,
-    chunk_starts: Optional[Tensor] = None,
-    chunk_cnts: Optional[Tensor] = None,
+    inputs: Tensor, packed_info: Optional[Tensor] = None
 ) -> Tensor:
-    """Inclusive Product on a Tensor."""
-    if chunk_starts is None or chunk_cnts is None:
+    """Inclusive Product that supports flattened tensor.
+
+    This function is equivalent to `torch.cumprod(inputs, dim=-1)`, but allows
+    for a flattened input tensor and a `packed_info` tensor that specifies the
+    chunks in the flattened input.
+
+    Args:
+        inputs: The tensor to be producted. Can be either a N-D tensor, or a flattened
+            tensor with `packed_info` specified.
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
+            of each chunk in the flattened input tensor, with in total n_rays chunks.
+            If None, the input is assumed to be a N-D tensor and the product is computed
+            along the last dimension. Default is None.
+
+    Returns:
+        The inclusive product with the same shape as the input tensor.
+    """
+    if packed_info is None:
+        # Batched inclusive product on the last dimension.
         outputs = torch.cumprod(inputs, dim=-1)
     else:
+        # Flattened inclusive product.
+        assert inputs.dim() == 1, "inputs must be flattened."
+        assert (
+            packed_info.dim() == 2 and packed_info.shape[-1] == 2
+        ), "packed_info must be 2-D with shape (B, 2)."
+        chunk_starts, chunk_cnts = packed_info.unbind(dim=-1)
         outputs = _InclusiveProd.apply(chunk_starts, chunk_cnts, inputs)
     return outputs
 
 
 def exclusive_prod(
-    inputs: Tensor,
-    chunk_starts: Optional[Tensor] = None,
-    chunk_cnts: Optional[Tensor] = None,
+    inputs: Tensor, packed_info: Optional[Tensor] = None
 ) -> Tensor:
-    """Exclusive Product on a Tensor."""
-    if chunk_starts is None or chunk_cnts is None:
+    """Exclusive Product that supports flattened tensor.
+
+    Similar to :func:`nerfacc.inclusive_prod`, but computes the exclusive product.
+
+    Args:
+        inputs: The tensor to be producted. Can be either a N-D tensor, or a flattened
+            tensor with `packed_info` specified.
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
+            of each chunk in the flattened input tensor, with in total n_rays chunks.
+            If None, the input is assumed to be a N-D tensor and the product is computed
+            along the last dimension. Default is None.
+
+    Returns:
+        The exclusive product with the same shape as the input tensor.
+    """
+    if packed_info is None:
         outputs = torch.cumprod(
             torch.cat(
                 [torch.ones_like(inputs[..., :1]), inputs[..., :-1]], dim=-1
@@ -74,6 +137,7 @@ def exclusive_prod(
             dim=-1,
         )
     else:
+        chunk_starts, chunk_cnts = packed_info.unbind(dim=-1)
         outputs = _ExclusiveProd.apply(chunk_starts, chunk_cnts, inputs)
     return outputs
 
