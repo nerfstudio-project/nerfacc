@@ -1,7 +1,9 @@
 """
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
+from .data_specs import RayIntervals, RaySamples
 from .pack import pack_info
+from .pdf import importance_sampling, searchsorted
 from .scan import exclusive_prod, exclusive_sum, inclusive_prod, inclusive_sum
 from .version import __version__
 from .volrend import (
@@ -30,4 +32,8 @@ __all__ = [
     "render_transmittance_from_density",
     "accumulate_along_rays",
     "rendering",
+    "importance_sampling",
+    "searchsorted",
+    "RayIntervals",
+    "RaySamples",
 ]

@@ -1,3 +1,6 @@
+"""
+Copyright (c) 2022 Ruilong Li, UC Berkeley.
+"""
 from dataclasses import dataclass
 from typing import Optional
 
