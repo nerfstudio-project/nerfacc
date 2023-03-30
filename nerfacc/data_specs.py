@@ -8,6 +8,35 @@ import nerfacc.cuda as _C
 
 @dataclass
 class RaySamples:
+    """Ray samples that supports batched and flattened data.
+
+    Note:
+        When `vals` is flattened, either `packed_info` or `ray_indices` must
+        be provided.
+
+    Args:
+        vals: Batched data with shape (n_rays, n_samples) or flattened data
+            with shape (all_samples,)
+        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies
+            the start and count of each chunk in flattened `vals`, with in
+            total n_rays chunks. Only needed when `vals` is flattened.
+        ray_indices: Optional. A tensor of shape (all_samples,) that specifies
+            the ray index of each sample. Only needed when `vals` is flattened.
+
+    Examples:
+
+    .. code-block:: python
+
+        >>> # Batched data
+        >>> ray_samples = RaySamples(torch.rand(10, 100))
+        >>> # Flattened data
+        >>> ray_samples = RaySamples(
+        >>>     torch.rand(1000),
+        >>>     packed_info=torch.tensor([[0, 100], [100, 200], [300, 700]]),
+        >>> )
+
+    """
+
     vals: torch.Tensor
     packed_info: Optional[torch.Tensor] = None
     ray_indices: Optional[torch.Tensor] = None
@@ -48,6 +77,47 @@ class RaySamples:
 
 @dataclass
 class RayIntervals:
+    """Ray intervals that supports batched and flattened data.
+
+    Each interval is defined by two edges (left and right). The attribute `vals`
+    stores the edges of all intervals along the rays. The attributes `is_left`
+    and `is_right` are for indicating whether each edge is a left or right edge.
+    This class unifies the representation of both continuous and non-continuous ray
+    intervals.
+
+    Note:
+        When `vals` is flattened, either `packed_info` or `ray_indices` must
+        be provided. Also both `is_left` and `is_right` must be provided.
+
+    Args:
+        vals: Batched data with shape (n_rays, n_edges) or flattened data
+            with shape (all_edges,)
+        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies
+            the start and count of each chunk in flattened `vals`, with in
+            total n_rays chunks. Only needed when `vals` is flattened.
+        ray_indices: Optional. A tensor of shape (all_edges,) that specifies
+            the ray index of each edge. Only needed when `vals` is flattened.
+        is_left: Optional. A boolen tensor of shape (all_edges,) that specifies
+            whether each edge is a left edge. Only needed when `vals` is flattened.
+        is_right: Optional. A boolen tensor of shape (all_edges,) that specifies
+            whether each edge is a right edge. Only needed when `vals` is flattened.
+
+    Examples:
+
+    .. code-block:: python
+
+        >>> # Batched data
+        >>> ray_intervals = RayIntervals(torch.rand(10, 100))
+        >>> # Flattened data
+        >>> ray_intervals = RayIntervals(
+        >>>     torch.rand(6),
+        >>>     packed_info=torch.tensor([[0, 2], [2, 0], [2, 4]]),
+        >>>     is_left=torch.tensor([True, False, True, True, True, False]),
+        >>>     is_right=torch.tensor([False, True, False, True, True, True]),
+        >>> )
+
+    """
+
     vals: torch.Tensor
     packed_info: Optional[torch.Tensor] = None
     ray_indices: Optional[torch.Tensor] = None

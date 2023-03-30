@@ -51,13 +51,14 @@ def test_searchsorted():
     query: RayIntervals = _create_intervals(10, 100, flat=False)
     key: RayIntervals = _create_intervals(10, 100, flat=False)
 
-    ids_left, ids_right = searchsorted(query, key)
-    y = key.vals.flatten()[ids_right]
+    ids_left, ids_right = searchsorted(key, query)
+    y = key.vals.gather(-1, ids_right)
 
     _ids_right = torch.searchsorted(key.vals, query.vals, right=True)
     _ids_right = torch.clamp(_ids_right, 0, key.vals.shape[-1] - 1)
-    _y = torch.take_along_dim(key.vals, _ids_right, dim=-1)
+    _y = key.vals.gather(-1, _ids_right)
 
+    assert torch.allclose(ids_right, _ids_right)
     assert torch.allclose(y, _y)
 
 

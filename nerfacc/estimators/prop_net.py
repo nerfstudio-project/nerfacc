@@ -3,7 +3,7 @@ from typing import Callable, List, Literal, Optional, Tuple
 import torch
 from torch import Tensor
 
-from ..data_specs import RaySegments
+from ..data_specs import RayIntervals
 from ..pdf import importance_sampling, searchsorted
 from ..volrend import render_transmittance_from_density
 from .base import AbstractTransEstimator
@@ -44,14 +44,14 @@ class ProposalNet(AbstractTransEstimator):
             ],
             dim=-1,
         )
-        ray_segments = RaySegments(vals=cdfs)
+        intervals = RayIntervals(vals=cdfs)
 
         for level_fn, level_samples in zip(prop_sigma_fns, prop_samples):
-            ray_segments = importance_sampling(
-                ray_segments, cdfs, level_samples, stratified
+            intervals, _ = importance_sampling(
+                intervals, cdfs, level_samples, stratified
             )
             t_vals = _transform_stot(
-                sampling_type, ray_segments.vals, near_plane, far_plane
+                sampling_type, intervals.vals, near_plane, far_plane
             )
             t_starts = t_vals[..., :-1]
             t_ends = t_vals[..., 1:]
@@ -66,23 +66,23 @@ class ProposalNet(AbstractTransEstimator):
                     [trans, torch.zeros_like(trans[:, :1])], dim=-1
                 )
                 if requires_grid:
-                    self.prop_cache.append((ray_segments, cdfs))
+                    self.prop_cache.append((intervals, cdfs))
 
-        ray_segments = importance_sampling(
-            ray_segments, cdfs, num_samples, stratified
+        intervals, _ = importance_sampling(
+            intervals, cdfs, num_samples, stratified
         )
         t_vals = _transform_stot(
-            sampling_type, ray_segments.vals, near_plane, far_plane
+            sampling_type, intervals.vals, near_plane, far_plane
         )
         t_starts = t_vals[..., :-1]
         t_ends = t_vals[..., 1:]
 
-        return ray_segments, t_starts, t_ends
+        return intervals, t_starts, t_ends
 
     @torch.enable_grad()
     def update_every_n_steps(
         self,
-        ray_segments: RaySegments,
+        intervals: RayIntervals,
         cdfs: Tensor,
         requires_grid: bool = False,
         loss_scaler: float = 1.0,
@@ -90,7 +90,7 @@ class ProposalNet(AbstractTransEstimator):
         """Update the grid every n steps during training."""
         if requires_grid:
             return self._update(
-                ray_segments=ray_segments, cdfs=cdfs, loss_scaler=loss_scaler
+                intervals=intervals, cdfs=cdfs, loss_scaler=loss_scaler
             )
         else:
             if self.scheduler is not None:
@@ -99,17 +99,15 @@ class ProposalNet(AbstractTransEstimator):
 
     @torch.enable_grad()
     def _update(
-        self, ray_segments: RaySegments, cdfs: Tensor, loss_scaler: float = 1.0
+        self, intervals: RayIntervals, cdfs: Tensor, loss_scaler: float = 1.0
     ) -> float:
         assert len(self.prop_cache) > 0
         cdfs = cdfs.detach()
 
         loss = 0.0
         while self.prop_cache:
-            prop_ray_segments, prop_cdfs = self.prop_cache.pop()
-            loss += _pdf_loss(
-                ray_segments, cdfs, prop_ray_segments, prop_cdfs
-            ).mean()
+            prop_intervals, prop_cdfs = self.prop_cache.pop()
+            loss += _pdf_loss(intervals, cdfs, prop_intervals, prop_cdfs).mean()
 
         self.optimizer.zero_grad()
         (loss * loss_scaler).backward()
@@ -137,13 +135,13 @@ def _transform_stot(
 
 
 def _pdf_loss(
-    segments_query: RaySegments,
+    segments_query: RayIntervals,
     cdfs_query: torch.Tensor,
-    segments_key: RaySegments,
+    segments_key: RayIntervals,
     cdfs_key: torch.Tensor,
     eps: float = 1e-7,
 ) -> torch.Tensor:
-    ids_left, ids_right = searchsorted(segments_query, segments_key)
+    ids_left, ids_right = searchsorted(segments_key, segments_query)
     if segments_query.vals.dim() > 1:
         w = cdfs_query[..., 1:] - cdfs_query[..., :-1]
         ids_left = ids_left[..., :-1]

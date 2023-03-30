@@ -275,8 +275,13 @@ __global__ void searchsorted_kernel(
         // searchsorted with "right" option:
         // i.e. key.vals[p - 1] <= query.vals[tid] < key.vals[p]
         int64_t p = upper_bound<float>(key.vals, base, last, query.vals[tid], nullptr);
-        ids_left[tid] = max(min(p - 1, last), base);
-        ids_right[tid] = max(min(p, last), base);
+        if (query.is_batched) {
+            ids_left[tid] = max(min(p - 1, last), base) - base;
+            ids_right[tid] = max(min(p, last), base) - base;
+        } else {
+            ids_left[tid] = max(min(p - 1, last), base);
+            ids_right[tid] = max(min(p, last), base);
+        }
     }
 }
 

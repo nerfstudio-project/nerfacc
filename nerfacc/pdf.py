@@ -9,18 +9,53 @@ from .data_specs import RayIntervals, RaySamples
 
 
 def searchsorted(
-    query: RayIntervals, key: RayIntervals
+    sorted_sequence: Union[RayIntervals, RaySamples],
+    values: Union[RayIntervals, RaySamples],
 ) -> Tuple[Tensor, Tensor]:
-    """Searchsorted on ray segments.
+    """Searchsorted that supports flattened tensor.
 
-    To query the value with those ids, use:
+    This function returns {`ids_left`, `ids_right`} such that:
+    `sorted_sequence.vals.gather(-1, ids_left) <= values.vals < sorted_sequence.vals.gather(-1, ids_right)`
 
-        key.vals.flatten()[ids_left] or key.vals.flatten()[ids_right]
+    Note:
+        When values is out of range of sorted_sequence, we return the
+        corresponding ids as if the values is clipped to the range of
+        sorted_sequence. See the example below.
+
+    Args:
+        sorted_sequence: A RayIntervals or RaySamples object. We assume
+            the `sorted_sequence.vals` is acendingly sorted along the last
+            dimension.
+        values: A RayIntervals or RaySamples object. It does not need to be
+            sorted.
 
     Returns:
-        ids_left, ids_right: the flatten ids of in the key that contains the query.
+        ids_left: A tensor with the same shape as `values.vals`.
+        ids_right: A tensor with the same shape as `values.vals`.
+
+    Example:
+        >>> sorted_sequence = RayIntervals(
+        ...     vals=torch.tensor([0.0, 1.0, 0.0, 1.0, 2.0], device="cuda"),
+        ...     packed_info=torch.tensor([[0, 2], [2, 3]], device="cuda"),
+        ... )
+        >>> values = RayIntervals(
+        ...     vals=torch.tensor([0.5, 1.5, 2.5], device="cuda"),
+        ...     packed_info=torch.tensor([[0, 1], [1, 2]], device="cuda"),
+        ... )
+        >>> ids_left, ids_right = searchsorted(sorted_sequence, values)
+        >>> ids_left
+        tensor([0, 3, 3], device='cuda:0')
+        >>> ids_right
+        tensor([1, 4, 4], device='cuda:0')
+        >>> sorted_sequence.vals.gather(-1, ids_left)
+        tensor([0., 1., 1.], device='cuda:0')
+        >>> sorted_sequence.vals.gather(-1, ids_right)
+        tensor([1., 2., 2.], device='cuda:0')
     """
-    ids_left, ids_right = _C.searchsorted(query._to_cpp(), key._to_cpp())
+
+    ids_left, ids_right = _C.searchsorted(
+        values._to_cpp(), sorted_sequence._to_cpp()
+    )
     return ids_left, ids_right
 
 
@@ -30,16 +65,54 @@ def importance_sampling(
     n_intervals_per_ray: Union[Tensor, int],
     stratified: bool = False,
 ) -> Tuple[RayIntervals, RaySamples]:
-    """Importance sampling on ray segments.
+    """Importance sampling that supports flattened tensor.
 
-    If n_intervals_per_ray is an int, then we sample same number of
-    intervals for each ray, which leads to a batched output.
+    Given a set of intervals and the corresponding CDFs at the interval edges,
+    this function performs inverse transform sampling to create a new set of
+    intervals and samples. Stratified sampling is also supported.
 
-    If n_intervals_per_ray is a torch.Tensor, then we assume we need to
-    sample different number of intervals for each ray, which leads to a
-    flattened output.
+    Args:
+        intervals: A RayIntervals object.
+        cdfs: The CDFs at the interval edges. It has the same shape as
+            `intervals.vals`.
+        n_intervals_per_ray: Resample each ray to have this many intervals.
+            If it is a tensor, it must be of shape (n_rays,). If it is an int,
+            it is broadcasted to all rays.
+        stratified: If True, perform stratified sampling.
 
-    In both cases, the output is a RaySegments object.
+    Returns:
+        intervals: A RayIntervals object. If `n_intervals_per_ray` is an int,
+            `intervals.vals` will has the shape of (n_rays, n_intervals_per_ray + 1).
+            If `n_intervals_per_ray` is a tensor, we assume each ray results
+            in a different number of intervals. In this case, `intervals.vals`
+            will has the shape of (all_edges,), the attributes `packed_info`,
+            `ray_indices`, `is_left` and `is_right` will be accessable.
+
+        samples: A RaySamples object. If `n_intervals_per_ray` is an int,
+            `samples.vals` will has the shape of (n_rays, n_intervals_per_ray).
+            If `n_intervals_per_ray` is a tensor, we assume each ray results
+            in a different number of intervals. In this case, `samples.vals`
+            will has the shape of (all_samples,), the attributes `packed_info` and
+            `ray_indices` will be accessable.
+
+    Example:
+
+    .. code-block:: python
+
+        >>> intervals = RayIntervals(
+        ...     vals=torch.tensor([0.0, 1.0, 0.0, 1.0, 2.0], device="cuda"),
+        ...     packed_info=torch.tensor([[0, 2], [2, 3]], device="cuda"),
+        ... )
+        >>> cdfs = torch.tensor([0.0, 0.5, 0.0, 0.5, 1.0], device="cuda")
+        >>> n_intervals_per_ray = 2
+        >>> intervals, samples = importance_sampling(intervals, cdfs, n_intervals_per_ray)
+        >>> intervals.vals
+        tensor([[0.0000, 0.5000, 1.0000],
+                [0.0000, 1.0000, 2.0000]], device='cuda:0')
+        >>> samples.vals
+        tensor([[0.2500, 0.7500],
+                [0.5000, 1.5000]], device='cuda:0')
+        
     """
     if isinstance(n_intervals_per_ray, Tensor):
         n_intervals_per_ray = n_intervals_per_ray.contiguous()
