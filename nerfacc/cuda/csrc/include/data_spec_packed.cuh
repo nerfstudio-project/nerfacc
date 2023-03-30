@@ -9,26 +9,26 @@ namespace device {
 
 struct PackedRaySegmentsSpec {
     PackedRaySegmentsSpec(RaySegmentsSpec& spec) :
-        edges(spec.edges.defined() ? spec.edges.data_ptr<float>() : nullptr),
-        is_batched(spec.edges.defined() ? spec.edges.dim() > 1 : false),
+        vals(spec.vals.defined() ? spec.vals.data_ptr<float>() : nullptr),
+        is_batched(spec.vals.defined() ? spec.vals.dim() > 1 : false),
         // for flattened tensor
         chunk_starts(spec.chunk_starts.defined() ? spec.chunk_starts.data_ptr<int64_t>() : nullptr),
         chunk_cnts(spec.chunk_cnts.defined() ? spec.chunk_cnts.data_ptr<int64_t>(): nullptr),
-        ray_ids(spec.ray_ids.defined() ? spec.ray_ids.data_ptr<int64_t>() : nullptr),
+        ray_indices(spec.ray_indices.defined() ? spec.ray_indices.data_ptr<int64_t>() : nullptr),
         is_left(spec.is_left.defined() ? spec.is_left.data_ptr<bool>() : nullptr),
         is_right(spec.is_right.defined() ? spec.is_right.data_ptr<bool>() : nullptr),
         // for dimensions
-        n_edges(spec.edges.defined() ? spec.edges.numel() : 0),
+        n_edges(spec.vals.defined() ? spec.vals.numel() : 0),
         n_rays(spec.chunk_cnts.defined() ? spec.chunk_cnts.size(0) : 0),  // for flattened tensor
-        n_edges_per_ray(spec.edges.defined() ? spec.edges.size(-1) : 0)   // for batched tensor
+        n_edges_per_ray(spec.vals.defined() ? spec.vals.size(-1) : 0)   // for batched tensor
     { }
 
-    float* edges;
+    float* vals;
     bool is_batched;
 
     int64_t* chunk_starts;
     int64_t* chunk_cnts; 
-    int64_t* ray_ids;
+    int64_t* ray_indices;
     bool* is_left;
     bool* is_right;
 

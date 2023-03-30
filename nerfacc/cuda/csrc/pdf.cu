@@ -86,12 +86,12 @@ __global__ void compute_ray_ids_kernel(
     const int64_t n_items,
     const int64_t *chunk_starts,
     // outputs
-    int64_t *ray_ids)
+    int64_t *ray_indices)
 {
     // parallelize over outputs
     for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_items; tid += blockDim.x * gridDim.x)
     {
-        ray_ids[tid] = binary_search_chunk_id(tid, n_rays, chunk_starts) - 1;
+        ray_indices[tid] = binary_search_chunk_id(tid, n_rays, chunk_starts) - 1;
     }
 }
 
@@ -116,7 +116,7 @@ __global__ void importance_sampling_kernel(
             sid = tid - ray_id * samples.n_edges_per_ray;
         } else {
             ray_id = binary_search_chunk_id(tid, samples.n_rays, samples.chunk_starts) - 1;
-            samples.ray_ids[tid] = ray_id;
+            samples.ray_indices[tid] = ray_id;
             n_samples = samples.chunk_cnts[ray_id];
             sid = tid - samples.chunk_starts[ray_id];
         }
@@ -152,8 +152,8 @@ __global__ void importance_sampling_kernel(
 
         float u_lower = cdfs[p0];
         float u_upper = cdfs[p1];
-        float t_lower = ray_segments.edges[p0];
-        float t_upper = ray_segments.edges[p1];
+        float t_lower = ray_segments.vals[p0];
+        float t_upper = ray_segments.vals[p1];
 
         float t;
         if (u_upper - u_lower < 1e-10f) {
@@ -162,7 +162,7 @@ __global__ void importance_sampling_kernel(
             float scaling = (t_upper - t_lower) / (u_upper - u_lower);
             t = (u - u_lower) * scaling + t_lower;
         }
-        samples.edges[tid] = t;
+        samples.vals[tid] = t;
     }
 }
 
@@ -182,7 +182,7 @@ __global__ void compute_intervels_kernel(
             n_samples = samples.n_edges_per_ray;
             sid = tid - ray_id * samples.n_edges_per_ray;
         } else {
-            ray_id = samples.ray_ids[tid];
+            ray_id = samples.ray_indices[tid];
             n_samples = samples.chunk_cnts[ray_id];
             sid = tid - samples.chunk_starts[ray_id];
         }
@@ -203,35 +203,35 @@ __global__ void compute_intervels_kernel(
             base_out = intervals.chunk_starts[ray_id];
         }
 
-        float t_min = ray_segments.edges[base];
-        float t_max = ray_segments.edges[last];
+        float t_min = ray_segments.vals[base];
+        float t_max = ray_segments.vals[last];
 
         if (sid == 0) {
-            float t = samples.edges[tid];
-            float t_next = samples.edges[tid + 1]; // FIXME: out of bounds?
+            float t = samples.vals[tid];
+            float t_next = samples.vals[tid + 1]; // FIXME: out of bounds?
             float half_width = (t_next - t) * 0.5f;
-            intervals.edges[base_out] = fmaxf(t - half_width, t_min);
+            intervals.vals[base_out] = fmaxf(t - half_width, t_min);
             if (!intervals.is_batched) {
-                intervals.ray_ids[base_out] = ray_id;
+                intervals.ray_indices[base_out] = ray_id;
                 intervals.is_left[base_out] = true;
                 intervals.is_right[base_out] = false;
             }
         } else {
-            float t = samples.edges[tid];
-            float t_prev = samples.edges[tid - 1];
+            float t = samples.vals[tid];
+            float t_prev = samples.vals[tid - 1];
             float t_edge = (t + t_prev) * 0.5f;
             int64_t idx = base_out + sid;
-            intervals.edges[idx] = t_edge;
+            intervals.vals[idx] = t_edge;
             if (!intervals.is_batched) {
-                intervals.ray_ids[idx] = ray_id;
+                intervals.ray_indices[idx] = ray_id;
                 intervals.is_left[idx] = true;
                 intervals.is_right[idx] = true;
             }
             if (sid == n_samples - 1) {
                 float half_width = (t - t_prev) * 0.5f;
-                intervals.edges[idx + 1] = fminf(t + half_width, t_max);
+                intervals.vals[idx + 1] = fminf(t + half_width, t_max);
                 if (!intervals.is_batched) {
-                    intervals.ray_ids[idx + 1] = ray_id;
+                    intervals.ray_indices[idx + 1] = ray_id;
                     intervals.is_left[idx + 1] = false;
                     intervals.is_right[idx + 1] = true;
                 }
@@ -256,10 +256,10 @@ __global__ void searchsorted_kernel(
         if (query.is_batched) {
             ray_id = tid / query.n_edges_per_ray;    
         } else {
-            if (query.ray_ids == nullptr) {
+            if (query.ray_indices == nullptr) {
                 ray_id = binary_search_chunk_id(tid, query.n_rays, query.chunk_starts) - 1;
             } else {
-                ray_id = query.ray_ids[tid];
+                ray_id = query.ray_indices[tid];
             }
         }
 
@@ -273,8 +273,8 @@ __global__ void searchsorted_kernel(
         }
 
         // searchsorted with "right" option:
-        // i.e. key.edges[p - 1] <= query.edges[tid] < key.edges[p]
-        int64_t p = upper_bound<float>(key.edges, base, last, query.edges[tid], nullptr);
+        // i.e. key.vals[p - 1] <= query.vals[tid] < key.vals[p]
+        int64_t p = upper_bound<float>(key.vals, base, last, query.vals[tid], nullptr);
         ids_left[tid] = max(min(p - 1, last), base);
         ids_right[tid] = max(min(p, last), base);
     }
@@ -296,7 +296,7 @@ std::vector<RaySegmentsSpec> importance_sampling(
     ray_segments.check();
     CHECK_INPUT(cdfs);
     CHECK_INPUT(n_intervels_per_ray);
-    TORCH_CHECK(cdfs.numel() == ray_segments.edges.numel());
+    TORCH_CHECK(cdfs.numel() == ray_segments.vals.numel());
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int64_t max_threads = 512; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
@@ -317,9 +317,9 @@ std::vector<RaySegmentsSpec> importance_sampling(
     RaySegmentsSpec samples;
     samples.chunk_cnts = n_intervels_per_ray.to(n_intervels_per_ray.options().dtype(torch::kLong));
     samples.memalloc_data(false, false); // no need boolen masks, no need to zero init.
-    int64_t n_samples = samples.edges.numel();
+    int64_t n_samples = samples.vals.numel();
 
-    // step 1. compute the ray_ids and samples
+    // step 1. compute the ray_indices and samples
     threads = dim3(min(max_threads, n_samples));
     blocks = dim3(min(max_blocks, ceil_div<int64_t>(n_samples, threads.x)));
     device::importance_sampling_kernel<<<blocks, threads, 0, stream>>>(
@@ -360,7 +360,7 @@ std::vector<RaySegmentsSpec> importance_sampling(
     DEVICE_GUARD(cdfs);
     ray_segments.check();
     CHECK_INPUT(cdfs);
-    TORCH_CHECK(cdfs.numel() == ray_segments.edges.numel());
+    TORCH_CHECK(cdfs.numel() == ray_segments.vals.numel());
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int64_t max_threads = 512; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
@@ -378,20 +378,20 @@ std::vector<RaySegmentsSpec> importance_sampling(
     }
 
     RaySegmentsSpec samples, intervals;
-    if (ray_segments.edges.ndimension() > 1){  // batched input
-        auto data_size = ray_segments.edges.sizes().vec();
+    if (ray_segments.vals.ndimension() > 1){  // batched input
+        auto data_size = ray_segments.vals.sizes().vec();
         data_size.back() = n_intervels_per_ray;
-        samples.edges = torch::empty(data_size, cdfs.options());
+        samples.vals = torch::empty(data_size, cdfs.options());
         data_size.back() = n_intervels_per_ray + 1;
-        intervals.edges = torch::empty(data_size, cdfs.options());
+        intervals.vals = torch::empty(data_size, cdfs.options());
     } else { // flattend input
         int64_t n_rays = ray_segments.chunk_cnts.numel();
-        samples.edges = torch::empty({n_rays, n_intervels_per_ray}, cdfs.options());
-        intervals.edges = torch::empty({n_rays, n_intervels_per_ray + 1}, cdfs.options());
+        samples.vals = torch::empty({n_rays, n_intervels_per_ray}, cdfs.options());
+        intervals.vals = torch::empty({n_rays, n_intervels_per_ray + 1}, cdfs.options());
     }
-    int64_t n_samples = samples.edges.numel();
+    int64_t n_samples = samples.vals.numel();
     
-    // step 1. compute the ray_ids and samples
+    // step 1. compute the ray_indices and samples
     threads = dim3(min(max_threads, n_samples));
     blocks = dim3(min(max_blocks, ceil_div<int64_t>(n_samples, threads.x)));
     device::importance_sampling_kernel<<<blocks, threads, 0, stream>>>(
@@ -417,22 +417,22 @@ std::vector<RaySegmentsSpec> importance_sampling(
 
 
 // Find two indices {left, right} for each item in query,
-// such that: key.edges[left] <= query.edges < key.edges[right]
+// such that: key.vals[left] <= query.vals < key.vals[right]
 std::vector<torch::Tensor> searchsorted(
     RaySegmentsSpec query,
     RaySegmentsSpec key)
 {
-    DEVICE_GUARD(query.edges);
+    DEVICE_GUARD(query.vals);
     query.check();
     key.check();
 
     // outputs
-    int64_t n_edges = query.edges.numel();
+    int64_t n_edges = query.vals.numel();
 
     torch::Tensor ids_left = torch::empty(
-        query.edges.sizes(), query.edges.options().dtype(torch::kLong));
+        query.vals.sizes(), query.vals.options().dtype(torch::kLong));
     torch::Tensor ids_right = torch::empty(
-        query.edges.sizes(), query.edges.options().dtype(torch::kLong));
+        query.vals.sizes(), query.vals.options().dtype(torch::kLong));
 
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int64_t max_threads = 512; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;

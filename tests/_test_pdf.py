@@ -111,8 +111,8 @@ def test_rendering():
     rays_d = torch.randn((n_rays, 3), device=device)
     rays_d /= rays_d.norm(dim=-1, keepdim=True)
 
-    def prop_sigma_fn(t0, t1, ray_ids=None):
-        if ray_ids is None:
+    def prop_sigma_fn(t0, t1, ray_indices=None):
+        if ray_indices is None:
             assert t0.dim() == t1.dim() == 3
             positions = (
                 rays_o[:, None, :] + (t0 + t1) * 0.5 * rays_d[:, None, :]
@@ -120,12 +120,13 @@ def test_rendering():
         else:
             assert t0.dim() == t1.dim() == 2
             positions = (
-                rays_o[ray_ids, :] + (t0 + t1) * 0.5 * rays_d[ray_ids, :]
+                rays_o[ray_indices, :]
+                + (t0 + t1) * 0.5 * rays_d[ray_indices, :]
             )
         return torch.exp(prop_net(positions[..., :1]))
 
-    def rgb_sigma_fn(t0, t1, ray_ids=None):
-        if ray_ids is None:
+    def rgb_sigma_fn(t0, t1, ray_indices=None):
+        if ray_indices is None:
             assert t0.dim() == t1.dim() == 3
             positions = (
                 rays_o[:, None, :] + (t0 + t1) * 0.5 * rays_d[:, None, :]
@@ -133,7 +134,8 @@ def test_rendering():
         else:
             assert t0.dim() == t1.dim() == 2
             positions = (
-                rays_o[ray_ids, :] + (t0 + t1) * 0.5 * rays_d[ray_ids, :]
+                rays_o[ray_indices, :]
+                + (t0 + t1) * 0.5 * rays_d[ray_indices, :]
             )
         return torch.sigmoid(positions), torch.exp(positions[..., :1])
 

@@ -44,14 +44,14 @@ class ProposalNet(AbstractTransEstimator):
             ],
             dim=-1,
         )
-        ray_segments = RaySegments(edges=cdfs)
+        ray_segments = RaySegments(vals=cdfs)
 
         for level_fn, level_samples in zip(prop_sigma_fns, prop_samples):
             ray_segments = importance_sampling(
                 ray_segments, cdfs, level_samples, stratified
             )
             t_vals = _transform_stot(
-                sampling_type, ray_segments.edges, near_plane, far_plane
+                sampling_type, ray_segments.vals, near_plane, far_plane
             )
             t_starts = t_vals[..., :-1]
             t_ends = t_vals[..., 1:]
@@ -72,7 +72,7 @@ class ProposalNet(AbstractTransEstimator):
             ray_segments, cdfs, num_samples, stratified
         )
         t_vals = _transform_stot(
-            sampling_type, ray_segments.edges, near_plane, far_plane
+            sampling_type, ray_segments.vals, near_plane, far_plane
         )
         t_starts = t_vals[..., :-1]
         t_ends = t_vals[..., 1:]
@@ -144,7 +144,7 @@ def _pdf_loss(
     eps: float = 1e-7,
 ) -> torch.Tensor:
     ids_left, ids_right = searchsorted(segments_query, segments_key)
-    if segments_query.edges.dim() > 1:
+    if segments_query.vals.dim() > 1:
         w = cdfs_query[..., 1:] - cdfs_query[..., :-1]
         ids_left = ids_left[..., :-1]
         ids_right = ids_right[..., 1:]

@@ -176,23 +176,23 @@ __global__ void traverse_grids_kernel(
                             if (!continuous) {
                                 if (!first_pass) {  // left side of the intervel
                                     int64_t idx = chunk_start + n_intervals;
-                                    intervals.edges[idx] = t_last;
-                                    intervals.ray_ids[idx] = tid;
+                                    intervals.vals[idx] = t_last;
+                                    intervals.ray_indices[idx] = tid;
                                     intervals.is_left[idx] = true;
                                 }
                                 n_intervals++;
                                 if (!first_pass) {  // right side of the intervel
                                     int64_t idx = chunk_start + n_intervals;
-                                    intervals.edges[idx] = t_next;
-                                    intervals.ray_ids[idx] = tid;
+                                    intervals.vals[idx] = t_next;
+                                    intervals.ray_indices[idx] = tid;
                                     intervals.is_right[idx] = true;
                                 }
                                 n_intervals++;
                             } else {
                                 if (!first_pass) {  // right side of the intervel
                                     int64_t idx = chunk_start + n_intervals;
-                                    intervals.edges[idx] = t_next;
-                                    intervals.ray_ids[idx] = tid;
+                                    intervals.vals[idx] = t_next;
+                                    intervals.ray_indices[idx] = tid;
                                     intervals.is_left[idx - 1] = true;
                                     intervals.is_right[idx] = true;
                                 }
@@ -204,8 +204,8 @@ __global__ void traverse_grids_kernel(
                         if (samples.chunk_cnts != nullptr) {
                             if (!first_pass) {
                                 int64_t idx = chunk_start_bin + n_samples;
-                                samples.edges[idx] = (t_next + t_last) * 0.5f;
-                                samples.ray_ids[idx] = tid;
+                                samples.vals[idx] = (t_next + t_last) * 0.5f;
+                                samples.ray_indices[idx] = tid;
                             }
                             n_samples++;
                         }

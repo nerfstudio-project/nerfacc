@@ -81,8 +81,8 @@ class OccupancyGrid(AbstractTransEstimator):
         # sigma/alpha function for skipping invisible space
         sigma_fn: Optional[Callable] = None,
         alpha_fn: Optional[Callable] = None,
-        near_plane: Optional[float] = None,
-        far_plane: Optional[float] = None,
+        near_plane: float = 0.0,
+        far_plane: float = 1e10,
         # rendering options
         render_step_size: float = 1e-3,
         early_stop_eps: float = 1e-4,
@@ -104,9 +104,9 @@ class OccupancyGrid(AbstractTransEstimator):
             render_step_size,
             cone_angle,
         )
-        t_starts = intervals.edges[intervals.is_left]
-        t_ends = intervals.edges[intervals.is_right]
-        ray_indices = samples.ray_ids
+        t_starts = intervals.vals[intervals.is_left]
+        t_ends = intervals.vals[intervals.is_right]
+        ray_indices = samples.ray_indices
         chunk_starts = samples.chunk_starts
         chunk_cnts = samples.chunk_cnts
 
@@ -276,3 +276,39 @@ def _enlarge_aabb(aabb, factor: float) -> Tensor:
     center = (aabb[:3] + aabb[3:]) / 2
     extent = (aabb[3:] - aabb[:3]) / 2
     return torch.cat([center - extent * factor, center + extent * factor])
+
+
+def _query(self, x: torch.Tensor, data) -> torch.Tensor:
+    """
+    Query the grid values at the given points.
+
+    Args:
+        x: (N, 3) tensor of points to query.
+        data: (n_levels, res_x, res_y, res_z) tensor of grid values
+    """
+    # normalize so that the base_aabb is [0, 1]^3
+    aabb_min, aabb_max = torch.split(self.base_aabb, 3, dim=0)
+    x_norm = (x - aabb_min) / (aabb_max - aabb_min)
+
+    # if maxval is almost zero, it will trigger frexpf to output 0
+    # for exponent, which is not what we want.
+    maxval = (x_norm - 0.5).abs().max(dim=-1).values
+    maxval = torch.clamp(maxval, min=0.1)
+
+    # compute the mip level
+    exponent = torch.frexp(maxval)[1].long()
+    mip = torch.clamp(exponent + 1, min=0)
+    selector = mip < data.shape[0]
+
+    # use the mip to re-normalize all points to [0, 1].
+    scale = 2**mip
+    x_unit = (x_norm - 0.5) / scale[:, None] + 0.5
+
+    # map to the grid index
+    resolution = torch.tensor(data.shape[1:], device=x.device)
+    ix = (x_unit * resolution).long()
+
+    ix = torch.clamp(ix, max=resolution - 1)
+    mip = torch.clamp(mip, max=data.shape[0] - 1)
+
+    return data[mip, ix[:, 0], ix[:, 1], ix[:, 2]] * selector, selector

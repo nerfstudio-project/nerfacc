@@ -92,7 +92,7 @@ def test_traverse_grids():
             rays_o, rays_d, binaries, aabbs, 0.0, 1e10, 1e-2, 0.0
         )
         torch.cuda.synchronize()
-    print(samples.edges.shape)
+    print(samples.vals.shape)
 
     import nerfacc._cuda as _C
     from nerfacc._contraction import ContractionType

@@ -121,10 +121,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 
   py::class_<RaySegmentsSpec>(m, "RaySegmentsSpec")
       .def(py::init<>())
-      .def_readwrite("edges", &RaySegmentsSpec::edges)
+      .def_readwrite("vals", &RaySegmentsSpec::vals)
       .def_readwrite("is_left", &RaySegmentsSpec::is_left)
       .def_readwrite("is_right", &RaySegmentsSpec::is_right)
       .def_readwrite("chunk_starts", &RaySegmentsSpec::chunk_starts)
       .def_readwrite("chunk_cnts", &RaySegmentsSpec::chunk_cnts)
-      .def_readwrite("ray_ids", &RaySegmentsSpec::ray_ids);
+      .def_readwrite("ray_indices", &RaySegmentsSpec::ray_indices);
 }
