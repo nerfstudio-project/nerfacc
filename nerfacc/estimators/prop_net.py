@@ -5,7 +5,7 @@ from torch import Tensor
 
 from ..data_specs import RaySegments
 from ..pdf import importance_sampling, searchsorted
-from ..rendering import render_transmittance_from_density
+from ..volrend import render_transmittance_from_density
 from .base import AbstractTransEstimator
 
 

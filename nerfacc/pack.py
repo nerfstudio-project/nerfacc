@@ -12,7 +12,8 @@ def pack_info(ray_indices: Tensor, n_rays: Optional[int] = None) -> Tensor:
         this function is not differentiable to any inputs.
 
     Args:
-        ray_indices: Ray index of each sample. LongTensor with shape (n_sample).
+        ray_indices: Ray indices of the samples. LongTensor with shape (n_sample).
+        n_rays: Number of rays. If None, it is inferred from `ray_indices`. Default is None.
 
     Returns:
         packed_info: A LongTensor of shape (n_rays, 2) that specifies the start and count

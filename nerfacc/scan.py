@@ -18,7 +18,7 @@ def inclusive_sum(
     Args:
         inputs: The tensor to be summed. Can be either a N-D tensor, or a flattened
             tensor with `packed_info` specified.
-        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
+        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened input tensor, with in total n_rays chunks.
             If None, the input is assumed to be a N-D tensor and the sum is computed
             along the last dimension. Default is None.
@@ -50,7 +50,7 @@ def exclusive_sum(
     Args:
         inputs: The tensor to be summed. Can be either a N-D tensor, or a flattened
             tensor with `packed_info` specified.
-        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
+        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened input tensor, with in total n_rays chunks.
             If None, the input is assumed to be a N-D tensor and the sum is computed
             along the last dimension. Default is None.
@@ -89,7 +89,7 @@ def inclusive_prod(
     Args:
         inputs: The tensor to be producted. Can be either a N-D tensor, or a flattened
             tensor with `packed_info` specified.
-        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
+        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened input tensor, with in total n_rays chunks.
             If None, the input is assumed to be a N-D tensor and the product is computed
             along the last dimension. Default is None.
@@ -121,7 +121,7 @@ def exclusive_prod(
     Args:
         inputs: The tensor to be producted. Can be either a N-D tensor, or a flattened
             tensor with `packed_info` specified.
-        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
+        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened input tensor, with in total n_rays chunks.
             If None, the input is assumed to be a N-D tensor and the product is computed
             along the last dimension. Default is None.

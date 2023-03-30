@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 
 from ..grid import traverse_grids
-from ..rendering import (
+from ..volrend import (
     render_visibility_from_alpha,
     render_visibility_from_density,
 )

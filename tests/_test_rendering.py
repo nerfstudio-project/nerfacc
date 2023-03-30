@@ -7,7 +7,7 @@ from nerfacc import (
     render_visibility,
     render_weight_from_alpha,
     render_weight_from_density,
-    rendering,
+    volrend,
 )
 
 device = "cuda:0"
@@ -124,7 +124,7 @@ def test_rendering():
     t_starts = torch.rand_like(sigmas)
     t_ends = torch.rand_like(sigmas) + 1.0
 
-    _, _, _ = rendering(
+    _, _, _ = volrend(
         t_starts,
         t_ends,
         ray_indices=ray_indices,

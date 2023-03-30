@@ -12,7 +12,7 @@ from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 from nerfacc.estimators.occ_grid import OccupancyGrid
 from nerfacc.estimators.prop_net import ProposalNet
-from nerfacc.rendering import rendering
+from nerfacc.volrend import rendering
 
 NERF_SYNTHETIC_SCENES = [
     "chair",
@@ -116,7 +116,7 @@ def render_image_with_occgrid(
             cone_angle=cone_angle,
             alpha_thre=alpha_thre,
         )
-        rgb, opacity, depth, _ = rendering(
+        rgb, opacity, depth, extras = rendering(
             t_starts,
             t_ends,
             ray_indices,
@@ -177,7 +177,7 @@ def render_image_with_propnet(
             sigmas[..., -1, :] = torch.inf
         return sigmas.squeeze(-1)
 
-    def rgb_sigma_fn(t_starts, t_ends):
+    def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         t_origins = chunk_rays.origins[..., None, :]
         t_dirs = chunk_rays.viewdirs[..., None, :].repeat_interleave(
             t_starts.shape[-1], dim=-2
@@ -186,7 +186,7 @@ def render_image_with_propnet(
         rgb, sigmas = radiance_field(positions, t_dirs)
         if opaque_bkgd:
             sigmas[..., -1, :] = torch.inf
-        return rgb, sigmas
+        return rgb, sigmas.squeeze(-1)
 
     results = []
     chunk = (
@@ -209,7 +209,7 @@ def render_image_with_propnet(
             stratified=radiance_field.training,
             requires_grid=proposal_requires_grad,
         )
-        rgb, opacity, depth, trans = rendering(
+        rgb, opacity, depth, extras = rendering(
             t_starts,
             t_ends,
             ray_indices=None,
@@ -217,6 +217,7 @@ def render_image_with_propnet(
             rgb_sigma_fn=rgb_sigma_fn,
             render_bkgd=render_bkgd,
         )
+        trans = extras["trans"]
         cdfs = 1.0 - torch.cat([trans, torch.zeros_like(trans[:, :1])], dim=-1)
         chunk_results = [rgb, opacity, depth]
         results.append(chunk_results)

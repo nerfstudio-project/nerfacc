@@ -12,7 +12,7 @@ from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 from nerfacc import OccupancyGrid, ray_marching
 from nerfacc._proposal import rendering as rendering_proposal
-from nerfacc.rendering import rendering
+from nerfacc.volrend import rendering
 
 NERF_SYNTHETIC_SCENES = [
     "chair",
