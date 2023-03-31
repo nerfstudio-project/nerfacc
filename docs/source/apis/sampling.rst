@@ -10,7 +10,3 @@ Sampling
 
 .. autoclass:: PropNetEstimator
     :members:
-
-.. .. autoclass:: OccupancyGrid
-..     :members:
-

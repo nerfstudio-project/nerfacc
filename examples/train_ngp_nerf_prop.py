@@ -236,7 +236,7 @@ for step in range(max_steps + 1):
 
     proposal_requires_grad = proposal_requires_grad_fn(step)
     # render
-    rgb, acc, depth, ray_segments, cdfs = render_image_with_propnet(
+    rgb, acc, depth, extras = render_image_with_propnet(
         radiance_field,
         proposal_networks,
         estimator,
@@ -253,7 +253,7 @@ for step in range(max_steps + 1):
         proposal_requires_grad=proposal_requires_grad,
     )
     estimator.update_every_n_steps(
-        ray_segments, cdfs, proposal_requires_grad, loss_scaler=1024
+        extras["trans"], proposal_requires_grad, loss_scaler=1024
     )
 
     # compute loss
@@ -293,7 +293,7 @@ for step in range(max_steps + 1):
                 pixels = data["pixels"]
 
                 # rendering
-                rgb, acc, depth, _, _, = render_image_with_propnet(
+                rgb, acc, depth, _, = render_image_with_propnet(
                     radiance_field,
                     proposal_networks,
                     estimator,

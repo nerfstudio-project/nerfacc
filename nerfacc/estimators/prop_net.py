@@ -10,7 +10,14 @@ from .base import AbstractTransEstimator
 
 
 class PropNetEstimator(AbstractTransEstimator):
-    """Proposal network transmittance estimator."""
+    """Proposal network transmittance estimator.
+
+    References: "Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields."
+
+    Args:
+        optimizer: The optimizer to use for the proposal networks.
+        scheduler: The learning rate scheduler to use for the proposal networks.
+    """
 
     def __init__(
         self,
@@ -35,8 +42,43 @@ class PropNetEstimator(AbstractTransEstimator):
         sampling_type: Literal["uniform", "lindisp"] = "lindisp",
         # training options
         stratified: bool = False,
-        requires_grid: bool = False,
+        requires_grad: bool = False,
     ) -> Tuple[Tensor, Tensor]:
+        """Sampling with CDFs from proposal networks.
+
+        Note:
+            When `requires_grad` is `True`, the gradients are allowed to flow
+            through the proposal networks, and the outputs of the proposal
+            networks are cached to update them later when calling `update_every_n_steps()`
+
+        Args:
+            prop_sigma_fns: Proposal network evaluate functions. It should be a list
+                of functions that take in samples {t_starts (n_rays, n_samples),
+                t_ends (n_rays, n_samples)} and returns the post-activation densities
+                (n_rays, n_samples).
+            prop_samples: Number of samples to draw from each proposal network. Should
+                be the same length as `prop_sigma_fns`.
+            num_samples: Number of samples to draw in the end.
+            n_rays: Number of rays.
+            near_plane: Near plane.
+            far_plane: Far plane.
+            sampling_type: Sampling type. Either "uniform" or "lindisp". Default to
+                "lindisp".
+            stratified: Whether to use stratified sampling. Default to `False`.
+            requires_grad: Whether to allow gradients to flow through the proposal
+                networks. Default to `False`.
+
+        Returns:
+            A tuple of {Tensor, Tensor}:
+
+            - **t_starts**: The starts of the samples. Shape (n_rays, num_samples).
+            - **t_ends**: The ends of the samples. Shape (n_rays, num_samples).
+
+        """
+        assert len(prop_sigma_fns) == len(prop_samples), (
+            "The number of proposal networks and the number of samples "
+            "should be the same."
+        )
         cdfs = torch.cat(
             [
                 torch.zeros((n_rays, 1), device=self.device),
@@ -56,7 +98,7 @@ class PropNetEstimator(AbstractTransEstimator):
             t_starts = t_vals[..., :-1]
             t_ends = t_vals[..., 1:]
 
-            with torch.set_grad_enabled(requires_grid):
+            with torch.set_grad_enabled(requires_grad):
                 sigmas = level_fn(t_starts, t_ends)
                 assert sigmas.shape == t_starts.shape
                 trans, _ = render_transmittance_from_density(
@@ -65,7 +107,7 @@ class PropNetEstimator(AbstractTransEstimator):
                 cdfs = 1.0 - torch.cat(
                     [trans, torch.zeros_like(trans[:, :1])], dim=-1
                 )
-                if requires_grid:
+                if requires_grad:
                     self.prop_cache.append((intervals, cdfs))
 
         intervals, _ = importance_sampling(
@@ -76,32 +118,43 @@ class PropNetEstimator(AbstractTransEstimator):
         )
         t_starts = t_vals[..., :-1]
         t_ends = t_vals[..., 1:]
+        if requires_grad:
+            self.prop_cache.append((intervals, None))
 
-        return intervals, t_starts, t_ends
+        return t_starts, t_ends
 
     @torch.enable_grad()
     def update_every_n_steps(
         self,
-        intervals: RayIntervals,
-        cdfs: Tensor,
-        requires_grid: bool = False,
+        trans: Tensor,
+        requires_grad: bool = False,
         loss_scaler: float = 1.0,
     ) -> float:
-        """Update the grid every n steps during training."""
-        if requires_grid:
-            return self._update(
-                intervals=intervals, cdfs=cdfs, loss_scaler=loss_scaler
-            )
+        """Update the estimator every n steps during training.
+
+        Args:
+            trans: The transmittance of all samples. Shape (n_rays, num_samples).
+            requires_grad: Whether to allow gradients to flow through the proposal
+                networks. Default to `False`.
+            loss_scaler: The loss scaler to use. Default to 1.0.
+
+        Returns:
+            The loss of the proposal networks for logging (a float scalar).
+        """
+        if requires_grad:
+            cdfs = 1.0 - trans
+            return self._update(cdfs=cdfs, loss_scaler=loss_scaler)
         else:
             if self.scheduler is not None:
                 self.scheduler.step()
             return 0.0
 
     @torch.enable_grad()
-    def _update(
-        self, intervals: RayIntervals, cdfs: Tensor, loss_scaler: float = 1.0
-    ) -> float:
+    def _update(self, trans: Tensor, loss_scaler: float = 1.0) -> float:
         assert len(self.prop_cache) > 0
+        intervals, _ = self.prop_cache.pop()
+        # get cdfs at all edges of intervals
+        cdfs = 1.0 - torch.cat([trans, torch.zeros_like(trans[:, :1])], dim=-1)
         cdfs = cdfs.detach()
 
         loss = 0.0

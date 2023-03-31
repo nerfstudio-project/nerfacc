@@ -14,6 +14,8 @@ from .base import AbstractTransEstimator
 class OccGridEstimator(AbstractTransEstimator):
     """Occupancy grid transmittance estimator for spatial skipping.
 
+    References: "Instant Neural Graphics Primitives."
+
     Args:
         roi_aabb: The axis-aligned bounding box of the region of interest. Useful for mapping
             the 3D space to the grid.
@@ -210,7 +212,7 @@ class OccGridEstimator(AbstractTransEstimator):
         warmup_steps: int = 256,
         n: int = 16,
     ) -> None:
-        """Update the grid every n steps during training.
+        """Update the estimator every n steps during training.
 
         Args:
             step: Current training step.

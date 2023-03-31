@@ -199,7 +199,7 @@ def render_image_with_propnet(
     )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        ray_segments, t_starts, t_ends = estimator.sampling(
+        t_starts, t_ends = estimator.sampling(
             prop_sigma_fns=[
                 lambda *args: prop_sigma_fn(*args, p) for p in proposal_networks
             ],
@@ -210,7 +210,7 @@ def render_image_with_propnet(
             far_plane=far_plane,
             sampling_type=sampling_type,
             stratified=radiance_field.training,
-            requires_grid=proposal_requires_grad,
+            requires_grad=proposal_requires_grad,
         )
         rgb, opacity, depth, extras = rendering(
             t_starts,
@@ -221,7 +221,6 @@ def render_image_with_propnet(
             render_bkgd=render_bkgd,
         )
         trans = extras["trans"]
-        cdfs = 1.0 - torch.cat([trans, torch.zeros_like(trans[:, :1])], dim=-1)
         chunk_results = [rgb, opacity, depth]
         results.append(chunk_results)
 
@@ -236,6 +235,5 @@ def render_image_with_propnet(
         colors.view((*rays_shape[:-1], -1)),
         opacities.view((*rays_shape[:-1], -1)),
         depths.view((*rays_shape[:-1], -1)),
-        ray_segments,
-        cdfs,
+        extras,
     )
