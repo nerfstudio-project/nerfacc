@@ -475,7 +475,9 @@ def accumulate_along_rays(
             the accumulated weights, in which case D == 1.
 
     Examples:
+
     .. code-block:: python
+
         # Rendering: accumulate rgbs, opacities, and depths along the rays.
         colors = accumulate_along_rays(weights, rgbs, ray_indices, n_rays)
         opacities = accumulate_along_rays(weights, None, ray_indices, n_rays)
@@ -487,6 +489,7 @@ def accumulate_along_rays(
         )
         # (n_rays, 3), (n_rays, 1), (n_rays, 1)
         print(colors.shape, opacities.shape, depths.shape)
+
     """
     if values is None:
         src = weights[..., None]

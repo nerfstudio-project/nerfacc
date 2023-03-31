@@ -1,16 +1,16 @@
-.. _`Occupancy Grid`:
+.. _`Transmittance Estimator`:
 
-Occupancy Grid
+Transmittance Estimator
 ===================================
 
 .. currentmodule:: nerfacc
 
-.. autoclass:: ContractionType
-    :members:
+.. .. autoclass:: ContractionType
+..     :members:
 
-.. autoclass:: Grid
-    :members:
+.. .. autoclass:: Grid
+..     :members:
 
-.. autoclass:: OccupancyGrid
-    :members:
+.. .. autoclass:: OccupancyGrid
+..     :members:
 
