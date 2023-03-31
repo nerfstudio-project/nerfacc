@@ -10,8 +10,8 @@ import torch
 from datasets.utils import Rays, namedtuple_map
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
-from nerfacc.estimators.occ_grid import OccupancyGrid
-from nerfacc.estimators.prop_net import ProposalNet
+from nerfacc.estimators.occ_grid import OccGridEstimator
+from nerfacc.estimators.prop_net import PropNetEstimator
 from nerfacc.volrend import rendering
 
 NERF_SYNTHETIC_SCENES = [
@@ -44,7 +44,7 @@ def set_random_seed(seed):
 def render_image_with_occgrid(
     # scene
     radiance_field: torch.nn.Module,
-    estimator: OccupancyGrid,
+    estimator: OccGridEstimator,
     rays: Rays,
     # rendering options
     near_plane: float = 0.0,
@@ -145,7 +145,7 @@ def render_image_with_propnet(
     # scene
     radiance_field: torch.nn.Module,
     proposal_networks: Sequence[torch.nn.Module],
-    estimator: ProposalNet,
+    estimator: PropNetEstimator,
     rays: Rays,
     # rendering options
     num_samples: int,

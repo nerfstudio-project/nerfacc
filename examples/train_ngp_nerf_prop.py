@@ -21,7 +21,7 @@ from examples.utils import (
     render_image_with_propnet,
     set_random_seed,
 )
-from nerfacc.estimators.prop_net import ProposalNet
+from nerfacc.estimators.prop_net import PropNetEstimator
 
 
 def get_proposal_requires_grad_fn(
@@ -186,7 +186,7 @@ prop_scheduler = torch.optim.lr_scheduler.ChainedScheduler(
         ),
     ]
 )
-estimator = ProposalNet(prop_optimizer, prop_scheduler).to(device)
+estimator = PropNetEstimator(prop_optimizer, prop_scheduler).to(device)
 
 grad_scaler = torch.cuda.amp.GradScaler(2**10)
 radiance_field = NGPRadianceField(aabb=aabb, unbounded=unbounded).to(device)

@@ -142,8 +142,7 @@ class PropNetEstimator(AbstractTransEstimator):
             The loss of the proposal networks for logging (a float scalar).
         """
         if requires_grad:
-            cdfs = 1.0 - trans
-            return self._update(cdfs=cdfs, loss_scaler=loss_scaler)
+            return self._update(trans=trans, loss_scaler=loss_scaler)
         else:
             if self.scheduler is not None:
                 self.scheduler.step()

@@ -21,7 +21,7 @@ from examples.utils import (
     render_image_with_occgrid,
     set_random_seed,
 )
-from nerfacc.estimators.occ_grid import OccupancyGrid
+from nerfacc.estimators.occ_grid import OccGridEstimator
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -121,7 +121,7 @@ test_dataset = SubjectLoader(
     **test_dataset_kwargs,
 )
 
-estimator = OccupancyGrid(
+estimator = OccGridEstimator(
     roi_aabb=aabb, resolution=grid_resolution, levels=grid_nlvl
 ).to(device)
 
