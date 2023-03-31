@@ -115,7 +115,7 @@ def importance_sampling(
         >>> samples.vals
         tensor([[0.2500, 0.7500],
                 [0.5000, 1.5000]], device='cuda:0')
-        
+
     """
     if isinstance(n_intervals_per_ray, Tensor):
         n_intervals_per_ray = n_intervals_per_ray.contiguous()

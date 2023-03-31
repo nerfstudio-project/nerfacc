@@ -80,8 +80,10 @@ def render_image_with_occgrid(
                 if radiance_field.training
                 else timestamps.expand_as(positions[:, :1])
             )
-            return radiance_field.query_density(positions, t)
-        return radiance_field.query_density(positions).squeeze(-1)
+            sigmas = radiance_field.query_density(positions, t)
+        else:
+            sigmas = radiance_field.query_density(positions)
+        return sigmas.squeeze(-1)
 
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         t_origins = chunk_rays.origins[ray_indices]
@@ -95,7 +97,8 @@ def render_image_with_occgrid(
                 else timestamps.expand_as(positions[:, :1])
             )
             return radiance_field(positions, t, t_dirs)
-        return radiance_field(positions, t_dirs)
+        rgbs, sigmas = radiance_field(positions, t_dirs)
+        return rgbs, sigmas.squeeze(-1)
 
     results = []
     chunk = (

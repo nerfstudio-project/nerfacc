@@ -1,6 +1,5 @@
 import pytest
 import torch
-import tqdm
 
 device = "cuda:0"
 
@@ -12,7 +11,6 @@ def test_ray_aabb_intersect():
     torch.manual_seed(42)
     n_rays = 1000
     n_aabbs = 100
-    timeit = 0
 
     rays_o = torch.rand((n_rays, 3), device=device)
     rays_d = torch.randn((n_rays, 3), device=device)
@@ -36,41 +34,14 @@ def test_ray_aabb_intersect():
     ).all(dim=-1)
     assert torch.allclose(hits, _hits)
 
-    if timeit > 0:
-        _ = ray_aabb_intersect(rays_o, rays_d, aabbs)
-        torch.cuda.synchronize()
-        for _ in tqdm.trange(timeit):
-            _ = ray_aabb_intersect(rays_o, rays_d, aabbs)
-            torch.cuda.synchronize()
-
-        _ = _ray_aabb_intersect(rays_o, rays_d, aabbs)
-        torch.cuda.synchronize()
-        for _ in tqdm.trange(timeit):
-            _ = _ray_aabb_intersect(rays_o, rays_d, aabbs)
-            torch.cuda.synchronize()
-
-        from nerfacc._intersection import ray_aabb_intersect
-
-        _ = ray_aabb_intersect(rays_o, rays_d, aabbs[0])
-        torch.cuda.synchronize()
-        for _ in tqdm.trange(timeit):
-            _ = ray_aabb_intersect(rays_o, rays_d, aabbs[0])
-            torch.cuda.synchronize()
-
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_traverse_grids():
-    # TODO: cleanup the tests
-    from nerfacc.grid import traverse_grids
-
-    def _enlarge_aabb(aabb, factor: float) -> torch.Tensor:
-        center = (aabb[:3] + aabb[3:]) / 2
-        extent = (aabb[3:] - aabb[:3]) / 2
-        return torch.cat([center - extent * factor, center + extent * factor])
+    from nerfacc.grid import _enlarge_aabb, _query, traverse_grids
 
     torch.manual_seed(42)
-    n_rays = 1000
-    n_aabbs = 8
+    n_rays = 10
+    n_aabbs = 4
 
     rays_o = torch.randn((n_rays, 3), device=device)
     rays_d = torch.randn((n_rays, 3), device=device)
@@ -81,60 +52,20 @@ def test_traverse_grids():
         [_enlarge_aabb(base_aabb, 2**i) for i in range(n_aabbs)]
     )
 
-    binaries = torch.rand((n_aabbs, 128, 128, 128), device=device) > 0.5
+    binaries = torch.rand((n_aabbs, 32, 32, 32), device=device) > 0.5
 
-    _, samples = traverse_grids(
-        rays_o, rays_d, binaries, aabbs, 0.0, 1e10, 1e-3, 0.0
+    intervals, samples = traverse_grids(rays_o, rays_d, binaries, aabbs)
+
+    ray_indices = samples.ray_indices
+    t_starts = intervals.vals[intervals.is_left]
+    t_ends = intervals.vals[intervals.is_right]
+    positions = (
+        rays_o[ray_indices]
+        + rays_d[ray_indices] * (t_starts + t_ends)[:, None] / 2.0
     )
-    torch.cuda.synchronize()
-    for _ in tqdm.trange(100):
-        _, samples = traverse_grids(
-            rays_o, rays_d, binaries, aabbs, 0.0, 1e10, 1e-2, 0.0
-        )
-        torch.cuda.synchronize()
-    print(samples.vals.shape)
-
-    import nerfacc._cuda as _C
-    from nerfacc._contraction import ContractionType
-    from nerfacc._intersection import ray_aabb_intersect
-
-    t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabbs[-1])
-
-    # marching with grid-based skipping
-    packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
-        # rays
-        rays_o,
-        rays_d,
-        t_min,
-        t_max,
-        # coontraction and grid
-        base_aabb.contiguous(),
-        binaries.contiguous(),
-        ContractionType.AABB.to_cpp_version(),
-        # sampling
-        1e-2,
-        0.0,
-    )
-    torch.cuda.synchronize()
-    for _ in tqdm.trange(100):
-        t_min, t_max = ray_aabb_intersect(rays_o, rays_d, aabbs[-1])
-        packed_info, ray_indices, t_starts, t_ends = _C.ray_marching(
-            # rays
-            rays_o,
-            rays_d,
-            t_min,
-            t_max,
-            # coontraction and grid
-            base_aabb.contiguous(),
-            binaries.contiguous(),
-            ContractionType.AABB.to_cpp_version(),
-            # sampling
-            1e-2,
-            0.0,
-        )
-        torch.cuda.synchronize()
-
-    print("ray_indices", ray_indices.shape)
+    occs, selector = _query(positions, binaries, base_aabb)
+    assert occs.all(), occs.float().mean()
+    assert selector.all(), selector.float().mean()
 
 
 if __name__ == "__main__":

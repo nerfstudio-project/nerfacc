@@ -3,7 +3,7 @@ from typing import Callable, List, Optional, Tuple, Union
 import torch
 from torch import Tensor
 
-from ..grid import traverse_grids
+from ..grid import _enlarge_aabb, traverse_grids
 from ..volrend import (
     render_visibility_from_alpha,
     render_visibility_from_density,
@@ -97,18 +97,17 @@ class OccupancyGrid(AbstractTransEstimator):
         intervals, samples = traverse_grids(
             rays_o,
             rays_d,
-            near_planes,
-            far_planes,
             self.binaries,
             self.aabbs,
-            render_step_size,
-            cone_angle,
+            near_planes=near_planes,
+            far_planes=far_planes,
+            step_size=render_step_size,
+            cone_angle=cone_angle,
         )
         t_starts = intervals.vals[intervals.is_left]
         t_ends = intervals.vals[intervals.is_right]
         ray_indices = samples.ray_indices
-        chunk_starts = samples.chunk_starts
-        chunk_cnts = samples.chunk_cnts
+        packed_info = samples.packed_info
 
         # skip invisible space
         if (alpha_thre > 0.0 or early_stop_eps > 0.0) and (
@@ -126,8 +125,7 @@ class OccupancyGrid(AbstractTransEstimator):
                     t_starts=t_starts,
                     t_ends=t_ends,
                     sigmas=sigmas,
-                    chunk_starts=chunk_starts,
-                    chunk_cnts=chunk_cnts,
+                    packed_info=packed_info,
                     early_stop_eps=early_stop_eps,
                     alpha_thre=alpha_thre,
                 )
@@ -138,8 +136,7 @@ class OccupancyGrid(AbstractTransEstimator):
                 ), "alphas must have shape of (N,)! Got {}".format(alphas.shape)
                 masks = render_visibility_from_alpha(
                     alphas=alphas,
-                    chunk_starts=chunk_starts,
-                    chunk_cnts=chunk_cnts,
+                    packed_info=packed_info,
                     early_stop_eps=early_stop_eps,
                     alpha_thre=alpha_thre,
                 )
@@ -270,45 +267,3 @@ def _meshgrid3d(
         ),
         dim=-1,
     ).to(device)
-
-
-def _enlarge_aabb(aabb, factor: float) -> Tensor:
-    center = (aabb[:3] + aabb[3:]) / 2
-    extent = (aabb[3:] - aabb[:3]) / 2
-    return torch.cat([center - extent * factor, center + extent * factor])
-
-
-def _query(self, x: torch.Tensor, data) -> torch.Tensor:
-    """
-    Query the grid values at the given points.
-
-    Args:
-        x: (N, 3) tensor of points to query.
-        data: (n_levels, res_x, res_y, res_z) tensor of grid values
-    """
-    # normalize so that the base_aabb is [0, 1]^3
-    aabb_min, aabb_max = torch.split(self.base_aabb, 3, dim=0)
-    x_norm = (x - aabb_min) / (aabb_max - aabb_min)
-
-    # if maxval is almost zero, it will trigger frexpf to output 0
-    # for exponent, which is not what we want.
-    maxval = (x_norm - 0.5).abs().max(dim=-1).values
-    maxval = torch.clamp(maxval, min=0.1)
-
-    # compute the mip level
-    exponent = torch.frexp(maxval)[1].long()
-    mip = torch.clamp(exponent + 1, min=0)
-    selector = mip < data.shape[0]
-
-    # use the mip to re-normalize all points to [0, 1].
-    scale = 2**mip
-    x_unit = (x_norm - 0.5) / scale[:, None] + 0.5
-
-    # map to the grid index
-    resolution = torch.tensor(data.shape[1:], device=x.device)
-    ix = (x_unit * resolution).long()
-
-    ix = torch.clamp(ix, max=resolution - 1)
-    mip = torch.clamp(mip, max=data.shape[0] - 1)
-
-    return data[mip, ix[:, 0], ix[:, 1], ix[:, 2]] * selector, selector
