@@ -8,10 +8,10 @@ from ..volrend import (
     render_visibility_from_alpha,
     render_visibility_from_density,
 )
-from .base import AbstractTransEstimator
+from .base import AbstractEstimator
 
 
-class OccGridEstimator(AbstractTransEstimator):
+class OccGridEstimator(AbstractEstimator):
     """Occupancy grid transmittance estimator for spatial skipping.
 
     References: "Instant Neural Graphics Primitives."

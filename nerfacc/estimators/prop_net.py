@@ -6,10 +6,10 @@ from torch import Tensor
 from ..data_specs import RayIntervals
 from ..pdf import importance_sampling, searchsorted
 from ..volrend import render_transmittance_from_density
-from .base import AbstractTransEstimator
+from .base import AbstractEstimator
 
 
-class PropNetEstimator(AbstractTransEstimator):
+class PropNetEstimator(AbstractEstimator):
     """Proposal network transmittance estimator.
 
     References: "Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields."
