@@ -12,11 +12,9 @@ in training various recent NeRF papers.
 
 .. image:: _static/images/teaser_illustration.png
   :align: center
-  :alt: illustrration figure
 
 .. image:: _static/images/teaser_barchart.png
   :align: center
-  :alt: speedup barchart figure
 
 |
 
@@ -88,36 +86,25 @@ An simple example is like this:
    def sigma_fn(
       t_starts: Tensor, t_ends:Tensor, ray_indices: Tensor
    ) -> Tensor:
-      """ Query density values from a user-defined radiance field.
-      :params t_starts: Start of the sample interval along the ray. (n_samples, 1).
-      :params t_ends: End of the sample interval along the ray. (n_samples, 1).
-      :params ray_indices: Ray indices that each sample belongs to. (n_samples,).
-      :returns The post-activation density values. (n_samples, 1).
-      """
+      """ Define how to query density for the estimator."""
       t_origins = rays_o[ray_indices]  # (n_samples, 3)
       t_dirs = rays_d[ray_indices]  # (n_samples, 3)
-      positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+      positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
       sigmas = radiance_field.query_density(positions) 
-      return sigmas  # (n_samples, 1)
+      return sigmas  # (n_samples,)
 
    def rgb_sigma_fn(
       t_starts: Tensor, t_ends: Tensor, ray_indices: Tensor
    ) -> Tuple[Tensor, Tensor]:
-      """ Query rgb and density values from a user-defined radiance field.
-      :params t_starts: Start of the sample interval along the ray. (n_samples, 1).
-      :params t_ends: End of the sample interval along the ray. (n_samples, 1).
-      :params ray_indices: Ray indices that each sample belongs to. (n_samples,).
-      :returns The post-activation rgb and density values. 
-         (n_samples, 3), (n_samples, 1).
-      """
+      """ Query rgb and density values from a user-defined radiance field. """
       t_origins = rays_o[ray_indices]  # (n_samples, 3)
       t_dirs = rays_d[ray_indices]  # (n_samples, 3)
-      positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+      positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
       rgbs, sigmas = radiance_field(positions, condition=t_dirs)  
-      return rgbs, sigmas  # (n_samples, 3), (n_samples, 1)
+      return rgbs, sigmas  # (n_samples, 3), (n_samples,)
 
    # Efficient Raymarching:
-   # ray_indices: (n_samples,). t_starts: (n_samples, 1). t_ends: (n_samples, 1).
+   # ray_indices: (n_samples,). t_starts: (n_samples,). t_ends: (n_samples,).
    ray_indices, t_starts, t_ends = estimator.sampling(
       rays_o, rays_d, sigma_fn=sigma_fn, near_plane=0.2, far_plane=1.0, 
       early_stop_eps=1e-4, alpha_thre=1e-2, 
@@ -138,6 +125,13 @@ An simple example is like this:
 
 Links:
 -------------
+
+.. toctree::
+   :glob:
+   :maxdepth: 1
+   :caption: Methodology
+
+   methodology/*
 
 .. toctree::
    :glob:

@@ -1,6 +1,8 @@
 Utils
 ===================================
 
+Below are the basic functions that supports sampling and rendering. 
+
 .. currentmodule:: nerfacc
 
 .. autosummary::
