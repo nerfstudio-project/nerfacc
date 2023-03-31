@@ -45,7 +45,7 @@ def rendering(
         rgb_alpha_fn: A function that takes in samples {t_starts (N,), t_ends (N,), \
             ray indices (N,)} and returns the post-activation rgb (N, 3) and opacity \
             values (N,).
-        render_bkgd: Optional. Background color. Tensor with shape (3,).
+        render_bkgd: Background color. Tensor with shape (3,).
     
     Returns:
         Ray colors (n_rays, 3), opacities (n_rays, 1), depths (n_rays, 1) and a dict
@@ -151,12 +151,12 @@ def render_transmittance_from_alpha(
     (`packed_info`) or (`ray_indices` and `n_rays`) should be provided.
 
     Args:
-        alphas: The opacity values of the samples. Tensor with shape (all_samples,) or (..., n_samples).
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+        alphas: The opacity values of the samples. Tensor with shape (all_samples,) or (n_rays, n_samples).
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened samples, with in total n_rays chunks.
             Useful for flattened input.
-        ray_indices: Optional. Ray indices of the flattened samples. LongTensor with shape (all_samples).
-        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided.
+        ray_indices: Ray indices of the flattened samples. LongTensor with shape (all_samples).
+        n_rays: Number of rays. Only useful when `ray_indices` is provided.
 
     Returns:
         The rendering transmittance with the same shape as `alphas`.
@@ -198,15 +198,15 @@ def render_transmittance_from_density(
 
     Args:
         t_starts: Where the frustum-shape sample starts along a ray. Tensor with \
-            shape (all_samples,) or (..., n_samples).
+            shape (all_samples,) or (n_rays, n_samples).
         t_ends: Where the frustum-shape sample ends along a ray. Tensor with \
-            shape (all_samples,) or (..., n_samples).
-        sigmas: The density values of the samples. Tensor with shape (all_samples,) or (..., n_samples).
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+            shape (all_samples,) or (n_rays, n_samples).
+        sigmas: The density values of the samples. Tensor with shape (all_samples,) or (n_rays, n_samples).
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened samples, with in total n_rays chunks.
             Useful for flattened input.
-        ray_indices: Optional. Ray indices of the flattened samples. LongTensor with shape (all_samples).
-        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided.
+        ray_indices: Ray indices of the flattened samples. LongTensor with shape (all_samples).
+        n_rays: Number of rays. Only useful when `ray_indices` is provided.
 
     Returns:
         The rendering transmittance and opacities, both with the same shape as `sigmas`.
@@ -249,12 +249,12 @@ def render_weight_from_alpha(
     (`packed_info`) or (`ray_indices` and `n_rays`) should be provided.
 
     Args:
-        alphas: The opacity values of the samples. Tensor with shape (all_samples,) or (..., n_samples).
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+        alphas: The opacity values of the samples. Tensor with shape (all_samples,) or (n_rays, n_samples).
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened samples, with in total n_rays chunks.
             Useful for flattened input.
-        ray_indices: Optional. Ray indices of the flattened samples. LongTensor with shape (all_samples).
-        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided.
+        ray_indices: Ray indices of the flattened samples. LongTensor with shape (all_samples).
+        n_rays: Number of rays. Only useful when `ray_indices` is provided.
 
     Returns:
         The rendering weights and transmittance, both with the same shape as `alphas`.
@@ -294,14 +294,14 @@ def render_weight_from_density(
     (`packed_info`) or (`ray_indices` and `n_rays`) should be provided.
 
     Args:
-        t_starts: The start time of the samples. Tensor with shape (all_samples,) or (..., n_samples).
-        t_ends: The end time of the samples. Tensor with shape (all_samples,) or (..., n_samples).
-        sigmas: The density values of the samples. Tensor with shape (all_samples,) or (..., n_samples).
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+        t_starts: The start time of the samples. Tensor with shape (all_samples,) or (n_rays, n_samples).
+        t_ends: The end time of the samples. Tensor with shape (all_samples,) or (n_rays, n_samples).
+        sigmas: The density values of the samples. Tensor with shape (all_samples,) or (n_rays, n_samples).
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened samples, with in total n_rays chunks.
             Useful for flattened input.
-        ray_indices: Optional. Ray indices of the flattened samples. LongTensor with shape (all_samples).
-        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided.
+        ray_indices: Ray indices of the flattened samples. LongTensor with shape (all_samples).
+        n_rays: Number of rays. Only useful when `ray_indices` is provided.
 
     Returns:
         The rendering weights, transmittance and opacities, both with the same shape as `sigmas`.
@@ -348,12 +348,12 @@ def render_visibility_from_alpha(
     (`packed_info`) or (`ray_indices` and `n_rays`) should be provided.
 
     Args:
-        alphas: The opacity values of the samples. Tensor with shape (all_samples,) or (..., n_samples).
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+        alphas: The opacity values of the samples. Tensor with shape (all_samples,) or (n_rays, n_samples).
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened samples, with in total n_rays chunks.
             Useful for flattened input.
-        ray_indices: Optional. Ray indices of the flattened samples. LongTensor with shape (all_samples).
-        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided.
+        ray_indices: Ray indices of the flattened samples. LongTensor with shape (all_samples).
+        n_rays: Number of rays. Only useful when `ray_indices` is provided.
         early_stop_eps: The early stopping threshold on transmittance.
         alpha_thre: The threshold on opacity.
 
@@ -404,12 +404,12 @@ def render_visibility_from_density(
     (`packed_info`) or (`ray_indices` and `n_rays`) should be provided.
 
     Args:
-        alphas: The opacity values of the samples. Tensor with shape (all_samples,) or (..., n_samples).
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+        alphas: The opacity values of the samples. Tensor with shape (all_samples,) or (n_rays, n_samples).
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened samples, with in total n_rays chunks.
             Useful for flattened input.
-        ray_indices: Optional. Ray indices of the flattened samples. LongTensor with shape (all_samples).
-        n_rays: Optional. Number of rays. Only useful when `ray_indices` is provided.
+        ray_indices: Ray indices of the flattened samples. LongTensor with shape (all_samples).
+        n_rays: Number of rays. Only useful when `ray_indices` is provided.
         early_stop_eps: The early stopping threshold on transmittance.
         alpha_thre: The threshold on opacity.
 
@@ -458,10 +458,10 @@ def accumulate_along_rays(
 
     Args:
         weights: Weights to be accumulated. If `ray_indices` not provided,
-            `weights` must be batched with shape (..., n_samples). Else it
+            `weights` must be batched with shape (n_rays, n_samples). Else it
             must be flattened with shape (all_samples,).
         values: Values to be accumulated. If `ray_indices` not provided,
-            `values` must be batched with shape (..., n_samples, D). Else it
+            `values` must be batched with shape (n_rays, n_samples, D). Else it
             must be flattened with shape (all_samples, D). None means
             we accumulate weights along rays. Default: None.
         ray_indices: Ray indices of the samples with shape (all_samples,).
@@ -472,7 +472,7 @@ def accumulate_along_rays(
 
     Returns:
         Accumulated values with shape (n_rays, D). If `values` is not given we return
-            the accumulated weights, in which case D == 1.
+        the accumulated weights, in which case D == 1.
 
     Examples:
 
