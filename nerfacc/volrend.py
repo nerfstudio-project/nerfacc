@@ -2,7 +2,7 @@
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
 
-from typing import Callable, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -22,53 +22,54 @@ def rendering(
     rgb_alpha_fn: Optional[Callable] = None,
     # rendering options
     render_bkgd: Optional[Tensor] = None,
-) -> Tuple[Tensor, Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor, Tensor, Dict]:
     """Render the rays through the radience field defined by `rgb_sigma_fn`.
-    
-    This function is differentiable to the outputs of `rgb_sigma_fn` so it can 
+
+    This function is differentiable to the outputs of `rgb_sigma_fn` so it can
     be used for gradient-based optimization.
 
     Note:
-        Either `rgb_sigma_fn` or `rgb_alpha_fn` should be provided. 
-    
+        Either `rgb_sigma_fn` or `rgb_alpha_fn` should be provided.
+
     Warning:
         This function is not differentiable to `t_starts`, `t_ends` and `ray_indices`.
-    
+
     Args:
-        t_starts: Per-sample start distance. Tensor with shape (n_samples,).
-        t_ends: Per-sample end distance. Tensor with shape (n_samples,).
-        ray_indices: Ray index of each sample. IntTensor with shape (n_samples).
+        t_starts: Per-sample start distance. Tensor with shape (all_samples,).
+        t_ends: Per-sample end distance. Tensor with shape (all_samples,).
+        ray_indices: Ray index of each sample. LongTensor with shape (all_samples).
         n_rays: Total number of rays. This will decide the shape of the ouputs.
-        rgb_sigma_fn: A function that takes in samples {t_starts (N,), t_ends (N,), \
-            ray indices (N,)} and returns the post-activation rgb (N, 3) and density \
-            values (N,). 
-        rgb_alpha_fn: A function that takes in samples {t_starts (N,), t_ends (N,), \
-            ray indices (N,)} and returns the post-activation rgb (N, 3) and opacity \
+        rgb_sigma_fn: A function that takes in samples {t_starts (N,), t_ends (N,),
+            ray indices (N,)} and returns the post-activation rgb (N, 3) and density
+            values (N,).
+        rgb_alpha_fn: A function that takes in samples {t_starts (N,), t_ends (N,),
+            ray indices (N,)} and returns the post-activation rgb (N, 3) and opacity
             values (N,).
         render_bkgd: Background color. Tensor with shape (3,).
-    
+
     Returns:
         Ray colors (n_rays, 3), opacities (n_rays, 1), depths (n_rays, 1) and a dict
-        containing extra intermediate results (e.g., "trans", "alphas")
-    
+        containing extra intermediate results (e.g., "weights", "trans", "alphas")
+
     Examples:
-    
+
     .. code-block:: python
-    
-        >>> rays_o = torch.rand((128, 3), device="cuda:0")
-        >>> rays_d = torch.randn((128, 3), device="cuda:0")
-        >>> rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
-        >>> ray_indices, t_starts, t_ends = ray_marching(
-        >>>     rays_o, rays_d, near_plane=0.1, far_plane=1.0, render_step_size=1e-3)
+
+        >>> t_starts = torch.tensor([0.1, 0.2, 0.1, 0.2, 0.3], device="cuda:0")
+        >>> t_ends = torch.tensor([0.2, 0.3, 0.2, 0.3, 0.4], device="cuda:0")
+        >>> ray_indices = torch.tensor([0, 0, 1, 1, 1], device="cuda:0")
         >>> def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         >>>     # This is a dummy function that returns random values.
         >>>     rgbs = torch.rand((t_starts.shape[0], 3), device="cuda:0")
-        >>>     sigmas = torch.rand((t_starts.shape[0], 1), device="cuda:0")
+        >>>     sigmas = torch.rand((t_starts.shape[0],), device="cuda:0")
         >>>     return rgbs, sigmas
-        >>> colors, opacities, depths = rendering(
-        >>>     t_starts, t_ends, ray_indices, n_rays=128, rgb_sigma_fn=rgb_sigma_fn)
+        >>> colors, opacities, depths, extras = rendering(
+        >>>     t_starts, t_ends, ray_indices, n_rays=2, rgb_sigma_fn=rgb_sigma_fn)
         >>> print(colors.shape, opacities.shape, depths.shape)
-        torch.Size([128, 3]) torch.Size([128, 1]) torch.Size([128, 1])
+        torch.Size([2, 3]) torch.Size([2, 1]) torch.Size([2, 1])
+        >>> extras.keys()
+        dict_keys(['weights', 'alphas', 'trans'])
+
     """
     if ray_indices is not None:
         assert (
@@ -97,7 +98,7 @@ def rendering(
             ray_indices=ray_indices,
             n_rays=n_rays,
         )
-        extras = {"alphas": alphas, "trans": trans}
+        extras = {"weights": weights, "alphas": alphas, "trans": trans}
     elif rgb_alpha_fn is not None:
         rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
@@ -112,7 +113,7 @@ def rendering(
             ray_indices=ray_indices,
             n_rays=n_rays,
         )
-        extras = {"trans": trans}
+        extras = {"weights": weights, "trans": trans}
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
     colors = accumulate_along_rays(
