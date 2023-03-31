@@ -18,6 +18,7 @@ def searchsorted(
     """Searchsorted that supports flattened tensor.
 
     This function returns {`ids_left`, `ids_right`} such that:
+
     `sorted_sequence.vals.gather(-1, ids_left) <= values.vals < sorted_sequence.vals.gather(-1, ids_right)`
 
     Note:
@@ -26,15 +27,15 @@ def searchsorted(
         sorted_sequence. See the example below.
 
     Args:
-        sorted_sequence: A RayIntervals or RaySamples object. We assume
-            the `sorted_sequence.vals` is acendingly sorted along the last
-            dimension.
-        values: A RayIntervals or RaySamples object. It does not need to be
-            sorted.
+        sorted_sequence: A :class:`RayIntervals` or :class:`RaySamples` object. We assume
+            the `sorted_sequence.vals` is acendingly sorted for each ray.
+        values: A :class:`RayIntervals` or :class:`RaySamples` object.
 
     Returns:
-        ids_left: A tensor with the same shape as `values.vals`.
-        ids_right: A tensor with the same shape as `values.vals`.
+        A tuple of LongTensor:
+
+        - **ids_left**: A LongTensor with the same shape as `values.vals`.
+        - **ids_right**: A LongTensor with the same shape as `values.vals`.
 
     Example:
         >>> sorted_sequence = RayIntervals(
@@ -75,7 +76,8 @@ def importance_sampling(
     intervals and samples. Stratified sampling is also supported.
 
     Args:
-        intervals: A RayIntervals object.
+        intervals: A :class:`RayIntervals` object that specifies the edges of the
+            intervals along the rays.
         cdfs: The CDFs at the interval edges. It has the same shape as
             `intervals.vals`.
         n_intervals_per_ray: Resample each ray to have this many intervals.
@@ -84,18 +86,20 @@ def importance_sampling(
         stratified: If True, perform stratified sampling.
 
     Returns:
-        intervals: A RayIntervals object. If `n_intervals_per_ray` is an int,
-            `intervals.vals` will has the shape of (n_rays, n_intervals_per_ray + 1).
-            If `n_intervals_per_ray` is a tensor, we assume each ray results
-            in a different number of intervals. In this case, `intervals.vals`
-            will has the shape of (all_edges,), the attributes `packed_info`,
+        A tuple of {:class:`RayIntervals`, :class:`RaySamples`}:
+
+        - **intervals**: A :class:`RayIntervals` object. If `n_intervals_per_ray` is an int, \
+            `intervals.vals` will has the shape of (n_rays, n_intervals_per_ray + 1). \
+            If `n_intervals_per_ray` is a tensor, we assume each ray results \
+            in a different number of intervals. In this case, `intervals.vals` \
+            will has the shape of (all_edges,), the attributes `packed_info`, \
             `ray_indices`, `is_left` and `is_right` will be accessable.
 
-        samples: A RaySamples object. If `n_intervals_per_ray` is an int,
-            `samples.vals` will has the shape of (n_rays, n_intervals_per_ray).
-            If `n_intervals_per_ray` is a tensor, we assume each ray results
-            in a different number of intervals. In this case, `samples.vals`
-            will has the shape of (all_samples,), the attributes `packed_info` and
+        - **samples**: A :class:`RaySamples` object. If `n_intervals_per_ray` is an int, \
+            `samples.vals` will has the shape of (n_rays, n_intervals_per_ray). \
+            If `n_intervals_per_ray` is a tensor, we assume each ray results \
+            in a different number of intervals. In this case, `samples.vals` \
+            will has the shape of (all_samples,), the attributes `packed_info` and  \
             `ray_indices` will be accessable.
 
     Example:
