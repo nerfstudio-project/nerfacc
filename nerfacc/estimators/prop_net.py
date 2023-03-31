@@ -9,7 +9,7 @@ from ..volrend import render_transmittance_from_density
 from .base import AbstractTransEstimator
 
 
-class ProposalNet(AbstractTransEstimator):
+class PropNetEstimator(AbstractTransEstimator):
     """Proposal network transmittance estimator."""
 
     def __init__(

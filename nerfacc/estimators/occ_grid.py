@@ -11,8 +11,8 @@ from ..volrend import (
 from .base import AbstractTransEstimator
 
 
-class OccupancyGrid(AbstractTransEstimator):
-    """Occupancy grid transmittance estimator.
+class OccGridEstimator(AbstractTransEstimator):
+    """Occupancy grid transmittance estimator for spatial skipping.
 
     Args:
         roi_aabb: The axis-aligned bounding box of the region of interest. Useful for mapping
@@ -126,18 +126,18 @@ class OccupancyGrid(AbstractTransEstimator):
                 constant step size. Default: 0.0.
 
         Returns:
-            A tuple of tensors.
-                - **ray_indices**: Ray index of each sample. IntTensor with shape (n_samples).
-                - **t_starts**: Per-sample start distance. Tensor with shape (n_samples,).
-                - **t_ends**: Per-sample end distance. Tensor with shape (n_samples,).
+            A tuple of {LongTensor, Tensor, Tensor}:
+
+            - **ray_indices**: Ray index of each sample. IntTensor with shape (n_samples).
+            - **t_starts**: Per-sample start distance. Tensor with shape (n_samples,).
+            - **t_ends**: Per-sample end distance. Tensor with shape (n_samples,).
 
         Examples:
 
         .. code-block:: python
 
-            >>> grid: OccupancyGrid
-            >>> ray_indices, t_starts, t_ends = grid.sampling(rays_o, rays_d, render_step_size=1e-3)
-            >>> # Convert t_starts and t_ends to sample locations.
+            >>> ray_indices, t_starts, t_ends = grid.sampling(
+            >>>     rays_o, rays_d, render_step_size=1e-3)
             >>> t_mid = (t_starts + t_ends) / 2.0
             >>> sample_locs = rays_o[ray_indices] + t_mid * rays_d[ray_indices]
 

@@ -26,7 +26,9 @@ def rendering(
     """Render the rays through the radience field defined by `rgb_sigma_fn`.
 
     This function is differentiable to the outputs of `rgb_sigma_fn` so it can
-    be used for gradient-based optimization.
+    be used for gradient-based optimization. It supports both batched and flattened input tensor.
+    For flattened input tensor, both `ray_indices` and `n_rays` should be provided.
+
 
     Note:
         Either `rgb_sigma_fn` or `rgb_alpha_fn` should be provided.
@@ -35,16 +37,16 @@ def rendering(
         This function is not differentiable to `t_starts`, `t_ends` and `ray_indices`.
 
     Args:
-        t_starts: Per-sample start distance. Tensor with shape (all_samples,).
-        t_ends: Per-sample end distance. Tensor with shape (all_samples,).
-        ray_indices: Ray index of each sample. LongTensor with shape (all_samples).
-        n_rays: Total number of rays. This will decide the shape of the ouputs.
-        rgb_sigma_fn: A function that takes in samples {t_starts (N,), t_ends (N,),
-            ray indices (N,)} and returns the post-activation rgb (N, 3) and density
-            values (N,).
-        rgb_alpha_fn: A function that takes in samples {t_starts (N,), t_ends (N,),
-            ray indices (N,)} and returns the post-activation rgb (N, 3) and opacity
-            values (N,).
+        t_starts: Per-sample start distance. Tensor with shape (n_rays, n_samples) or (all_samples,).
+        t_ends: Per-sample end distance. Tensor with shape (n_rays, n_samples) or (all_samples,).
+        ray_indices: Ray indices of the flattened samples. LongTensor with shape (all_samples).
+        n_rays: Number of rays. Only useful when `ray_indices` is provided.
+        rgb_sigma_fn: A function that takes in samples {t_starts, t_ends,
+            ray indices} and returns the post-activation rgb (..., 3) and density
+            values (...,). The shape `...` is the same as the shape of `t_starts`.
+        rgb_alpha_fn: A function that takes in samples {t_starts, t_ends,
+            ray indices} and returns the post-activation rgb (..., 3) and opacity
+            values (...,). The shape `...` is the same as the shape of `t_starts`.
         render_bkgd: Background color. Tensor with shape (3,).
 
     Returns:
