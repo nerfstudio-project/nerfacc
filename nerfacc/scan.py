@@ -21,13 +21,23 @@ def inclusive_sum(
     Args:
         inputs: The tensor to be summed. Can be either a N-D tensor, or a flattened
             tensor with `packed_info` specified.
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened input tensor, with in total n_rays chunks.
             If None, the input is assumed to be a N-D tensor and the sum is computed
             along the last dimension. Default is None.
 
     Returns:
         The inclusive sum with the same shape as the input tensor.
+
+    Example:
+
+    .. code-block:: python
+
+        >>> inputs = torch.tensor([1., 2., 3., 4., 5., 6., 7., 8., 9.], device="cuda")
+        >>> packed_info = torch.tensor([[0, 2], [2, 3], [5, 4]], device="cuda")
+        >>> inclusive_sum(inputs, packed_info)
+        tensor([ 1.,  3.,  3.,  7., 12.,  6., 13., 21., 30.], device='cuda:0')
+        
     """
     if packed_info is None:
         # Batched inclusive sum on the last dimension.
@@ -53,13 +63,23 @@ def exclusive_sum(
     Args:
         inputs: The tensor to be summed. Can be either a N-D tensor, or a flattened
             tensor with `packed_info` specified.
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened input tensor, with in total n_rays chunks.
             If None, the input is assumed to be a N-D tensor and the sum is computed
             along the last dimension. Default is None.
 
     Returns:
         The exclusive sum with the same shape as the input tensor.
+
+    Example:
+
+    .. code-block:: python
+
+        >>> inputs = torch.tensor([1., 2., 3., 4., 5., 6., 7., 8., 9.], device="cuda")
+        >>> packed_info = torch.tensor([[0, 2], [2, 3], [5, 4]], device="cuda")
+        >>> exclusive_sum(inputs, packed_info)
+        tensor([ 0.,  1.,  0.,  3.,  7.,  0.,  6., 13., 21.], device='cuda:0')
+    
     """
     if packed_info is None:
         # Batched exclusive sum on the last dimension.
@@ -92,13 +112,23 @@ def inclusive_prod(
     Args:
         inputs: The tensor to be producted. Can be either a N-D tensor, or a flattened
             tensor with `packed_info` specified.
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened input tensor, with in total n_rays chunks.
             If None, the input is assumed to be a N-D tensor and the product is computed
             along the last dimension. Default is None.
 
     Returns:
         The inclusive product with the same shape as the input tensor.
+
+    Example:
+
+    .. code-block:: python
+
+        >>> inputs = torch.tensor([1., 2., 3., 4., 5., 6., 7., 8., 9.], device="cuda")
+        >>> packed_info = torch.tensor([[0, 2], [2, 3], [5, 4]], device="cuda")
+        >>> inclusive_prod(inputs, packed_info)
+        tensor([1., 2., 3., 12., 60., 6., 42., 336., 3024.], device='cuda:0')
+    
     """
     if packed_info is None:
         # Batched inclusive product on the last dimension.
@@ -124,13 +154,24 @@ def exclusive_prod(
     Args:
         inputs: The tensor to be producted. Can be either a N-D tensor, or a flattened
             tensor with `packed_info` specified.
-        packed_info: Optional. A tensor of shape (n_rays, 2) that specifies the start and count
+        packed_info: A tensor of shape (n_rays, 2) that specifies the start and count
             of each chunk in the flattened input tensor, with in total n_rays chunks.
             If None, the input is assumed to be a N-D tensor and the product is computed
             along the last dimension. Default is None.
 
     Returns:
         The exclusive product with the same shape as the input tensor.
+
+
+    Example:
+
+    .. code-block:: python
+
+        >>> inputs = torch.tensor([1., 2., 3., 4., 5., 6., 7., 8., 9.], device="cuda")
+        >>> packed_info = torch.tensor([[0, 2], [2, 3], [5, 4]], device="cuda")
+        >>> exclusive_prod(inputs, packed_info)
+        tensor([1., 1., 1., 3., 12., 1., 6., 42., 336.], device='cuda:0')
+
     """
     if packed_info is None:
         outputs = torch.cumprod(

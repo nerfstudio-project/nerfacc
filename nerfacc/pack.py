@@ -19,8 +19,18 @@ def pack_info(ray_indices: Tensor, n_rays: Optional[int] = None) -> Tensor:
         n_rays: Number of rays. If None, it is inferred from `ray_indices`. Default is None.
 
     Returns:
-        packed_info: A LongTensor of shape (n_rays, 2) that specifies the start and count
-            of each chunk in the flattened input tensor, with in total n_rays chunks.
+        A LongTensor of shape (n_rays, 2) that specifies the start and count
+        of each chunk in the flattened input tensor, with in total n_rays chunks.
+
+    Example:
+
+    .. code-block:: python
+
+        >>> ray_indices = torch.tensor([0, 0, 1, 1, 1, 2, 2, 2, 2], device="cuda")
+        >>> packed_info = pack_info(ray_indices, n_rays=3)
+        >>> packed_info
+        tensor([[0, 2], [2, 3], [5, 4]], device='cuda:0')
+
     """
     assert (
         ray_indices.dim() == 1
