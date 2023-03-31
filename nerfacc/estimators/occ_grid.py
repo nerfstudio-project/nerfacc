@@ -12,7 +12,15 @@ from .base import AbstractTransEstimator
 
 
 class OccupancyGrid(AbstractTransEstimator):
-    """Occupancy grid transmittance estimator."""
+    """Occupancy grid transmittance estimator.
+
+    Args:
+        roi_aabb: The axis-aligned bounding box of the region of interest. Useful for mapping
+            the 3D space to the grid.
+        resolution: The resolution of the grid. If an integer is given, the grid is assumed to
+            be a cube. Otherwise, a list or a tensor of shape (3,) is expected. Default: 128.
+        levels: The number of levels of the grid. Default: 1.
+    """
 
     DIM: int = 3
 
@@ -90,6 +98,51 @@ class OccupancyGrid(AbstractTransEstimator):
         stratified: bool = False,
         cone_angle: float = 0.0,
     ) -> Tuple[Tensor, Tensor, Tensor]:
+        """Sampling with spatial skipping.
+
+        Note:
+            This function is not differentiable to any inputs.
+
+        Args:
+            rays_o: Ray origins of shape (n_rays, 3).
+            rays_d: Normalized ray directions of shape (n_rays, 3).
+            sigma_fn: Optional. If provided, the marching will skip the invisible space
+                by evaluating the density along the ray with `sigma_fn`. It should be a
+                function that takes in samples {t_starts (N,), t_ends (N,),
+                ray indices (N,)} and returns the post-activation density values (N,).
+                You should only provide either `sigma_fn` or `alpha_fn`.
+            alpha_fn: Optional. If provided, the marching will skip the invisible space
+                by evaluating the density along the ray with `alpha_fn`. It should be a
+                function that takes in samples {t_starts (N,), t_ends (N,),
+                ray indices (N,)} and returns the post-activation opacity values (N,).
+                You should only provide either `sigma_fn` or `alpha_fn`.
+            near_plane: Optional. Near plane distance. Default: 0.0.
+            far_plane: Optional. Far plane distance. Default: 1e10.
+            render_step_size: Step size for marching. Default: 1e-3.
+            early_stop_eps: Early stop threshold for skipping invisible space. Default: 1e-4.
+            alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
+            stratified: Whether to use stratified sampling. Default: False.
+            cone_angle: Cone angle for linearly-increased step size. 0. means
+                constant step size. Default: 0.0.
+
+        Returns:
+            A tuple of tensors.
+                - **ray_indices**: Ray index of each sample. IntTensor with shape (n_samples).
+                - **t_starts**: Per-sample start distance. Tensor with shape (n_samples,).
+                - **t_ends**: Per-sample end distance. Tensor with shape (n_samples,).
+
+        Examples:
+
+        .. code-block:: python
+
+            >>> grid: OccupancyGrid
+            >>> ray_indices, t_starts, t_ends = grid.sampling(rays_o, rays_d, render_step_size=1e-3)
+            >>> # Convert t_starts and t_ends to sample locations.
+            >>> t_mid = (t_starts + t_ends) / 2.0
+            >>> sample_locs = rays_o[ray_indices] + t_mid * rays_d[ray_indices]
+
+        """
+
         near_planes = torch.full_like(rays_o[..., 0], fill_value=near_plane)
         far_planes = torch.full_like(rays_o[..., 0], fill_value=far_plane)
         if stratified:

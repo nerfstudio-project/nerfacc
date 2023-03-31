@@ -5,7 +5,7 @@ import torch.nn as nn
 
 
 class AbstractTransEstimator(nn.Module):
-    """Base class for all transmittance estimators."""
+    """An abstract Transmittance Estimator class for Sampling."""
 
     def __init__(self) -> None:
         super().__init__()

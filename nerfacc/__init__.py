@@ -2,6 +2,7 @@
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
 from .data_specs import RayIntervals, RaySamples
+from .grid import ray_aabb_intersect, traverse_grids
 from .pack import pack_info
 from .pdf import importance_sampling, searchsorted
 from .scan import exclusive_prod, exclusive_sum, inclusive_prod, inclusive_sum
@@ -36,4 +37,6 @@ __all__ = [
     "searchsorted",
     "RayIntervals",
     "RaySamples",
+    "ray_aabb_intersect",
+    "traverse_grids",
 ]
