@@ -3,6 +3,7 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
 
 import argparse
+import math
 import pathlib
 import time
 
@@ -11,15 +12,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
-from datasets.nerf_synthetic import SubjectLoader
+from datasets.dnerf_synthetic import SubjectLoader
 from lpips import LPIPS
-from radiance_fields.mlp import VanillaNeRFRadianceField
+from radiance_fields.mlp import TNeRFRadianceField
 
-from examples.utils import (
-    NERF_SYNTHETIC_SCENES,
-    render_image_with_occgrid,
-    set_random_seed,
-)
+from examples.utils import render_image_with_occgrid, set_random_seed
 from nerfacc.estimators.occ_grid import OccGridEstimator
 
 device = "cuda:0"
@@ -29,21 +26,31 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--data_root",
     type=str,
-    default=str(pathlib.Path.cwd() / "data/nerf_synthetic"),
+    default=str(pathlib.Path.cwd() / "data/dnerf"),
     help="the root dir of the dataset",
 )
 parser.add_argument(
     "--train_split",
     type=str,
     default="train",
-    choices=["train", "trainval"],
+    choices=["train"],
     help="which train split to use",
 )
 parser.add_argument(
     "--scene",
     type=str,
     default="lego",
-    choices=NERF_SYNTHETIC_SCENES,
+    choices=[
+        # dnerf
+        "bouncingballs",
+        "hellwarrior",
+        "hook",
+        "jumpingjacks",
+        "lego",
+        "mutant",
+        "standup",
+        "trex",
+    ],
     help="which scene to use",
 )
 parser.add_argument(
@@ -54,7 +61,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 # training parameters
-max_steps = 50000
+max_steps = 30000
 init_batch_size = 1024
 target_sample_batch_size = 1 << 16
 # scene parameters
@@ -88,7 +95,7 @@ estimator = OccGridEstimator(
 ).to(device)
 
 # setup the radiance field we want to train.
-radiance_field = VanillaNeRFRadianceField().to(device)
+radiance_field = TNeRFRadianceField().to(device)
 optimizer = torch.optim.Adam(radiance_field.parameters(), lr=5e-4)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(
     optimizer,
@@ -117,15 +124,14 @@ for step in range(max_steps + 1):
     render_bkgd = data["color_bkgd"]
     rays = data["rays"]
     pixels = data["pixels"]
-
-    def occ_eval_fn(x):
-        density = radiance_field.query_density(x)
-        return density * render_step_size
+    timestamps = data["timestamps"]
 
     # update occupancy grid
     estimator.update_every_n_steps(
         step=step,
-        occ_eval_fn=occ_eval_fn,
+        occ_eval_fn=lambda x: radiance_field.query_opacity(
+            x, timestamps, render_step_size
+        ),
         occ_thre=1e-2,
     )
 
@@ -138,6 +144,9 @@ for step in range(max_steps + 1):
         near_plane=near_plane,
         render_step_size=render_step_size,
         render_bkgd=render_bkgd,
+        alpha_thre=0.01 if step > 1000 else 0.00,
+        # t-nerf options
+        timestamps=timestamps,
     )
     if n_rendering_samples == 0:
         continue
@@ -182,6 +191,7 @@ for step in range(max_steps + 1):
                 render_bkgd = data["color_bkgd"]
                 rays = data["rays"]
                 pixels = data["pixels"]
+                timestamps = data["timestamps"]
 
                 # rendering
                 rgb, acc, depth, _ = render_image_with_occgrid(
@@ -192,8 +202,11 @@ for step in range(max_steps + 1):
                     near_plane=near_plane,
                     render_step_size=render_step_size,
                     render_bkgd=render_bkgd,
+                    alpha_thre=0.01,
                     # test options
                     test_chunk_size=args.test_chunk_size,
+                    # t-nerf options
+                    timestamps=timestamps,
                 )
                 mse = F.mse_loss(rgb, pixels)
                 psnr = -10.0 * torch.log(mse) / np.log(10.0)

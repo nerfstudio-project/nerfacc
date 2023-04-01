@@ -96,8 +96,9 @@ def render_image_with_occgrid(
                 if radiance_field.training
                 else timestamps.expand_as(positions[:, :1])
             )
-            return radiance_field(positions, t, t_dirs)
-        rgbs, sigmas = radiance_field(positions, t_dirs)
+            rgbs, sigmas = radiance_field(positions, t, t_dirs)
+        else:
+            rgbs, sigmas = radiance_field(positions, t_dirs)
         return rgbs, sigmas.squeeze(-1)
 
     results = []
