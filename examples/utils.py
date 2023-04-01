@@ -221,7 +221,6 @@ def render_image_with_propnet(
             rgb_sigma_fn=rgb_sigma_fn,
             render_bkgd=render_bkgd,
         )
-        trans = extras["trans"]
         chunk_results = [rgb, opacity, depth]
         results.append(chunk_results)
 

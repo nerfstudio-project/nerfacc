@@ -100,7 +100,13 @@ def rendering(
             ray_indices=ray_indices,
             n_rays=n_rays,
         )
-        extras = {"weights": weights, "alphas": alphas, "trans": trans}
+        extras = {
+            "weights": weights,
+            "alphas": alphas,
+            "trans": trans,
+            "sigmas": sigmas,
+            "rgbs": rgbs,
+        }
     elif rgb_alpha_fn is not None:
         rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
@@ -115,7 +121,12 @@ def rendering(
             ray_indices=ray_indices,
             n_rays=n_rays,
         )
-        extras = {"weights": weights, "trans": trans}
+        extras = {
+            "weights": weights,
+            "trans": trans,
+            "rgbs": rgbs,
+            "alphas": alphas,
+        }
 
     # Rendering: accumulate rgbs, opacities, and depths along the rays.
     colors = accumulate_along_rays(

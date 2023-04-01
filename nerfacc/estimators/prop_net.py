@@ -21,7 +21,7 @@ class PropNetEstimator(AbstractEstimator):
 
     def __init__(
         self,
-        optimizer: torch.optim.Optimizer,
+        optimizer: Optional[torch.optim.Optimizer] = None,
         scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
     ) -> None:
         super().__init__()
@@ -124,6 +124,31 @@ class PropNetEstimator(AbstractEstimator):
         return t_starts, t_ends
 
     @torch.enable_grad()
+    def compute_loss(self, trans: Tensor, loss_scaler: float = 1.0) -> Tensor:
+        """Compute the loss for the proposal networks.
+
+        Args:
+            trans: The transmittance of all samples. Shape (n_rays, num_samples).
+            loss_scaler: The loss scaler. Default to 1.0.
+
+        Returns:
+            The loss for the proposal networks.
+        """
+        if len(self.prop_cache) == 0:
+            return torch.zeros((), device=self.device)
+
+        intervals, _ = self.prop_cache.pop()
+        # get cdfs at all edges of intervals
+        cdfs = 1.0 - torch.cat([trans, torch.zeros_like(trans[:, :1])], dim=-1)
+        cdfs = cdfs.detach()
+
+        loss = 0.0
+        while self.prop_cache:
+            prop_intervals, prop_cdfs = self.prop_cache.pop()
+            loss += _pdf_loss(intervals, cdfs, prop_intervals, prop_cdfs).mean()
+        return loss * loss_scaler
+
+    @torch.enable_grad()
     def update_every_n_steps(
         self,
         trans: Tensor,
@@ -151,22 +176,35 @@ class PropNetEstimator(AbstractEstimator):
     @torch.enable_grad()
     def _update(self, trans: Tensor, loss_scaler: float = 1.0) -> float:
         assert len(self.prop_cache) > 0
-        intervals, _ = self.prop_cache.pop()
-        # get cdfs at all edges of intervals
-        cdfs = 1.0 - torch.cat([trans, torch.zeros_like(trans[:, :1])], dim=-1)
-        cdfs = cdfs.detach()
+        assert self.optimizer is not None, "No optimizer is provided."
 
-        loss = 0.0
-        while self.prop_cache:
-            prop_intervals, prop_cdfs = self.prop_cache.pop()
-            loss += _pdf_loss(intervals, cdfs, prop_intervals, prop_cdfs).mean()
+        loss = self.compute_loss(trans, loss_scaler)
 
         self.optimizer.zero_grad()
-        (loss * loss_scaler).backward()
+        loss.backward()
         self.optimizer.step()
         if self.scheduler is not None:
             self.scheduler.step()
         return loss.item()
+
+
+def get_proposal_requires_grad_fn(
+    target: float = 5.0, num_steps: int = 1000
+) -> Callable:
+    schedule = lambda s: min(s / num_steps, 1.0) * target
+
+    steps_since_last_grad = 0
+
+    def proposal_requires_grad_fn(step: int) -> bool:
+        nonlocal steps_since_last_grad
+        target_steps_since_last_grad = schedule(step)
+        requires_grad = steps_since_last_grad > target_steps_since_last_grad
+        if requires_grad:
+            steps_since_last_grad = 0
+        steps_since_last_grad += 1
+        return requires_grad
+
+    return proposal_requires_grad_fn
 
 
 def _transform_stot(
