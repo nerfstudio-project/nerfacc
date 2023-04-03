@@ -14,7 +14,7 @@ single NVIDIA TITAN RTX GPU. The training memory footprint is about 11GB.
 
 .. note::
 
-    The :ref:`Occupancy Grid` used in this example is shared by all the frames. In other words, 
+    The :ref:`Estimators` used in this example is shared by all the frames. In other words, 
     instead of using it to indicate the opacity of an area at a single timestamp, 
     Here we use it to indicate the `maximum` opacity at this area `over all the timestamps`.
     It is not optimal but still makes the rendering very efficient.

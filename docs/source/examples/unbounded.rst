@@ -12,9 +12,9 @@ split for training and test split for evaluation. Our experiments are conducted 
 single NVIDIA TITAN RTX GPU. The training memory footprint is about 6-9GB.
 
 The main difference between working with unbounded scenes and bounded scenes, is that
-a contraction method is needed to map the infinite space to a finite :ref:`Occupancy Grid`.
-We have difference options provided for this (see :ref:`Occupancy Grid`). The experiments
-here is basically the Instant-NGP experiments (see :ref:`Instant-NGP Example`) with a contraction method
+a contraction method is needed to map the infinite space to a finite :ref:`Estimators`.
+We have difference options provided for this (see :ref:`Estimators`). The experiments
+here is basically the Instant-NGP experiments with a contraction method
 that takes from `MipNerf360`_.
 
 .. note:: 

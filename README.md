@@ -23,8 +23,7 @@ With minimal modifications to the existing codebases, Nerfacc provides significa
 in training various recent NeRF papers.
 **And it is pure Python interface with flexible APIs!**
 
-![Alt text](/docs/source/_static/images/teaser_illustration.png?raw=true)
-![Alt text](/docs/source/_static/images/teaser_barchart.png?raw=true)
+![Teaser](/docs/source/_static/images/teaser.jpg?raw=true)
 
 ## Installation
 

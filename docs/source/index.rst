@@ -10,10 +10,7 @@ in training various recent NeRF papers.
 
 |
 
-.. image:: _static/images/teaser_illustration.png
-  :align: center
-
-.. image:: _static/images/teaser_barchart.png
+.. image:: _static/images/teaser.jpg
   :align: center
 
 |
