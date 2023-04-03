@@ -247,6 +247,62 @@ def _pdf_loss(
         ids_left = ids_left[segments_query.is_left]
         ids_right = ids_right[segments_query.is_right]
 
-    cdfs_key = cdfs_key.flatten()
-    w_outer = cdfs_key[ids_right] - cdfs_key[ids_left]
+    w_outer = cdfs_key.gather(-1, ids_right) - cdfs_key.gather(-1, ids_left)
+    return torch.clip(w - w_outer, min=0) ** 2 / (w + eps)
+
+
+def _outer(
+    t0_starts: torch.Tensor,
+    t0_ends: torch.Tensor,
+    t1_starts: torch.Tensor,
+    t1_ends: torch.Tensor,
+    y1: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Args:
+        t0_starts: (..., S0).
+        t0_ends: (..., S0).
+        t1_starts: (..., S1).
+        t1_ends: (..., S1).
+        y1: (..., S1).
+    """
+    cy1 = torch.cat(
+        [torch.zeros_like(y1[..., :1]), torch.cumsum(y1, dim=-1)], dim=-1
+    )
+
+    idx_lo = (
+        torch.searchsorted(
+            t1_starts.contiguous(), t0_starts.contiguous(), side="right"
+        )
+        - 1
+    )
+    idx_lo = torch.clamp(idx_lo, min=0, max=y1.shape[-1] - 1)
+    idx_hi = torch.searchsorted(
+        t1_ends.contiguous(), t0_ends.contiguous(), side="right"
+    )
+    idx_hi = torch.clamp(idx_hi, min=0, max=y1.shape[-1] - 1)
+    cy1_lo = torch.take_along_dim(cy1[..., :-1], idx_lo, dim=-1)
+    cy1_hi = torch.take_along_dim(cy1[..., 1:], idx_hi, dim=-1)
+    y0_outer = cy1_hi - cy1_lo
+
+    return y0_outer
+
+
+def _lossfun_outer(
+    t: torch.Tensor,
+    w: torch.Tensor,
+    t_env: torch.Tensor,
+    w_env: torch.Tensor,
+):
+    """
+    Args:
+        t: interval edges, (..., S + 1).
+        w: weights, (..., S).
+        t_env: interval edges of the upper bound enveloping historgram, (..., S + 1).
+        w_env: weights that should upper bound the inner (t,w) histogram, (..., S).
+    """
+    eps = torch.finfo(t.dtype).eps
+    w_outer = _outer(
+        t[..., :-1], t[..., 1:], t_env[..., :-1], t_env[..., 1:], w_env
+    )
     return torch.clip(w - w_outer, min=0) ** 2 / (w + eps)

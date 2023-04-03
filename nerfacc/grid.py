@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor
 
-import nerfacc.cuda as _C
+from . import cuda as _C
 
 from .data_specs import RayIntervals, RaySamples
 

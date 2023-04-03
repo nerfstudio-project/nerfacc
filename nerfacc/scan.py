@@ -6,7 +6,7 @@ from typing import Optional
 import torch
 from torch import Tensor
 
-import nerfacc.cuda as _C
+from . import cuda as _C
 
 
 def inclusive_sum(
@@ -37,7 +37,7 @@ def inclusive_sum(
         >>> packed_info = torch.tensor([[0, 2], [2, 3], [5, 4]], device="cuda")
         >>> inclusive_sum(inputs, packed_info)
         tensor([ 1.,  3.,  3.,  7., 12.,  6., 13., 21., 30.], device='cuda:0')
-        
+
     """
     if packed_info is None:
         # Batched inclusive sum on the last dimension.
@@ -79,7 +79,7 @@ def exclusive_sum(
         >>> packed_info = torch.tensor([[0, 2], [2, 3], [5, 4]], device="cuda")
         >>> exclusive_sum(inputs, packed_info)
         tensor([ 0.,  1.,  0.,  3.,  7.,  0.,  6., 13., 21.], device='cuda:0')
-    
+
     """
     if packed_info is None:
         # Batched exclusive sum on the last dimension.
@@ -128,7 +128,7 @@ def inclusive_prod(
         >>> packed_info = torch.tensor([[0, 2], [2, 3], [5, 4]], device="cuda")
         >>> inclusive_prod(inputs, packed_info)
         tensor([1., 2., 3., 12., 60., 6., 42., 336., 3024.], device='cuda:0')
-    
+
     """
     if packed_info is None:
         # Batched inclusive product on the last dimension.

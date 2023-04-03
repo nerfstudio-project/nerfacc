@@ -6,7 +6,7 @@ from typing import Optional
 
 import torch
 
-import nerfacc.cuda as _C
+from . import cuda as _C
 
 
 @dataclass
