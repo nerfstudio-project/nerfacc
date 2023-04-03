@@ -120,7 +120,7 @@ venv.bak/
 outputs/
 data
 
-benchmarks/
+benchmarks/*
 !benchmarks/barf
 !benchmarks/kplanes
 !benchmarks/tensorf
