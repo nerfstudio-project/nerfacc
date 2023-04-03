@@ -112,7 +112,7 @@ An simple example is like this:
 
    # Differentiable Volumetric Rendering.
    # colors: (n_rays, 3). opaicity: (n_rays, 1). depth: (n_rays, 1).
-   color, opacity, depth = nerfacc.rendering(
+   color, opacity, depth, extras = nerfacc.rendering(
       t_starts, t_ends, ray_indices, n_rays=rays_o.shape[0], rgb_sigma_fn=rgb_sigma_fn
    )
 

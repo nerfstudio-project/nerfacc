@@ -23,9 +23,9 @@ jobs:
         run: |
           pip install isort==5.10.1 black[jupyter]==22.3.0
       - name: Run isort
-        run: isort docs/ nerfacc/ scripts/ examples/ tests/ --profile black --skip examples/pycolmap --line-length 80 --check
+        run: isort docs/ nerfacc/ scripts/ examples/ tests/ --profile black --skip examples/pycolmap --skip benchmarks --line-length 80 --check
       - name: Run Black
-        run: black docs/ nerfacc/ scripts/ examples/ tests/ --exclude examples/pycolmap --line-length 80 --check
+        run: black docs/ nerfacc/ scripts/ examples/ tests/ --exclude examples/pycolmap --skip benchmarks --line-length 80 --check
       # - name: Python Pylint
       #   run: |
       #     pylint nerfacc/ tests/ scripts/ examples/

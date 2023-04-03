@@ -1,3 +1,23 @@
 [submodule "examples/pycolmap"]
 	path = examples/pycolmap
 	url = https://github.com/rmbrualla/pycolmap.git
+
+[submodule "benchmarks/tensorf"]
+	path = benchmarks/tensorf
+	url = https://github.com/liruilong940607/tensorf.git
+	branch = nerfacc
+
+[submodule "benchmarks/barf"]
+	path = benchmarks/barf
+	url = https://github.com/liruilong940607/barf.git
+	branch = nerfacc
+
+[submodule "benchmarks/tineuvox"]
+	path = benchmarks/tineuvox
+	url = https://github.com/liruilong940607/tineuvox.git
+	branch = nerfacc
+
+[submodule "benchmarks/kplanes"]
+	path = benchmarks/kplanes
+	url = https://github.com/liruilong940607/kplanes.git
+	branch = nerfacc
