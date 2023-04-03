@@ -7,7 +7,6 @@ import torch
 from torch import Tensor
 
 from . import cuda as _C
-
 from .data_specs import RayIntervals, RaySamples
 
 
