@@ -50,7 +50,7 @@ class OccGridEstimator(AbstractEstimator):
 
         # check the roi_aabb is legal
         if isinstance(roi_aabb, (list, tuple)):
-            roi_aabb = Tensor(roi_aabb, dtype=torch.float32)
+            roi_aabb = torch.tensor(roi_aabb, dtype=torch.float32)
         assert isinstance(roi_aabb, Tensor), f"Invalid type: {roi_aabb}!"
         assert roi_aabb.shape[0] == self.DIM * 2, f"Invalid shape: {roi_aabb}!"
 
