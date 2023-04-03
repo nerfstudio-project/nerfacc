@@ -40,6 +40,12 @@ parser.add_argument(
     help="which train split to use",
 )
 parser.add_argument(
+    "--model_path",
+    type=str,
+    default=None,
+    help="the path of the pretrained model",
+)
+parser.add_argument(
     "--scene",
     type=str,
     default="lego",
@@ -104,6 +110,16 @@ scheduler = torch.optim.lr_scheduler.MultiStepLR(
 lpips_net = LPIPS(net="vgg").to(device)
 lpips_norm_fn = lambda x: x[None, ...].permute(0, 3, 1, 2) * 2 - 1
 lpips_fn = lambda x, y: lpips_net(lpips_norm_fn(x), lpips_norm_fn(y)).mean()
+
+if args.model_path is not None:
+    checkpoint = torch.load(args.model_path)
+    radiance_field.load_state_dict(checkpoint["radiance_field_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    estimator.load_state_dict(checkpoint["estimator_state_dict"])
+    step = checkpoint["step"]
+else:
+    step = 0
 
 # training
 tic = time.time()
@@ -170,6 +186,18 @@ for step in range(max_steps + 1):
         )
 
     if step > 0 and step % max_steps == 0:
+        model_save_path = str(pathlib.Path.cwd() / f"mlp_nerf_{step}")
+        torch.save(
+            {
+                "step": step,
+                "radiance_field_state_dict": radiance_field.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
+                "estimator_state_dict": estimator.state_dict(),
+            },
+            model_save_path,
+        )
+
         # evaluation
         radiance_field.eval()
         estimator.eval()
