@@ -44,6 +44,9 @@ extra_cflags = ["-O3"]
 extra_cuda_cflags = ["-O3"]
 
 _C = None
+sources = list(glob.glob(os.path.join(PATH, "csrc/*.cu"))) + list(
+    glob.glob(os.path.join(PATH, "csrc/*.cpp"))
+)
 
 try:
     # try to import the compiled module (via setup.py)
@@ -57,7 +60,7 @@ except ImportError:
 
             _C = load(
                 name=name,
-                sources=glob.glob(os.path.join(PATH, "csrc/*.cu")),
+                sources=sources,
                 extra_cflags=extra_cflags,
                 extra_cuda_cflags=extra_cuda_cflags,
                 extra_include_paths=extra_include_paths,
@@ -72,7 +75,7 @@ except ImportError:
             ):
                 _C = load(
                     name=name,
-                    sources=glob.glob(os.path.join(PATH, "csrc/*.cu")),
+                    sources=sources,
                     extra_cflags=extra_cflags,
                     extra_cuda_cflags=extra_cuda_cflags,
                     extra_include_paths=extra_include_paths,

@@ -10,8 +10,9 @@ import torch
 from datasets.utils import Rays, namedtuple_map
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
-from nerfacc import OccupancyGrid, ray_marching, rendering
-from nerfacc.proposal import rendering as rendering_proposal
+from nerfacc.estimators.occ_grid import OccGridEstimator
+from nerfacc.estimators.prop_net import PropNetEstimator
+from nerfacc.volrend import rendering
 
 NERF_SYNTHETIC_SCENES = [
     "chair",
@@ -40,21 +41,14 @@ def set_random_seed(seed):
     torch.manual_seed(seed)
 
 
-def enlarge_aabb(aabb, factor: float) -> torch.Tensor:
-    center = (aabb[:3] + aabb[3:]) / 2
-    extent = (aabb[3:] - aabb[:3]) / 2
-    return torch.cat([center - extent * factor, center + extent * factor])
-
-
-def render_image(
+def render_image_with_occgrid(
     # scene
     radiance_field: torch.nn.Module,
-    occupancy_grid: OccupancyGrid,
+    estimator: OccGridEstimator,
     rays: Rays,
-    scene_aabb: torch.Tensor,
     # rendering options
-    near_plane: Optional[float] = None,
-    far_plane: Optional[float] = None,
+    near_plane: float = 0.0,
+    far_plane: float = 1e10,
     render_step_size: float = 1e-3,
     render_bkgd: Optional[torch.Tensor] = None,
     cone_angle: float = 0.0,
@@ -78,7 +72,7 @@ def render_image(
     def sigma_fn(t_starts, t_ends, ray_indices):
         t_origins = chunk_rays.origins[ray_indices]
         t_dirs = chunk_rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+        positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
         if timestamps is not None:
             # dnerf
             t = (
@@ -86,13 +80,15 @@ def render_image(
                 if radiance_field.training
                 else timestamps.expand_as(positions[:, :1])
             )
-            return radiance_field.query_density(positions, t)
-        return radiance_field.query_density(positions)
+            sigmas = radiance_field.query_density(positions, t)
+        else:
+            sigmas = radiance_field.query_density(positions)
+        return sigmas.squeeze(-1)
 
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         t_origins = chunk_rays.origins[ray_indices]
         t_dirs = chunk_rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+        positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
         if timestamps is not None:
             # dnerf
             t = (
@@ -100,8 +96,10 @@ def render_image(
                 if radiance_field.training
                 else timestamps.expand_as(positions[:, :1])
             )
-            return radiance_field(positions, t, t_dirs)
-        return radiance_field(positions, t_dirs)
+            rgbs, sigmas = radiance_field(positions, t, t_dirs)
+        else:
+            rgbs, sigmas = radiance_field(positions, t_dirs)
+        return rgbs, sigmas.squeeze(-1)
 
     results = []
     chunk = (
@@ -111,11 +109,9 @@ def render_image(
     )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        ray_indices, t_starts, t_ends = ray_marching(
+        ray_indices, t_starts, t_ends = estimator.sampling(
             chunk_rays.origins,
             chunk_rays.viewdirs,
-            scene_aabb=scene_aabb,
-            grid=occupancy_grid,
             sigma_fn=sigma_fn,
             near_plane=near_plane,
             far_plane=far_plane,
@@ -124,7 +120,7 @@ def render_image(
             cone_angle=cone_angle,
             alpha_thre=alpha_thre,
         )
-        rgb, opacity, depth = rendering(
+        rgb, opacity, depth, extras = rendering(
             t_starts,
             t_ends,
             ray_indices,
@@ -146,12 +142,12 @@ def render_image(
     )
 
 
-def render_image_proposal(
+def render_image_with_propnet(
     # scene
     radiance_field: torch.nn.Module,
     proposal_networks: Sequence[torch.nn.Module],
+    estimator: PropNetEstimator,
     rays: Rays,
-    scene_aabb: torch.Tensor,
     # rendering options
     num_samples: int,
     num_samples_per_prop: Sequence[int],
@@ -162,7 +158,6 @@ def render_image_proposal(
     render_bkgd: Optional[torch.Tensor] = None,
     # train options
     proposal_requires_grad: bool = False,
-    proposal_annealing: float = 1.0,
     # test options
     test_chunk_size: int = 8192,
 ):
@@ -180,16 +175,22 @@ def render_image_proposal(
     def prop_sigma_fn(t_starts, t_ends, proposal_network):
         t_origins = chunk_rays.origins[..., None, :]
         t_dirs = chunk_rays.viewdirs[..., None, :]
-        positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
-        return proposal_network(positions)
+        positions = t_origins + t_dirs * (t_starts + t_ends)[..., None] / 2.0
+        sigmas = proposal_network(positions)
+        if opaque_bkgd:
+            sigmas[..., -1, :] = torch.inf
+        return sigmas.squeeze(-1)
 
-    def rgb_sigma_fn(t_starts, t_ends):
+    def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         t_origins = chunk_rays.origins[..., None, :]
         t_dirs = chunk_rays.viewdirs[..., None, :].repeat_interleave(
-            t_starts.shape[-2], dim=-2
+            t_starts.shape[-1], dim=-2
         )
-        positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
-        return radiance_field(positions, t_dirs)
+        positions = t_origins + t_dirs * (t_starts + t_ends)[..., None] / 2.0
+        rgb, sigmas = radiance_field(positions, t_dirs)
+        if opaque_bkgd:
+            sigmas[..., -1, :] = torch.inf
+        return rgb, sigmas.squeeze(-1)
 
     results = []
     chunk = (
@@ -199,29 +200,26 @@ def render_image_proposal(
     )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
-        (
-            rgb,
-            opacity,
-            depth,
-            (weights_per_level, s_vals_per_level),
-        ) = rendering_proposal(
-            rgb_sigma_fn=rgb_sigma_fn,
-            num_samples=num_samples,
+        t_starts, t_ends = estimator.sampling(
             prop_sigma_fns=[
                 lambda *args: prop_sigma_fn(*args, p) for p in proposal_networks
             ],
-            num_samples_per_prop=num_samples_per_prop,
-            rays_o=chunk_rays.origins,
-            rays_d=chunk_rays.viewdirs,
-            scene_aabb=scene_aabb,
+            prop_samples=num_samples_per_prop,
+            num_samples=num_samples,
+            n_rays=chunk_rays.origins.shape[0],
             near_plane=near_plane,
             far_plane=far_plane,
-            stratified=radiance_field.training,
             sampling_type=sampling_type,
-            opaque_bkgd=opaque_bkgd,
+            stratified=radiance_field.training,
+            requires_grad=proposal_requires_grad,
+        )
+        rgb, opacity, depth, extras = rendering(
+            t_starts,
+            t_ends,
+            ray_indices=None,
+            n_rays=None,
+            rgb_sigma_fn=rgb_sigma_fn,
             render_bkgd=render_bkgd,
-            proposal_requires_grad=proposal_requires_grad,
-            proposal_annealing=proposal_annealing,
         )
         chunk_results = [rgb, opacity, depth]
         results.append(chunk_results)
@@ -237,6 +235,5 @@ def render_image_proposal(
         colors.view((*rays_shape[:-1], -1)),
         opacities.view((*rays_shape[:-1], -1)),
         depths.view((*rays_shape[:-1], -1)),
-        weights_per_level,
-        s_vals_per_level,
+        extras,
     )

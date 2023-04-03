@@ -1,17 +1,20 @@
 """
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
-from .contraction import ContractionType, contract, contract_inv
-from .grid import Grid, OccupancyGrid, query_grid
-from .intersection import ray_aabb_intersect
-from .pack import pack_data, pack_info, unpack_data, unpack_info
-from .ray_marching import ray_marching
+from .data_specs import RayIntervals, RaySamples
+from .estimators.occ_grid import OccGridEstimator
+from .estimators.prop_net import PropNetEstimator
+from .grid import ray_aabb_intersect, traverse_grids
+from .pack import pack_info
+from .pdf import importance_sampling, searchsorted
+from .scan import exclusive_prod, exclusive_sum, inclusive_prod, inclusive_sum
 from .version import __version__
-from .vol_rendering import (
+from .volrend import (
     accumulate_along_rays,
     render_transmittance_from_alpha,
     render_transmittance_from_density,
-    render_visibility,
+    render_visibility_from_alpha,
+    render_visibility_from_density,
     render_weight_from_alpha,
     render_weight_from_density,
     rendering,
@@ -19,28 +22,25 @@ from .vol_rendering import (
 
 __all__ = [
     "__version__",
-    # occ grid
-    "Grid",
-    "OccupancyGrid",
-    "query_grid",
-    "ContractionType",
-    # contraction
-    "contract",
-    "contract_inv",
-    # marching
-    "ray_aabb_intersect",
-    "ray_marching",
-    # rendering
-    "accumulate_along_rays",
-    "render_visibility",
+    "inclusive_prod",
+    "exclusive_prod",
+    "inclusive_sum",
+    "exclusive_sum",
+    "pack_info",
+    "render_visibility_from_alpha",
+    "render_visibility_from_density",
     "render_weight_from_alpha",
     "render_weight_from_density",
-    "render_transmittance_from_density",
     "render_transmittance_from_alpha",
+    "render_transmittance_from_density",
+    "accumulate_along_rays",
     "rendering",
-    # pack
-    "pack_data",
-    "unpack_data",
-    "unpack_info",
-    "pack_info",
+    "importance_sampling",
+    "searchsorted",
+    "RayIntervals",
+    "RaySamples",
+    "ray_aabb_intersect",
+    "traverse_grids",
+    "OccGridEstimator",
+    "PropNetEstimator",
 ]

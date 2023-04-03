@@ -1,11 +1,11 @@
 """
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
-
 import argparse
 import itertools
 import pathlib
 import time
+from typing import Callable
 
 import imageio
 import numpy as np
@@ -14,16 +14,15 @@ import torch.nn.functional as F
 import tqdm
 from lpips import LPIPS
 from radiance_fields.ngp import NGPDensityField, NGPRadianceField
-from utils import (
+
+from examples.utils import (
     MIPNERF360_UNBOUNDED_SCENES,
     NERF_SYNTHETIC_SCENES,
-    render_image_proposal,
+    render_image_with_propnet,
     set_random_seed,
 )
-
-from nerfacc.proposal import (
-    compute_prop_loss,
-    get_proposal_annealing_fn,
+from nerfacc.estimators.prop_net import (
+    PropNetEstimator,
     get_proposal_requires_grad_fn,
 )
 
@@ -146,13 +145,36 @@ test_dataset = SubjectLoader(
 )
 
 # setup the radiance field we want to train.
+prop_optimizer = torch.optim.Adam(
+    itertools.chain(
+        *[p.parameters() for p in proposal_networks],
+    ),
+    lr=1e-2,
+    eps=1e-15,
+    weight_decay=weight_decay,
+)
+prop_scheduler = torch.optim.lr_scheduler.ChainedScheduler(
+    [
+        torch.optim.lr_scheduler.LinearLR(
+            prop_optimizer, start_factor=0.01, total_iters=100
+        ),
+        torch.optim.lr_scheduler.MultiStepLR(
+            prop_optimizer,
+            milestones=[
+                max_steps // 2,
+                max_steps * 3 // 4,
+                max_steps * 9 // 10,
+            ],
+            gamma=0.33,
+        ),
+    ]
+)
+estimator = PropNetEstimator(prop_optimizer, prop_scheduler).to(device)
+
 grad_scaler = torch.cuda.amp.GradScaler(2**10)
 radiance_field = NGPRadianceField(aabb=aabb, unbounded=unbounded).to(device)
 optimizer = torch.optim.Adam(
-    itertools.chain(
-        radiance_field.parameters(),
-        *[p.parameters() for p in proposal_networks],
-    ),
+    radiance_field.parameters(),
     lr=1e-2,
     eps=1e-15,
     weight_decay=weight_decay,
@@ -174,7 +196,7 @@ scheduler = torch.optim.lr_scheduler.ChainedScheduler(
     ]
 )
 proposal_requires_grad_fn = get_proposal_requires_grad_fn()
-proposal_annealing_fn = get_proposal_annealing_fn()
+# proposal_annealing_fn = get_proposal_annealing_fn()
 
 lpips_net = LPIPS(net="vgg").to(device)
 lpips_norm_fn = lambda x: x[None, ...].permute(0, 3, 1, 2) * 2 - 1
@@ -186,6 +208,7 @@ for step in range(max_steps + 1):
     radiance_field.train()
     for p in proposal_networks:
         p.train()
+    estimator.train()
 
     i = torch.randint(0, len(train_dataset), (1,)).item()
     data = train_dataset[i]
@@ -194,18 +217,13 @@ for step in range(max_steps + 1):
     rays = data["rays"]
     pixels = data["pixels"]
 
+    proposal_requires_grad = proposal_requires_grad_fn(step)
     # render
-    (
-        rgb,
-        acc,
-        depth,
-        weights_per_level,
-        s_vals_per_level,
-    ) = render_image_proposal(
+    rgb, acc, depth, extras = render_image_with_propnet(
         radiance_field,
         proposal_networks,
+        estimator,
         rays,
-        scene_aabb=None,
         # rendering options
         num_samples=num_samples,
         num_samples_per_prop=num_samples_per_prop,
@@ -215,14 +233,14 @@ for step in range(max_steps + 1):
         opaque_bkgd=opaque_bkgd,
         render_bkgd=render_bkgd,
         # train options
-        proposal_requires_grad=proposal_requires_grad_fn(step),
-        proposal_annealing=proposal_annealing_fn(step),
+        proposal_requires_grad=proposal_requires_grad,
+    )
+    estimator.update_every_n_steps(
+        extras["trans"], proposal_requires_grad, loss_scaler=1024
     )
 
     # compute loss
     loss = F.smooth_l1_loss(rgb, pixels)
-    loss_prop = compute_prop_loss(s_vals_per_level, weights_per_level)
-    loss = loss + loss_prop
 
     optimizer.zero_grad()
     # do not unscale it because we are using Adam.
@@ -230,7 +248,7 @@ for step in range(max_steps + 1):
     optimizer.step()
     scheduler.step()
 
-    if step % 5000 == 0:
+    if step % 10000 == 0:
         elapsed_time = time.time() - tic
         loss = F.mse_loss(rgb, pixels)
         psnr = -10.0 * torch.log(loss) / np.log(10.0)
@@ -246,6 +264,7 @@ for step in range(max_steps + 1):
         radiance_field.eval()
         for p in proposal_networks:
             p.eval()
+        estimator.eval()
 
         psnrs = []
         lpips = []
@@ -257,11 +276,11 @@ for step in range(max_steps + 1):
                 pixels = data["pixels"]
 
                 # rendering
-                rgb, acc, depth, _, _, = render_image_proposal(
+                rgb, acc, depth, _, = render_image_with_propnet(
                     radiance_field,
                     proposal_networks,
+                    estimator,
                     rays,
-                    scene_aabb=None,
                     # rendering options
                     num_samples=num_samples,
                     num_samples_per_prop=num_samples_per_prop,
@@ -270,7 +289,6 @@ for step in range(max_steps + 1):
                     sampling_type=sampling_type,
                     opaque_bkgd=opaque_bkgd,
                     render_bkgd=render_bkgd,
-                    proposal_annealing=proposal_annealing_fn(step),
                     # test options
                     test_chunk_size=args.test_chunk_size,
                 )
@@ -289,6 +307,7 @@ for step in range(max_steps + 1):
                 #             (rgb - pixels).norm(dim=-1).cpu().numpy() * 255
                 #         ).astype(np.uint8),
                 #     )
+                #     break
         psnr_avg = sum(psnrs) / len(psnrs)
         lpips_avg = sum(lpips) / len(lpips)
         print(f"evaluation: psnr_avg={psnr_avg}, lpips_avg={lpips_avg}")

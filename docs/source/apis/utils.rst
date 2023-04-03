@@ -1,22 +1,32 @@
 Utils
 ===================================
 
+Below are the basic functions that supports sampling and rendering. 
+
 .. currentmodule:: nerfacc
 
 .. autosummary::
    :nosignatures:
    :toctree: generated/
 
-   ray_aabb_intersect
-   unpack_info
+   inclusive_prod
+   exclusive_prod
+   inclusive_sum
+   exclusive_sum
 
-   accumulate_along_rays
-   render_transmittance_from_density
-   render_transmittance_from_alpha
-   render_weight_from_density
+   pack_info
+
+   render_visibility_from_alpha
+   render_visibility_from_density
    render_weight_from_alpha
-   render_visibility
+   render_weight_from_density
+   render_transmittance_from_alpha
+   render_transmittance_from_density
+   accumulate_along_rays
 
-   pack_data
-   unpack_data
+   importance_sampling
+   searchsorted
+
+   ray_aabb_intersect
+   traverse_grids
    

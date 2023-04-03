@@ -245,7 +245,7 @@ class VanillaNeRFRadianceField(nn.Module):
         return torch.sigmoid(rgb), F.relu(sigma)
 
 
-class DNeRFRadianceField(nn.Module):
+class TNeRFRadianceField(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.posi_encoder = SinusoidalEncoder(3, 0, 4, True)

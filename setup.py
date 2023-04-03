@@ -29,7 +29,9 @@ def get_extensions():
     from torch.utils.cpp_extension import CUDAExtension
 
     extensions_dir = osp.join("nerfacc", "cuda", "csrc")
-    sources = glob.glob(osp.join(extensions_dir, "*.cu"))
+    sources = glob.glob(osp.join(extensions_dir, "*.cu")) + glob.glob(
+        osp.join(extensions_dir, "*.cpp")
+    )
     # remove generated 'hip' files, in case of rebuilds
     sources = [path for path in sources if "hip" not in path]
 

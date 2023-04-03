@@ -16,19 +16,14 @@
 
 https://www.nerfacc.com/
 
-NerfAcc is a PyTorch Nerf acceleration toolbox for both training and inference. It focuses on efficient volumetric rendering of radiance fields, which is universal and plug-and-play for most of the NeRFs.
+NerfAcc is a PyTorch Nerf acceleration toolbox for both training and inference. It focus on
+efficient sampling in the volumetric rendering pipeline of radiance fields, which is 
+universal and plug-and-play for most of the NeRFs.
+With minimal modifications to the existing codebases, Nerfacc provides significant speedups 
+in training various recent NeRF papers.
+**And it is pure Python interface with flexible APIs!**
 
-Using NerfAcc, 
-
-- The `vanilla NeRF` model with 8-layer MLPs can be trained to *better quality* (+~0.5 PNSR)
-  in *1 hour* rather than *days* as in the paper.
-- The `Instant-NGP NeRF` model can be trained to *equal quality* in *4.5 minutes*,
-  comparing to the official pure-CUDA implementation.
-- The `D-NeRF` model for *dynamic* objects can also be trained in *1 hour*
-  rather than *2 days* as in the paper, and with *better quality* (+~2.5 PSNR).
-- Both *bounded* and *unbounded* scenes are supported.
-
-**And it is a pure Python interface with flexible APIs!**
+![Teaser](/docs/source/_static/images/teaser.jpg?raw=true)
 
 ## Installation
 
@@ -62,11 +57,17 @@ pip install nerfacc -f https://nerfacc-bucket.s3.us-west-2.amazonaws.com/whl/tor
 
 ## Usage
 
-The idea of NerfAcc is to perform efficient ray marching and volumetric rendering. So NerfAcc can work with any user-defined radiance field. To plug the NerfAcc rendering pipeline into your code and enjoy the acceleration, you only need to define two functions with your radiance field.
-- `sigma_fn`: Compute density at each sample. It will be used by `nerfacc.ray_marching()` to skip the empty and occluded space during ray marching, which is where the major speedup comes from. 
-- `rgb_sigma_fn`: Compute color and density at each sample. It will be used by `nerfacc.rendering()` to conduct differentiable volumetric rendering. This function will receive gradients to update your network.
+The idea of NerfAcc is to perform efficient volumetric sampling with a computationally cheap estimator to discover surfaces.
+So NerfAcc can work with any user-defined radiance field. To plug the NerfAcc rendering pipeline into your code and enjoy 
+the acceleration, you only need to define two functions with your radience field.
 
-A simple example is like this:
+- `sigma_fn`: Compute density at each sample. It will be used by the estimator
+  (e.g., `nerfacc.OccGridEstimator`, `nerfacc.PropNetEstimator`) to discover surfaces. 
+- `rgb_sigma_fn`: Compute color and density at each sample. It will be used by 
+  `nerfacc.rendering` to conduct differentiable volumetric rendering. This function 
+  will receive gradients to update your radiance field.
+
+An simple example is like this:
 
 ``` python
 import torch
@@ -76,50 +77,39 @@ import nerfacc
 radiance_field = ...  # network: a NeRF model
 rays_o: Tensor = ...  # ray origins. (n_rays, 3)
 rays_d: Tensor = ...  # ray normalized directions. (n_rays, 3)
-optimizer = ...  # optimizer
+optimizer = ...       # optimizer
+
+estimator = nerfacc.OccGridEstimator(...)
 
 def sigma_fn(
     t_starts: Tensor, t_ends:Tensor, ray_indices: Tensor
 ) -> Tensor:
-    """ Query density values from a user-defined radiance field.
-    :params t_starts: Start of the sample interval along the ray. (n_samples, 1).
-    :params t_ends: End of the sample interval along the ray. (n_samples, 1).
-    :params ray_indices: Ray indices that each sample belongs to. (n_samples,).
-    :returns The post-activation density values. (n_samples, 1).
-    """
+    """ Define how to query density for the estimator."""
     t_origins = rays_o[ray_indices]  # (n_samples, 3)
     t_dirs = rays_d[ray_indices]  # (n_samples, 3)
-    positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+    positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
     sigmas = radiance_field.query_density(positions) 
-    return sigmas  # (n_samples, 1)
+    return sigmas  # (n_samples,)
 
 def rgb_sigma_fn(
     t_starts: Tensor, t_ends: Tensor, ray_indices: Tensor
 ) -> Tuple[Tensor, Tensor]:
-    """ Query rgb and density values from a user-defined radiance field.
-    :params t_starts: Start of the sample interval along the ray. (n_samples, 1).
-    :params t_ends: End of the sample interval along the ray. (n_samples, 1).
-    :params ray_indices: Ray indices that each sample belongs to. (n_samples,).
-    :returns The post-activation rgb and density values. 
-        (n_samples, 3), (n_samples, 1).
-    """
+    """ Query rgb and density values from a user-defined radiance field. """
     t_origins = rays_o[ray_indices]  # (n_samples, 3)
     t_dirs = rays_d[ray_indices]  # (n_samples, 3)
-    positions = t_origins + t_dirs * (t_starts + t_ends) / 2.0
+    positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
     rgbs, sigmas = radiance_field(positions, condition=t_dirs)  
-    return rgbs, sigmas  # (n_samples, 3), (n_samples, 1)
+    return rgbs, sigmas  # (n_samples, 3), (n_samples,)
 
-# Efficient Raymarching: Skip empty and occluded space, pack samples from all rays.
-# ray_indices: (n_samples,). t_starts: (n_samples, 1). t_ends: (n_samples, 1).
-with torch.no_grad():
-    ray_indices, t_starts, t_ends = nerfacc.ray_marching(
-        rays_o, rays_d, sigma_fn=sigma_fn, near_plane=0.2, far_plane=1.0, 
-        early_stop_eps=1e-4, alpha_thre=1e-2, 
-    )
+# Efficient Raymarching:
+# ray_indices: (n_samples,). t_starts: (n_samples,). t_ends: (n_samples,).
+ray_indices, t_starts, t_ends = estimator.sampling(
+    rays_o, rays_d, sigma_fn=sigma_fn, near_plane=0.2, far_plane=1.0, early_stop_eps=1e-4, alpha_thre=1e-2, 
+)
 
 # Differentiable Volumetric Rendering.
 # colors: (n_rays, 3). opaicity: (n_rays, 1). depth: (n_rays, 1).
-color, opacity, depth = nerfacc.rendering(
+color, opacity, depth, extras = nerfacc.rendering(
     t_starts, t_ends, ray_indices, n_rays=rays_o.shape[0], rgb_sigma_fn=rgb_sigma_fn
 )
 
@@ -132,6 +122,8 @@ optimizer.step()
 
 ## Examples: 
 
+See full benchmarking here: https://www.nerfacc.com/en/latest/examples/
+
 Before running those example scripts, please check the script about which dataset is needed, and download the dataset first. You could use `--data_root` to specify the path.
 
 ```bash
@@ -139,37 +131,79 @@ Before running those example scripts, please check the script about which datase
 git clone --recursive git://github.com/KAIR-BAIR/nerfacc/
 ```
 
+### Static NeRFs
+
+Instant-NGP on NeRF-Synthetic dataset with better performance in 4.5 minutes.
 ``` bash
-# Instant-NGP NeRF in 4.5 minutes with reproduced performance!
-# See results at here: https://www.nerfacc.com/en/latest/examples/ngp.html
-python examples/train_ngp_nerf.py --train_split train --scene lego
+# Occupancy Grid Estimator
+python examples/train_ngp_nerf_occ.py --scene lego --data_root data/nerf_synthetic
+# Proposal Net Estimator
+python examples/train_ngp_nerf_prop.py --scene lego --data_root data/nerf_synthetic
 ```
 
+Instant-NGP on Mip-NeRF 360 dataset with better performance in 5 minutes.
 ``` bash
-# Vanilla MLP NeRF in 1 hour with better performance!
-# See results at here: https://www.nerfacc.com/en/latest/examples/vanilla.html
-python examples/train_mlp_nerf.py --train_split train --scene lego
+# Occupancy Grid Estimator
+python examples/train_ngp_nerf_occ.py --scene garden --data_root data/360_v2
+# Proposal Net Estimator
+python examples/train_ngp_nerf_prop.py --scene garden --data_root data/360_v2
 ```
 
+Vanilla MLP NeRF on NeRF-Synthetic dataset in an hour.
+``` bash
+# Occupancy Grid Estimator
+python examples/train_mlp_nerf.py --scene lego --data_root data/nerf_synthetic
+```
+
+TensoRF on Tanks&Temple and NeRF-Synthetic datasets (plugin in the official codebase).
+``` bash
+cd benchmarks/tensorf/
+# (set up the environment for that repo)
+bash script.sh nerfsyn-nerfacc-occgrid 0
+bash script.sh tt-nerfacc-occgrid 0
+```
+
+### Dynamic NeRFs
+T-NeRF on D-NeRF dataset in an hour.
+``` bash
+# Occupancy Grid Estimator
+python examples/train_mlp_tnerf.py --scene lego --data_root data/dnerf
+```
+
+K-Planes on D-NeRF dataset (plugin in the official codebase).
 ```bash
-# D-NeRF for Dynamic objects in 1 hour with better performance!
-# See results at here: https://www.nerfacc.com/en/latest/examples/dnerf.html
-python examples/train_mlp_dnerf.py --train_split train --scene lego
+cd benchmarks/kplanes/
+# (set up the environment for that repo)
+bash script.sh dnerf-nerfacc-occgrid 0
 ```
 
+TiNeuVox on HyperNeRF and D-NeRF datasets (plugin in the official codebase).
 ```bash
-# Instant-NGP on unbounded scenes in 20 minutes!
-# See results at here: https://www.nerfacc.com/en/latest/examples/unbounded.html
-python examples/train_ngp_nerf.py --train_split train --scene garden --auto_aabb --unbounded --cone_angle=0.004
+cd benchmarks/tineuvox/
+# (set up the environment for that repo)
+bash script.sh dnerf-nerfacc-occgrid 0
+bash script.sh hypernerf-nerfacc-occgrid 0
+bash script.sh hypernerf-nerfacc-propnet 0
 ```
 
-Used by:
+### Camera Optimization NeRFs
+
+BARF on the NeRF-Synthetic dataset (plugin in the official codebase).
+```bash
+cd benchmarks/barf/
+# (set up the environment for that repo)
+bash script.sh nerfsyn-nerfacc-occgrid 0
+```
+
+### 3rd-Party Usages:
 - [nerfstudio](https://github.com/nerfstudio-project/nerfstudio): A collaboration friendly studio for NeRFs.
+- [sdfstudio](https://autonomousvision.github.io/sdfstudio/): A unified framework for surface reconstruction..
 - [instant-nsr-pl](https://github.com/bennyguo/instant-nsr-pl): NeuS in 10 minutes.
+- [modelscope](https://github.com/modelscope/modelscope/blob/master/modelscope/models/cv/nerf_recon_acc/network/nerf.py): A collection of deep-learning algorithms.
+- [Representing Volumetric Videos as Dynamic MLP Maps, CVPR 2023](https://github.com/zju3dv/mlp_maps)
 
 
 ## Common Installation Issues
-
 
 <details>
     <summary>ImportError: .../csrc.so: undefined symbol</summary>
@@ -179,10 +213,10 @@ Used by:
 ## Citation
 
 ```bibtex
-@article{li2022nerfacc,
-  title={NerfAcc: A General NeRF Accleration Toolbox.},
-  author={Li, Ruilong and Tancik, Matthew and Kanazawa, Angjoo},
-  journal={arXiv preprint arXiv:2210.04847},
-  year={2022}
+@article{li2023nerfacc,
+  title={NerfAcc: Efficient Sampling Accelerates NeRFs.},
+  author={Li, Ruilong and Hang Gao and Tancik, Matthew and Kanazawa, Angjoo},
+  journal={TBD},
+  year={2023}
 }
 ```
