@@ -149,8 +149,8 @@ Links:
    :caption: Projects
 
    nerfstudio <https://docs.nerf.studio/>
+   sdfstudio <https://autonomousvision.github.io/sdfstudio/>
    instant-nsr-pl <https://github.com/bennyguo/instant-nsr-pl>
-
 
 .. _`vanilla Nerf`: https://arxiv.org/abs/2003.08934
 .. _`Instant-NGP Nerf`: https://arxiv.org/abs/2201.05989
