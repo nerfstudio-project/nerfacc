@@ -13,6 +13,7 @@ It is not optimal but still makes the rendering very efficient if the motion is 
 
 Performance Overview
 --------------------
+*updated on 2023-04-04*
 
 +----------------------+-----------+----------------------------------+-----------------------+--------------------------+
 | Methods              | Dataset   | Training Time :math:`\downarrow` | PSNR :math:`\uparrow` | LPIPS :math:`\downarrow` |
