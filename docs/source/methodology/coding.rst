@@ -91,3 +91,17 @@ In our library, :func:`nerfacc.traverse_grids` is a function that requires synch
 because it needs to know the size of the output tensor when traversing the grids. As a result,
 sampling with :class:`nerfacc.OccGridEstimator` also requires synchronization. But there is 
 no walkaround in this case so just be aware of it.
+
+
+Profiling
+-----------------------------
+
+There are plenty of tools for profiling. My personal favorite is 
+`line_profiler <https://github.com/pyutils/line_profiler>`_ which will give you *per-line* runtime
+of a function with a simple decorator `@profile`. It is very useful for finding where the bottleneck
+is in your code. It is worth to note that due to the asynchronized nature of Pytorch code, you would 
+need to set `CUDA_LAUNCH_BLOCKING=1` when profiling your code (no matter which profiling tool you are using).
+This variable will force CPU-GPU synchronization for every torch function (equavalent to add 
+`torch.cuda.synchronize()` everywhere), which can reveal the true runtime of each line of code.
+And of course, with `CUDA_LAUNCH_BLOCKING=1` you would get slower total runtime, so don't forget to
+remove it when you are done profiling.
