@@ -1,6 +1,16 @@
 Dynamic NeRFs
 ===================================
 
+
+The :class:`nerfacc.PropNetEstimator` can natually work with dynamic NeRFs. To make the 
+:class:`nerfacc.OccGridEstimator` also work with dynamic NeRFs, we need to make some compromises.
+In these examples, we use the :class:`nerfacc.OccGridEstimator` to estimate the
+`maximum` opacity at each area `over all the timestamps`. This allows us to share the same estimator
+across all the timestamps, including those timestamps that are not in the training set. 
+In other words, we use it to cache the union of the occupancy at all timestamps.
+It is not optimal but still makes the rendering very efficient if the motion is not crazyly significant.
+
+
 Performance Overview
 --------------------
 
