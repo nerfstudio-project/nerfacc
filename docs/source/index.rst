@@ -21,9 +21,9 @@ in training various recent NeRF papers.
 
 .. note::
 
-   This repo is focusing on the single scene situation. Generalizable Nerfs across
-   multiple scenes is currently out of the scope of this repo. But you may still find
-   some useful tricks in this repo. :)
+   Though this repo only contains examples for single scene optimization,
+   we believe generalizable NeRFs across multiple scenes can also be accelerate with our 
+   :class:`nerfacc.PropNetEstimator`. Examples will be added soon.
 
 
 Installation:
