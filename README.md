@@ -124,8 +124,6 @@ optimizer.step()
 
 ## Examples: 
 
-See full benchmarking here: https://www.nerfacc.com/en/latest/examples/
-
 Before running those example scripts, please check the script about which dataset is needed, and download the dataset first. You could use `--data_root` to specify the path.
 
 ```bash
@@ -134,6 +132,8 @@ git clone --recursive git://github.com/KAIR-BAIR/nerfacc/
 ```
 
 ### Static NeRFs
+
+See full benchmarking here: https://www.nerfacc.com/en/stable/examples/static.html
 
 Instant-NGP on NeRF-Synthetic dataset with better performance in 4.5 minutes.
 ``` bash
@@ -166,6 +166,9 @@ bash script.sh tt-nerfacc-occgrid 0
 ```
 
 ### Dynamic NeRFs
+
+See full benchmarking here: https://www.nerfacc.com/en/stable/examples/dynamic.html
+
 T-NeRF on D-NeRF dataset in an hour.
 ``` bash
 # Occupancy Grid Estimator
@@ -189,6 +192,8 @@ bash script.sh hypernerf-nerfacc-propnet 0
 ```
 
 ### Camera Optimization NeRFs
+
+See full benchmarking here: https://www.nerfacc.com/en/stable/examples/camera.html
 
 BARF on the NeRF-Synthetic dataset (plugin in the official codebase).
 ```bash
@@ -218,7 +223,7 @@ bash script.sh nerfsyn-nerfacc-occgrid 0
 @article{li2023nerfacc,
   title={NerfAcc: Efficient Sampling Accelerates NeRFs.},
   author={Li, Ruilong and Hang Gao and Tancik, Matthew and Kanazawa, Angjoo},
-  journal={TBD},
+  journal={To Be Updated},
   year={2023}
 }
 ```
