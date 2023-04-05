@@ -31,9 +31,11 @@ def ray_aabb_intersect(
             Default to infinity.
 
     Returns:
-        t_mins: (n_rays, m) tmin for each ray-AABB pair.
-        t_maxs: (n_rays, m) tmax for each ray-AABB pair.
-        hits: (n_rays, m) whether each ray-AABB pair intersects.
+        A tuple of {Tensor, Tensor, BoolTensor}:
+    
+        - **t_mins**: (n_rays, m) tmin for each ray-AABB pair.
+        - **t_maxs**: (n_rays, m) tmax for each ray-AABB pair.
+        - **hits**: (n_rays, m) whether each ray-AABB pair intersects.
     """
     assert rays_o.ndim == 2 and rays_o.shape[-1] == 3
     assert rays_d.ndim == 2 and rays_d.shape[-1] == 3
