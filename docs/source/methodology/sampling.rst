@@ -3,8 +3,8 @@
 Efficient Sampling
 ===================================
 
-Transmittance Estimator is All You Need.
-----------------------------------------
+Importance Sampling via Transmittance Estimator.
+-------------------------------------------------
 
 Efficient sampling is a well-explored problem in Graphics, wherein the 
 emphasis is on identifying regions that make the most significant 
