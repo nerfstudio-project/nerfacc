@@ -32,7 +32,7 @@ def ray_aabb_intersect(
 
     Returns:
         A tuple of {Tensor, Tensor, BoolTensor}:
-    
+
         - **t_mins**: (n_rays, m) tmin for each ray-AABB pair.
         - **t_maxs**: (n_rays, m) tmax for each ray-AABB pair.
         - **hits**: (n_rays, m) whether each ray-AABB pair intersects.
