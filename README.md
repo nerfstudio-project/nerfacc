@@ -16,6 +16,8 @@
 
 https://www.nerfacc.com/
 
+[News] 2023/04/04. If you were using `nerfacc <= 0.3.5` and would like to migrate to our latest version (`nerfacc >= 0.5.0`), Please check the [CHANGELOG](CHANGELOG.md) on how to migrate.
+
 NerfAcc is a PyTorch Nerf acceleration toolbox for both training and inference. It focus on
 efficient sampling in the volumetric rendering pipeline of radiance fields, which is 
 universal and plug-and-play for most of the NeRFs.
