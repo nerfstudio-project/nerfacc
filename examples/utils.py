@@ -4,7 +4,8 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 
 import random
 from typing import Optional, Sequence
-try :
+
+try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal

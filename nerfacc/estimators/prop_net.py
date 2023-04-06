@@ -1,5 +1,6 @@
 from typing import Callable, List, Optional, Tuple
-try :
+
+try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
