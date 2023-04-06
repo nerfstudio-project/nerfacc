@@ -1,5 +1,5 @@
 import argparse
-import os
+from collections import defaultdict
 
 from boto3 import client
 
@@ -10,7 +10,14 @@ parser.add_argument("--bucket", type=str, required=True)
 parser.add_argument("--region", type=str, required=True)
 args = parser.parse_args()
 
-URL = f"https://{args.bucket}.s3.{args.region}.amazonaws.com/"
+ROOT_URL = f"https://{args.bucket}.s3.{args.region}.amazonaws.com/whl"
+html = "<!DOCTYPE html>\n<html>\n<body>\n{}\n</body>\n</html>"
+href = '  <a href="{}">{}</a><br/>'
+args = {
+    "ContentType": "text/html",
+    "CacheControl": "max-age=300",
+    "ACL": "public-read",
+}
 
 s3 = client(
     "s3",
@@ -18,37 +25,43 @@ s3 = client(
     aws_secret_access_key=args.secret_access_key,
 )
 
-responses = s3.list_objects_v2(Bucket=args.bucket, Prefix="whl/")["Contents"]
+bucket = s3.Bucket(name="nerfacc-bucket")
 
-subdirectories = {}
-for data in responses:
-    splits = data["Key"].split("/")
-    if len(splits) == 3:
-        subdirectories[splits[1]] = []
+wheels_dict = defaultdict(list)
+for obj in bucket.objects.filter(Prefix="whl"):
+    if obj.key[-3:] != "whl":
+        continue
+    torch_version, wheel = obj.key.split("/")[-2:]
+    wheel = f"{torch_version}/{wheel}"
+    wheels_dict[torch_version].append(wheel)
 
-for dir in subdirectories.keys():
-    responses = s3.list_objects_v2(Bucket=args.bucket, Prefix=f"whl/{dir}")[
-        "Contents"
-    ]
-    for data in responses:
-        splits = data["Key"].split("/")
-        if len(splits) == 3:
-            subdirectories[dir].append(splits[2])
+index_html = html.format(
+    "\n".join(
+        [
+            href.format(f"{torch_version}.html".replace("+", "%2B"), version)
+            for version in wheels_dict
+        ]
+    )
+)
 
-for dir, files in subdirectories.items():
-    lines = ""
-    for file in files:
-        href = os.path.join(URL, "whl", dir, file)
-        lines += f"<a href='{href}'>{file}</a>\n<br>\n"
+with open("index.html", "w") as f:
+    f.write(index_html)
+bucket.Object("whl/index.html").upload_file("index.html", args)
 
-    html = f"<html>\n<head></head>\n<body>\n{lines}\n</body>\n</html>\n"
-    html_file = f"/tmp/{dir}.html"
-    with open(html_file, "w") as f:
-        f.write(html)
+for torch_version, wheel_names in wheels_dict.items():
+    torch_version_html = html.format(
+        "\n".join(
+            [
+                href.format(
+                    f"{ROOT_URL}/{wheel_name}".replace("+", "%2B"), wheel_name
+                )
+                for wheel_name in wheel_names
+            ]
+        )
+    )
 
-    s3.upload_file(
-        html_file,
-        args.bucket,
-        f"whl/{dir}.html",
-        ExtraArgs={"ContentType": "text/html"},
+    with open(f"{torch_version}.html", "w") as f:
+        f.write(torch_version_html)
+    bucket.Object(f"whl/{torch_version}.html").upload_file(
+        f"{torch_version}.html", args
     )
