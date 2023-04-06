@@ -58,8 +58,7 @@ else
   sudo apt-key add /var/cuda-repo-${APT_KEY}/7fa2af80.pub
 fi
 
-sudo apt-get -qq update
-sudo apt install cuda-nvcc-${CUDA/./-} cuda-libraries-dev-${CUDA/./-} cuda-command-line-tools-${CUDA/./-}
-sudo apt clean
+sudo apt-get update
+sudo apt-get -y install cuda
 
 rm -f ${FILENAME}
