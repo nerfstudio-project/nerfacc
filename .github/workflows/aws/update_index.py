@@ -1,16 +1,8 @@
-import argparse
-
 from collections import defaultdict
-from boto3 import client
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--access_key_id", type=str, required=True)
-parser.add_argument("--secret_access_key", type=str, required=True)
-parser.add_argument("--bucket", type=str, required=True)
-parser.add_argument("--region", type=str, required=True)
-args = parser.parse_args()
+import boto3
 
-ROOT_URL = 'https://{args.bucket}.s3.{args.region}.amazonaws.com/whl'
+ROOT_URL = 'https://nerfacc-bucket.s3.us-west-2.amazonaws.com/whl'
 html = '<!DOCTYPE html>\n<html>\n<body>\n{}\n</body>\n</html>'
 href = '  <a href="{}">{}</a><br/>'
 args = {
@@ -19,13 +11,7 @@ args = {
     'ACL': 'public-read',
 }
 
-s3 = client(
-    "s3",
-    aws_access_key_id=args.access_key_id,
-    aws_secret_access_key=args.secret_access_key,
-)
-
-bucket = s3.Bucket(name='nerfacc-bucket')
+bucket = boto3.resource('s3').Bucket(name='nerfacc-bucket')
 
 wheels_dict = defaultdict(list)
 for obj in bucket.objects.filter(Prefix='whl'):
