@@ -10,7 +10,7 @@ parser.add_argument("--bucket", type=str, required=True)
 parser.add_argument("--region", type=str, required=True)
 args = parser.parse_args()
 
-ROOT_URL = 'https://{args.bucket}.s3.{args.region}.amazonaws.com/whl'
+ROOT_URL = f'https://{args.bucket}.s3.{args.region}.amazonaws.com/whl'
 html = '<!DOCTYPE html>\n<html>\n<body>\n{}\n</body>\n</html>'
 href = '  <a href="{}">{}</a><br/>'
 args = {
