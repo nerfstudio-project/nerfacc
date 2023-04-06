@@ -1,6 +1,6 @@
 import argparse
-
 from collections import defaultdict
+
 from boto3 import client
 
 parser = argparse.ArgumentParser()
