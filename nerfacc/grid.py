@@ -8,6 +8,7 @@ from torch import Tensor
 
 from . import cuda as _C
 from .data_specs import RayIntervals, RaySamples
+from .cuda import traverse_grids_test
 
 
 @torch.no_grad()
@@ -89,7 +90,6 @@ def _ray_aabb_intersect(
 
     return t_mins, t_maxs, hits
 
-
 @torch.no_grad()
 def traverse_grids(
     # rays
@@ -103,6 +103,12 @@ def traverse_grids(
     far_planes: Optional[Tensor] = None,  # [n_rays]
     step_size: Optional[float] = 1e-3,
     cone_angle: Optional[float] = 0.0,
+    max_samples_per_ray: Optional[int] = 4096,
+    ray_mask_id: Optional[Tensor] = None,  # [n_rays_chunk]
+    # pre-compute intersections
+    t_sorted: Optional[Tensor] = None, # [n_rays, n_grids]
+    t_indices: Optional[Tensor] = None, # [n_rays, n_grids]
+    hits: Optional[Tensor] = None, # [n_rays, n_grids]
 ) -> Tuple[RayIntervals, RaySamples]:
     """Ray Traversal within Multiple Grids.
 
@@ -124,34 +130,60 @@ def traverse_grids(
         A :class:`RayIntervals` object containing the intervals of the ray traversal, and
         a :class:`RaySamples` object containing the samples within each interval.
     """
-    # Compute ray aabb intersection for all levels of grid. [n_rays, m]
-    t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs)
 
     if near_planes is None:
         near_planes = torch.zeros_like(rays_o[:, 0])
     if far_planes is None:
         far_planes = torch.full_like(rays_o[:, 0], float("inf"))
 
-    intervals, samples = _C.traverse_grids(
-        # rays
-        rays_o.contiguous(),  # [n_rays, 3]
-        rays_d.contiguous(),  # [n_rays, 3]
-        # grids
-        binaries.contiguous(),  # [m, resx, resy, resz]
-        aabbs.contiguous(),  # [m, 6]
-        # intersections
-        t_mins.contiguous(),  # [n_rays, m]
-        t_maxs.contiguous(),  # [n_rays, m]
-        hits.contiguous(),  # [n_rays, m]
-        # options
-        near_planes.contiguous(),  # [n_rays]
-        far_planes.contiguous(),  # [n_rays]
-        step_size,
-        cone_angle,
-        True,
-        True,
-    )
-    return RayIntervals._from_cpp(intervals), RaySamples._from_cpp(samples)
+    if ray_mask_id == None:
+        # Compute ray aabb intersection for all levels of grid. [n_rays, m]
+        t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs)
+
+        intervals, samples = _C.traverse_grids(
+            # rays
+            rays_o.contiguous(),  # [n_rays, 3]
+            rays_d.contiguous(),  # [n_rays, 3]
+            # grids
+            binaries.contiguous(),  # [m, resx, resy, resz]
+            aabbs.contiguous(),  # [m, 6]
+            # intersections
+            t_mins.contiguous(),  # [n_rays, m]
+            t_maxs.contiguous(),  # [n_rays, m]
+            hits.contiguous(),  # [n_rays, m]
+            # options
+            near_planes.contiguous(),  # [n_rays]
+            far_planes.contiguous(),  # [n_rays]
+            step_size,
+            cone_angle,
+            True,
+            True,
+            max_samples_per_ray,
+        )
+        termination_planes = None 
+    else:
+        termination_planes = near_planes[ray_mask_id]
+        intervals, samples = _C.traverse_grids_test(
+            # rays
+            ray_mask_id.contiguous(),  # [n_rays_chunk]
+            rays_o.contiguous(),  # [n_rays, 3]
+            rays_d.contiguous(),  # [n_rays, 3]
+            # grids
+            binaries.contiguous(),  # [m, resx, resy, resz]
+            aabbs.contiguous(),  # [m, 6]
+            # intersections
+            t_sorted.contiguous(),  # [n_rays, m*2]
+            t_indices.contiguous(),  # [n_rays, m*2]
+            hits.contiguous(),  # [n_rays, m]
+            # options
+            termination_planes.contiguous(),  # [n_rays]
+            far_planes[ray_mask_id].contiguous(),  # [n_rays]
+            step_size,
+            cone_angle,
+            max_samples_per_ray,
+        )
+        # print("test time")
+    return RayIntervals._from_cpp(intervals), RaySamples._from_cpp(samples), termination_planes
 
 
 def _enlarge_aabb(aabb, factor: float) -> Tensor:

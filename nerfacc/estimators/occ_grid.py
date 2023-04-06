@@ -161,7 +161,7 @@ class OccGridEstimator(AbstractEstimator):
 
         if stratified:
             near_planes += torch.rand_like(near_planes) * render_step_size
-        intervals, samples = traverse_grids(
+        intervals, samples, _ = traverse_grids(
             rays_o,
             rays_d,
             self.binaries,
@@ -305,16 +305,71 @@ class OccGridEstimator(AbstractEstimator):
             occ = occ_eval_fn(x).squeeze(-1)
             # ema update
             cell_ids = lvl * self.cells_per_lvl + indices
-            self.occs[cell_ids] = torch.maximum(
-                self.occs[cell_ids] * ema_decay, occ
+            self.occs[cell_ids] = torch.where(
+                self.occs[cell_ids] < 0,
+                self.occs[cell_ids],
+                torch.maximum(
+                    self.occs[cell_ids] * ema_decay, occ
+                ),
             )
             # suppose to use scatter max but emperically it is almost the same.
             # self.occs, _ = scatter_max(
             #     occ, indices, dim=0, out=self.occs * ema_decay
             # )
-        self.binaries = (
-            self.occs > torch.clamp(self.occs.mean(), max=occ_thre)
-        ).view(self.binaries.shape)
+        thre = torch.clamp(self.occs[self.occs > 0].mean(), max=occ_thre)
+        self.binaries = (self.occs > thre).view(self.binaries.shape)
+
+    @torch.no_grad()
+    def mark_invisible_cells(self, K, poses, img_wh, near_plane, chunk=32**3):
+        """
+        Mark the cells that aren't covered by the cameras with density -1
+        only executed once before training starts
+
+        This code is adapted from: https://github.com/kwea123/ngp_pl/blob/master/models/networks.py
+
+        Inputs:
+            K: (3, 3) camera intrinsics
+            poses: (N, 3, 4) camera to world poses
+            img_wh: image width and height
+            near_plane: near plane distance
+            chunk: the chunk size to split the cells (to avoid OOM)
+        """
+        from einops import rearrange
+        N_cams = poses.shape[0]
+        w2c_R = rearrange(poses[:, :3, :3], 'n a b -> n b a') # (N_cams, 3, 3)
+        w2c_T = -w2c_R@poses[:, :3, 3:] # (N_cams, 3, 1)
+        
+        lvl_indices = self._get_all_cells()
+        for lvl, indices in enumerate(lvl_indices):
+            grid_coords = self.grid_coords[indices]
+
+            for i in range(0, len(indices), chunk):
+
+                x = grid_coords[i:i+chunk]/(self.resolution-1)
+                indices_chunk = indices[i:i+chunk]
+                # voxel coordinates [0, 1]^3 -> world
+                xyzs_w = (self.aabbs[lvl, :3] + x * (
+                    self.aabbs[lvl, 3:] - self.aabbs[lvl, :3]
+                )).T
+                xyzs_c = w2c_R @ xyzs_w + w2c_T # (N_cams, 3, chunk)
+                uvd = K @ xyzs_c # (N_cams, 3, chunk)
+                uv = uvd[:, :2]/uvd[:, 2:] # (N_cams, 2, chunk)
+                in_image = (uvd[:, 2]>=0)& \
+                           (uv[:, 0]>=0)&(uv[:, 0]<img_wh[0])& \
+                           (uv[:, 1]>=0)&(uv[:, 1]<img_wh[1])
+                covered_by_cam = (uvd[:, 2]>=near_plane)&in_image # (N_cams, chunk)
+                # if the cell is visible by at least one camera
+                count = covered_by_cam.sum(0)/N_cams
+
+                too_near_to_cam = (uvd[:, 2]<near_plane)&in_image # (N, chunk)
+                # if the cell is too close (in front) to any camera
+                too_near_to_any_cam = too_near_to_cam.any(0)
+                # a valid cell should be visible by at least one camera and not too close to any camera
+                valid_mask = (count>0)&(~too_near_to_any_cam)
+                
+                cell_ids_base = lvl * self.cells_per_lvl
+                self.occs[cell_ids_base+indices_chunk] = \
+                    torch.where(valid_mask, 0., -1.)
 
 
 def _meshgrid3d(

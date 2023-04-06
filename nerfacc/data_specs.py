@@ -43,6 +43,7 @@ class RaySamples:
     vals: torch.Tensor
     packed_info: Optional[torch.Tensor] = None
     ray_indices: Optional[torch.Tensor] = None
+    is_valid: Optional[torch.Tensor] = None
 
     def _to_cpp(self):
         """
@@ -69,8 +70,16 @@ class RaySamples:
         else:
             packed_info = None
         ray_indices = spec.ray_indices
+        if spec.is_valid is not None:
+            is_valid = spec.is_valid
+        else:
+            is_valid = None
+        vals = spec.vals
         return cls(
-            vals=spec.vals, packed_info=packed_info, ray_indices=ray_indices
+            vals=vals, 
+            packed_info=packed_info, 
+            ray_indices=ray_indices,
+            is_valid=is_valid,
         )
 
     @property
