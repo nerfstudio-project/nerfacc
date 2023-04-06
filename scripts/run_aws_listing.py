@@ -13,7 +13,7 @@ args = parser.parse_args()
 ROOT_URL = f"https://{args.bucket}.s3.{args.region}.amazonaws.com/whl"
 html = "<!DOCTYPE html>\n<html>\n<body>\n{}\n</body>\n</html>"
 href = '  <a href="{}">{}</a><br/>'
-args = {
+html_args = {
     "ContentType": "text/html",
     "CacheControl": "max-age=300",
     "ACL": "public-read",
@@ -46,7 +46,7 @@ index_html = html.format(
 
 with open("index.html", "w") as f:
     f.write(index_html)
-bucket.Object("whl/index.html").upload_file("index.html", args)
+bucket.Object("whl/index.html").upload_file("index.html", html_args)
 
 for torch_version, wheel_names in wheels_dict.items():
     torch_version_html = html.format(
