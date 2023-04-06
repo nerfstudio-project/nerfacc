@@ -1,4 +1,9 @@
-from typing import Callable, List, Literal, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
+
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 import torch
 from torch import Tensor

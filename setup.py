@@ -105,7 +105,7 @@ setup(
     download_url=f"{URL}/archive/{__version__}.tar.gz",
     keywords=[],
     python_requires=">=3.7",
-    install_requires=["rich>=12", "torch"],
+    install_requires=["rich>=12", "torch", "typing_extensions; python_version<'3.8'"],
     extras_require={
         # dev dependencies. Install them by `pip install nerfacc[dev]`
         "dev": [
