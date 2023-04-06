@@ -57,6 +57,16 @@ jobs:
           
           - os: windows-2019
             cuda-version: 'cu102'
+          - os: windows-2019
+            torch-version: 1.13.0
+            python-version: '3.11'
+          
+          # - os: windows-2019
+          #   torch-version: 1.13.0
+          #   cuda-version: 'cu117'
+          #   python-version: '3.9'
+
+
 
     steps:
       - uses: actions/checkout@v3
