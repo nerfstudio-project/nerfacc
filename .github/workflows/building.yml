@@ -64,7 +64,7 @@ jobs:
       - name: Install CUDA ${{ matrix.cuda-version }}
         if: ${{ matrix.cuda-version != 'cpu' }}
         run: |
-          bash .github/workflows/cuda/${{ matrix.cuda-version }}-${{ runner.os }}.sh
+          bash .github/workflows/cuda/${{ runner.os }}.sh ${{ matrix.cuda-version }}
 
       - name: Install PyTorch ${{ matrix.torch-version }}+${{ matrix.cuda-version }}
         run: |
@@ -102,7 +102,7 @@ jobs:
       - name: Install main package for GPU
         if: ${{ matrix.cuda-version != 'cpu' }}
         run: |
-          source .github/workflows/cuda/${{ matrix.cuda-version }}-${{ runner.os }}-env.sh
+          source .github/workflows/cuda/${{ runner.os }}-env.sh ${{ matrix.cuda-version }}
           pip install .
         shell:
           bash
@@ -114,7 +114,7 @@ jobs:
       - name: Build wheel
         run: |
           pip install wheel
-          source .github/workflows/cuda/${{ matrix.cuda-version }}-${{ runner.os }}-env.sh
+          source .github/workflows/cuda/${{ runner.os }}-env.sh ${{ matrix.cuda-version }}
           python setup.py bdist_wheel --dist-dir=dist
         shell: bash
 
