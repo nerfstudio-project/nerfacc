@@ -3,7 +3,11 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
 
 import random
-from typing import Literal, Optional, Sequence
+from typing import Optional, Sequence
+try :
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 import numpy as np
 import torch
