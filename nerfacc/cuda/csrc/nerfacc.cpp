@@ -88,6 +88,13 @@ std::vector<torch::Tensor> searchsorted(
     RaySegmentsSpec query,
     RaySegmentsSpec key);
 
+// cameras
+torch::Tensor opencv_lens_undistortion(
+    const torch::Tensor& uv,      // [..., 2]
+    const torch::Tensor& params,  // [..., 6]
+    const float eps,
+    const int max_iterations);
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
   _REG_FUNC(is_cub_available);  // TODO: check this function
@@ -103,6 +110,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   _REG_FUNC(ray_aabb_intersect);
   _REG_FUNC(traverse_grids);
   _REG_FUNC(searchsorted);
+
+  _REG_FUNC(opencv_lens_undistortion);
 #undef _REG_FUNC
 
   m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, torch::Tensor, bool>(&importance_sampling));
