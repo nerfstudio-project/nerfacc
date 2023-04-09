@@ -3,6 +3,7 @@ from typing import Tuple
 import pytest
 import torch
 import tqdm
+from torch import Tensor
 
 device = "cuda:0"
 
@@ -11,30 +12,27 @@ device = "cuda:0"
 @torch.no_grad()
 def test_opencv_lens_undistortion():
     from nerfacc.cameras import (
-        _opencv_lens_undistortion,
+        _opencv_len_distortion,
+        _opencv_len_distortion_fisheye,
         opencv_lens_undistortion,
+        opencv_lens_undistortion_fisheye,
     )
 
     torch.manual_seed(42)
 
-    coord = torch.rand((3, 1000, 2), device=device)
-    params = torch.rand((6), device=device)
+    x = torch.rand((3, 1000, 2), device=device)
 
-    outputs = opencv_lens_undistortion(coord, params, 1e-3, 10)
-    _outputs = _opencv_lens_undistortion(coord, params, 1e-3, 10)
-    assert torch.allclose(outputs, _outputs, atol=1e-5), (
-        (outputs - _outputs).abs().max()
-    )
+    params = torch.rand((5), device=device) * 0.01
+    x_undistort = opencv_lens_undistortion(x, params, 1e-5, 10)
+    x_distort = _opencv_len_distortion(x_undistort, params)
+    assert torch.allclose(x, x_distort, atol=1e-5), (x - x_distort).abs().max()
+    print(x[0, 0], x_distort[0, 0], x_undistort[0, 0])
 
-    torch.cuda.synchronize()
-    for _ in tqdm.trange(10000):
-        outputs = opencv_lens_undistortion(coord, params, 1e-3, 10)
-        torch.cuda.synchronize()
-
-    torch.cuda.synchronize()
-    for _ in tqdm.trange(10000):
-        output = _opencv_lens_undistortion(coord, params, 1e-3, 10)
-        torch.cuda.synchronize()
+    params = torch.rand((4), device=device) * 0.01
+    x_undistort = opencv_lens_undistortion_fisheye(x, params, 1e-5, 10)
+    x_distort = _opencv_len_distortion_fisheye(x_undistort, params)
+    assert torch.allclose(x, x_distort, atol=1e-5), (x - x_distort).abs().max()
+    print(x[0, 0], x_distort[0, 0], x_undistort[0, 0])
 
 
 if __name__ == "__main__":

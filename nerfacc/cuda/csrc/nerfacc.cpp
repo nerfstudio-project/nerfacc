@@ -94,46 +94,53 @@ torch::Tensor opencv_lens_undistortion(
     const torch::Tensor& params,  // [..., 6]
     const float eps,
     const int max_iterations);
+torch::Tensor opencv_lens_undistortion_fisheye(
+    const torch::Tensor& uv,      // [..., 2]
+    const torch::Tensor& params,  // [..., 4]
+    const float criteria_eps,
+    const int criteria_iters);
+
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
-  _REG_FUNC(is_cub_available);  // TODO: check this function
-  
-  _REG_FUNC(exclusive_sum_by_key);
-  _REG_FUNC(inclusive_sum);
-  _REG_FUNC(exclusive_sum);
-  _REG_FUNC(inclusive_prod_forward);
-  _REG_FUNC(inclusive_prod_backward);
-  _REG_FUNC(exclusive_prod_forward);
-  _REG_FUNC(exclusive_prod_backward);
+    _REG_FUNC(is_cub_available);  // TODO: check this function
 
-  _REG_FUNC(ray_aabb_intersect);
-  _REG_FUNC(traverse_grids);
-  _REG_FUNC(searchsorted);
+    _REG_FUNC(exclusive_sum_by_key);
+    _REG_FUNC(inclusive_sum);
+    _REG_FUNC(exclusive_sum);
+    _REG_FUNC(inclusive_prod_forward);
+    _REG_FUNC(inclusive_prod_backward);
+    _REG_FUNC(exclusive_prod_forward);
+    _REG_FUNC(exclusive_prod_backward);
 
-  _REG_FUNC(opencv_lens_undistortion);
+    _REG_FUNC(ray_aabb_intersect);
+    _REG_FUNC(traverse_grids);
+    _REG_FUNC(searchsorted);
+
+    _REG_FUNC(opencv_lens_undistortion);
+    _REG_FUNC(opencv_lens_undistortion_fisheye);
 #undef _REG_FUNC
 
-  m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, torch::Tensor, bool>(&importance_sampling));
-  m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, int64_t, bool>(&importance_sampling));
+    m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, torch::Tensor, bool>(&importance_sampling));
+    m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, int64_t, bool>(&importance_sampling));
 
-  py::class_<MultiScaleGridSpec>(m, "MultiScaleGridSpec")
-      .def(py::init<>())
-      .def_readwrite("data", &MultiScaleGridSpec::data)
-      .def_readwrite("occupied", &MultiScaleGridSpec::occupied)
-      .def_readwrite("base_aabb", &MultiScaleGridSpec::base_aabb);
+    py::class_<MultiScaleGridSpec>(m, "MultiScaleGridSpec")
+        .def(py::init<>())
+        .def_readwrite("data", &MultiScaleGridSpec::data)
+        .def_readwrite("occupied", &MultiScaleGridSpec::occupied)
+        .def_readwrite("base_aabb", &MultiScaleGridSpec::base_aabb);
 
-  py::class_<RaysSpec>(m, "RaysSpec")
-      .def(py::init<>())
-      .def_readwrite("origins", &RaysSpec::origins)
-      .def_readwrite("dirs", &RaysSpec::dirs);
+    py::class_<RaysSpec>(m, "RaysSpec")
+        .def(py::init<>())
+        .def_readwrite("origins", &RaysSpec::origins)
+        .def_readwrite("dirs", &RaysSpec::dirs);
 
-  py::class_<RaySegmentsSpec>(m, "RaySegmentsSpec")
-      .def(py::init<>())
-      .def_readwrite("vals", &RaySegmentsSpec::vals)
-      .def_readwrite("is_left", &RaySegmentsSpec::is_left)
-      .def_readwrite("is_right", &RaySegmentsSpec::is_right)
-      .def_readwrite("chunk_starts", &RaySegmentsSpec::chunk_starts)
-      .def_readwrite("chunk_cnts", &RaySegmentsSpec::chunk_cnts)
-      .def_readwrite("ray_indices", &RaySegmentsSpec::ray_indices);
+    py::class_<RaySegmentsSpec>(m, "RaySegmentsSpec")
+        .def(py::init<>())
+        .def_readwrite("vals", &RaySegmentsSpec::vals)
+        .def_readwrite("is_left", &RaySegmentsSpec::is_left)
+        .def_readwrite("is_right", &RaySegmentsSpec::is_right)
+        .def_readwrite("chunk_starts", &RaySegmentsSpec::chunk_starts)
+        .def_readwrite("chunk_cnts", &RaySegmentsSpec::chunk_cnts)
+        .def_readwrite("ray_indices", &RaySegmentsSpec::ray_indices);
 }

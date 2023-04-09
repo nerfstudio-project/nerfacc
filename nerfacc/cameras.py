@@ -12,39 +12,119 @@ from . import cuda as _C
 def opencv_lens_undistortion(
     uv: Tensor, params: Tensor, eps: float = 1e-6, iters: int = 10
 ) -> Tensor:
-    """Undistort the opencv distortion of {k1, k2, k3, k4, p1, p2}.
+    """Undistort the opencv distortion of {k1, k2, k3, p1, p2}.
 
     Note:
         This function is not differentiable to any inputs.
 
     Args:
         uv: (..., 2) UV coordinates.
-        params: (..., 6) or (6) OpenCV distortion parameters.
+        params: (..., 5) or (5) OpenCV distortion parameters.
 
     Returns:
         (..., 2) undistorted UV coordinates.
     """
     assert uv.shape[-1] == 2
-    assert params.shape[-1] == 6
+    assert params.shape[-1] == 5 or params.shape[-1] == 12
     batch_shape = uv.shape[:-1]
-    params = torch.broadcast_to(params, batch_shape + (6,))
+    params = torch.broadcast_to(params, batch_shape + (params.shape[-1],))
 
     return _C.opencv_lens_undistortion(
         uv.contiguous(), params.contiguous(), eps, iters
     )
 
 
+def opencv_lens_undistortion_fisheye(
+    uv: Tensor, params: Tensor, eps: float = 1e-6, iters: int = 10
+) -> Tensor:
+    """Undistort the opencv distortion of {k1, k2, k3, k4}.
+
+    Note:
+        This function is not differentiable to any inputs.
+
+    Args:
+        uv: (..., 2) UV coordinates.
+        params: (..., 4) or (4) OpenCV distortion parameters.
+
+    Returns:
+        (..., 2) undistorted UV coordinates.
+    """
+    assert uv.shape[-1] == 2
+    assert params.shape[-1] == 4
+    batch_shape = uv.shape[:-1]
+    params = torch.broadcast_to(params, batch_shape + (params.shape[-1],))
+
+    return _C.opencv_lens_undistortion_fisheye(
+        uv.contiguous(), params.contiguous(), eps, iters
+    )
+
+
+def _opencv_len_distortion(uv: Tensor, params: Tensor) -> Tensor:
+    """The opencv camera distortion of {k1, k2, k3, p1, p2}.
+
+    See https://docs.opencv.org/3.4/d9/d0c/group__calib3d.html for more details.
+    """
+    if params.shape[-1] == 5:
+        k1, k2, p1, p2, k3 = torch.unbind(params, dim=-1)
+        k4, k5, k6, s1, s2, s3, s4 = 0, 0, 0, 0, 0, 0, 0
+    elif params.shape[-1] == 12:
+        k1, k2, p1, p2, k3, k4, k5, k6, s1, s2, s3, s4 = torch.unbind(
+            params, dim=-1
+        )
+    else:
+        raise ValueError(f"Invalid params shape: {params.shape}")
+    u, v = torch.unbind(uv, dim=-1)
+    r2 = u * u + v * v
+    r4 = r2**2
+    r6 = r4 * r2
+    ratial = (1 + k1 * r2 + k2 * r4 + k3 * r6) / (
+        1 + k4 * r2 + k5 * r4 + k6 * r6
+    )
+    fx = 2 * p1 * u * v + p2 * (r2 + 2 * u * u) + s1 * r2 + s2 * r4
+    fy = 2 * p2 * u * v + p1 * (r2 + 2 * v * v) + s3 * r2 + s4 * r4
+    return torch.stack([u * ratial + fx, v * ratial + fy], dim=-1)
+
+
+def _opencv_len_distortion_fisheye(
+    uv: Tensor, params: Tensor, eps: float = 1e-10
+) -> Tensor:
+    """The opencv camera distortion of {k1, k2, k3, p1, p2}.
+
+    See https://docs.opencv.org/4.x/db/d58/group__calib3d__fisheye.html for more details.
+
+    Args:
+        uv: (..., 2) UV coordinates.
+        params: (..., 4) or (4) OpenCV distortion parameters.
+
+    Returns:
+        (..., 2) distorted UV coordinates.
+    """
+    assert params.shape[-1] == 4, f"Invalid params shape: {params.shape}"
+    k1, k2, k3, k4 = torch.unbind(params, dim=-1)
+    u, v = torch.unbind(uv, dim=-1)
+    r = torch.sqrt(u * u + v * v)
+    theta = torch.atan(r)
+    theta_d = theta * (
+        1
+        + k1 * theta**2
+        + k2 * theta**4
+        + k3 * theta**6
+        + k4 * theta**8
+    )
+    scale = theta_d / torch.clamp(r, min=eps)
+    return uv * scale[..., None]
+
+
 @torch.jit.script
 def _compute_residual_and_jacobian(
     x: Tensor, y: Tensor, xd: Tensor, yd: Tensor, params: Tensor
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
-    k1, k2, k3, k4, p1, p2 = torch.unbind(params, dim=-1)
+    k1, k2, p1, p2, k3 = torch.unbind(params, dim=-1)
 
     # let r(x, y) = x^2 + y^2;
-    #     d(x, y) = 1 + k1 * r(x, y) + k2 * r(x, y) ^2 + k3 * r(x, y)^3 +
-    #                   k4 * r(x, y)^4;
+    #     d(x, y) = 1 + k1 * r(x, y) + k2 * r(x, y) ^2 + k3 * r(x, y)^3;
     r = x * x + y * y
-    d = 1.0 + r * (k1 + r * (k2 + r * (k3 + r * k4)))
+    d = 1.0 + r * (k1 + r * (k2 + r * k3))
 
     # The perfect projection is:
     # xd = x * d(x, y) + 2 * p1 * x * y + p2 * (r(x, y) + 2 * x^2);
@@ -61,7 +141,7 @@ def _compute_residual_and_jacobian(
     fy = d * y + 2 * p2 * x * y + p1 * (r + 2 * y * y) - yd
 
     # Compute derivative of d over [x, y]
-    d_r = k1 + r * (2.0 * k2 + r * (3.0 * k3 + r * 4.0 * k4))
+    d_r = k1 + r * (2.0 * k2 + r * (3.0 * k3))
     d_x = 2.0 * x * d_r
     d_y = 2.0 * y * d_r
 
