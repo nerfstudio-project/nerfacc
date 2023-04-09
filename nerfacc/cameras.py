@@ -71,7 +71,7 @@ def opencv_lens_undistortion_fisheye(
     )
 
 
-def _opencv_len_distortion(uv: Tensor, params: Tensor) -> Tensor:
+def _opencv_lens_distortion(uv: Tensor, params: Tensor) -> Tensor:
     """The opencv camera distortion of {k1, k2, p1, p2, k3, k4, k5, k6}.
 
     See https://docs.opencv.org/3.4/d9/d0c/group__calib3d.html for more details.
@@ -90,7 +90,7 @@ def _opencv_len_distortion(uv: Tensor, params: Tensor) -> Tensor:
     return torch.stack([u * ratial + fx, v * ratial + fy], dim=-1)
 
 
-def _opencv_len_distortion_fisheye(
+def _opencv_lens_distortion_fisheye(
     uv: Tensor, params: Tensor, eps: float = 1e-10
 ) -> Tensor:
     """The opencv camera distortion of {k1, k2, k3, p1, p2}.

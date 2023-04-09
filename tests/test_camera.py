@@ -12,8 +12,8 @@ device = "cuda:0"
 @torch.no_grad()
 def test_opencv_lens_undistortion():
     from nerfacc.cameras import (
-        _opencv_len_distortion,
-        _opencv_len_distortion_fisheye,
+        _opencv_lens_distortion,
+        _opencv_lens_distortion_fisheye,
         _opencv_lens_undistortion,
         opencv_lens_undistortion,
         opencv_lens_undistortion_fisheye,
@@ -27,13 +27,13 @@ def test_opencv_lens_undistortion():
     x_undistort = opencv_lens_undistortion(x, params, 1e-5, 10)
     _x_undistort = _opencv_lens_undistortion(x, params, 1e-5, 10)
     assert torch.allclose(x_undistort, _x_undistort, atol=1e-5)
-    x_distort = _opencv_len_distortion(x_undistort, params)
+    x_distort = _opencv_lens_distortion(x_undistort, params)
     assert torch.allclose(x, x_distort, atol=1e-5), (x - x_distort).abs().max()
     # print(x[0, 0], x_distort[0, 0], x_undistort[0, 0])
 
     params = torch.rand((4), device=device) * 0.01
     x_undistort = opencv_lens_undistortion_fisheye(x, params, 1e-5, 10)
-    x_distort = _opencv_len_distortion_fisheye(x_undistort, params)
+    x_distort = _opencv_lens_distortion_fisheye(x_undistort, params)
     assert torch.allclose(x, x_distort, atol=1e-5), (x - x_distort).abs().max()
     # print(x[0, 0], x_distort[0, 0], x_undistort[0, 0])
 
