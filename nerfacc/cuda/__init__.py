@@ -38,3 +38,9 @@ exclusive_prod_backward = _make_lazy_cuda_func("exclusive_prod_backward")
 # pdf
 importance_sampling = _make_lazy_cuda_func("importance_sampling")
 searchsorted = _make_lazy_cuda_func("searchsorted")
+
+# camera
+opencv_lens_undistortion = _make_lazy_cuda_func("opencv_lens_undistortion")
+opencv_lens_undistortion_fisheye = _make_lazy_cuda_func(
+    "opencv_lens_undistortion_fisheye"
+)
