@@ -57,13 +57,15 @@ def ray_directions_from_uvs(
     if params is not None:
         M = params.shape[-1]
 
-        if M == 14: # undo tilt projection
+        if M == 14:  # undo tilt projection
             R, R_inv = opencv_tilt_projection_matrix(params[..., -2:])
             xys_homo = F.pad(xys, (0, 1), value=1.0)  # [..., 3]
-            xys_homo = torch.einsum("...ij,...j->...i", R_inv, xys_homo)  # [..., 3]
+            xys_homo = torch.einsum(
+                "...ij,...j->...i", R_inv, xys_homo
+            )  # [..., 3]
             xys = xys_homo[..., :2]
             homo = xys_homo[..., 2:]
-            xys /= torch.where(homo != 0., homo, torch.ones_like(homo))
+            xys /= torch.where(homo != 0.0, homo, torch.ones_like(homo))
 
         xys = opencv_lens_undistortion(xys, params)  # [..., 2]
 

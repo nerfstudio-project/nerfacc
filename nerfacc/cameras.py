@@ -4,6 +4,7 @@ Copyright (c) 2022 Ruilong Li, UC Berkeley.
 from typing import Tuple
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 
 from . import cuda as _C
@@ -12,20 +13,31 @@ from . import cuda as _C
 def opencv_lens_undistortion(
     uv: Tensor, params: Tensor, eps: float = 1e-6, iters: int = 10
 ) -> Tensor:
-    """Undistort the opencv distortion of {k1, k2, p1, p2, k3, k4, k5, k6}.
+    """Undistort the opencv distortion.
 
     Note:
         This function is not differentiable to any inputs.
 
     Args:
         uv: (..., 2) UV coordinates.
-        params: (..., 8) or (8) OpenCV distortion parameters.
+        params: (..., N) or (N) OpenCV distortion parameters. We support
+            N = 0, 1, 2, 4, 8. If N = 0, we return the input uv directly.
+            If N = 1, we assume the input is {k1}. If N = 2, we assume the
+            input is {k1, k2}. If N = 4, we assume the input is {k1, k2, p1, p2}.
+            If N = 8, we assume the input is {k1, k2, p1, p2, k3, k4, k5, k6}.
 
     Returns:
         (..., 2) undistorted UV coordinates.
     """
     assert uv.shape[-1] == 2
+    assert params.shape[-1] in [0, 1, 2, 4, 8]
+
+    if params.shape[-1] == 0:
+        return uv
+    elif params.shape[-1] < 8:
+        params = F.pad(params, (0, 8 - params.shape[-1]), "constant", 0)
     assert params.shape[-1] == 8
+
     batch_shape = uv.shape[:-1]
     params = torch.broadcast_to(params, batch_shape + (params.shape[-1],))
 
@@ -112,12 +124,18 @@ def _opencv_len_distortion_fisheye(
 def _compute_residual_and_jacobian(
     x: Tensor, y: Tensor, xd: Tensor, yd: Tensor, params: Tensor
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
-    k1, k2, p1, p2, k3 = torch.unbind(params, dim=-1)
+    assert params.shape[-1] == 8
+
+    k1, k2, p1, p2, k3, k4, k5, k6 = torch.unbind(params, dim=-1)
 
     # let r(x, y) = x^2 + y^2;
-    #     d(x, y) = 1 + k1 * r(x, y) + k2 * r(x, y) ^2 + k3 * r(x, y)^3;
+    #     alpha(x, y) = 1 + k1 * r(x, y) + k2 * r(x, y) ^2 + k3 * r(x, y)^3;
+    #     beta(x, y) = 1 + k4 * r(x, y) + k5 * r(x, y) ^2 + k6 * r(x, y)^3;
+    #     d(x, y) = alpha(x, y) / beta(x, y);
     r = x * x + y * y
-    d = 1.0 + r * (k1 + r * (k2 + r * k3))
+    alpha = 1.0 + r * (k1 + r * (k2 + r * k3))
+    beta = 1.0 + r * (k4 + r * (k5 + r * k6))
+    d = alpha / beta
 
     # The perfect projection is:
     # xd = x * d(x, y) + 2 * p1 * x * y + p2 * (r(x, y) + 2 * x^2);
@@ -133,8 +151,12 @@ def _compute_residual_and_jacobian(
     fx = d * x + 2 * p1 * x * y + p2 * (r + 2 * x * x) - xd
     fy = d * y + 2 * p2 * x * y + p1 * (r + 2 * y * y) - yd
 
+    # Compute derivative of alpha, beta over r.
+    alpha_r = k1 + r * (2.0 * k2 + r * (3.0 * k3))
+    beta_r = k4 + r * (2.0 * k5 + r * (3.0 * k6))
+
     # Compute derivative of d over [x, y]
-    d_r = k1 + r * (2.0 * k2 + r * (3.0 * k3))
+    d_r = (alpha_r * beta - alpha * beta_r) / (beta * beta)
     d_x = 2.0 * x * d_r
     d_y = 2.0 * y * d_r
 
@@ -155,9 +177,17 @@ def _opencv_lens_undistortion(
 ) -> Tensor:
     """Same as opencv_lens_undistortion(), but native PyTorch.
 
-    Took from
+    Took from with bug fix and modification.
     https://github.com/nerfstudio-project/nerfstudio/blob/ec603634edbd61b13bdf2c598fda8c993370b8f7/nerfstudio/cameras/camera_utils.py
     """
+    assert uv.shape[-1] == 2
+    assert params.shape[-1] in [0, 1, 2, 4, 8]
+
+    if params.shape[-1] == 0:
+        return uv
+    elif params.shape[-1] < 8:
+        params = F.pad(params, (0, 8 - params.shape[-1]), "constant", 0.0)
+    assert params.shape[-1] == 8
 
     # Initialize from the distorted point.
     x, y = x0, y0 = torch.unbind(uv, dim=-1)
