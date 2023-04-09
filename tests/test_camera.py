@@ -22,17 +22,17 @@ def test_opencv_lens_undistortion():
 
     x = torch.rand((3, 1000, 2), device=device)
 
-    params = torch.rand((5), device=device) * 0.01
+    params = torch.rand((8), device=device) * 0.01
     x_undistort = opencv_lens_undistortion(x, params, 1e-5, 10)
     x_distort = _opencv_len_distortion(x_undistort, params)
     assert torch.allclose(x, x_distort, atol=1e-5), (x - x_distort).abs().max()
-    print(x[0, 0], x_distort[0, 0], x_undistort[0, 0])
+    # print(x[0, 0], x_distort[0, 0], x_undistort[0, 0])
 
     params = torch.rand((4), device=device) * 0.01
     x_undistort = opencv_lens_undistortion_fisheye(x, params, 1e-5, 10)
     x_distort = _opencv_len_distortion_fisheye(x_undistort, params)
     assert torch.allclose(x, x_distort, atol=1e-5), (x - x_distort).abs().max()
-    print(x[0, 0], x_distort[0, 0], x_undistort[0, 0])
+    # print(x[0, 0], x_distort[0, 0], x_undistort[0, 0])
 
 
 if __name__ == "__main__":

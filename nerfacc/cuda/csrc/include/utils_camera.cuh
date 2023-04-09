@@ -12,20 +12,23 @@ namespace device {
 // https://github.com/JamesPerlman/TurboNeRF/blob/75f1228d41b914b0a768a876d2a851f3b3213a58/src/utils/camera-kernels.cuh
 inline __device__ void _compute_residual_and_jacobian(
     // inputs
-    const float& x, const float& y,
-    const float& xd, const float& yd,
-    const float& k1, const float& k2, const float& k3,
-    const float& p1, const float& p2,
-
+    float x, float y,
+    float xd, float yd,
+    float k1, float k2, float k3, float k4, float k5, float k6,
+    float p1, float p2,
     // outputs
     float& fx, float& fy,
     float& fx_x, float& fx_y,
     float& fy_x, float& fy_y
 ) {
     // let r(x, y) = x^2 + y^2;
-    //     d(x, y) = 1 + k1 * r(x, y) + k2 * r(x, y) ^2 + k3 * r(x, y)^3;
+    //     alpha(x, y) = 1 + k1 * r(x, y) + k2 * r(x, y) ^2 + k3 * r(x, y)^3;
+    //     beta(x, y) = 1 + k4 * r(x, y) + k5 * r(x, y) ^2 + k6 * r(x, y)^3;
+    //     d(x, y) = alpha(x, y) / beta(x, y);
     const float r = x * x + y * y;
-    const float d = 1.0f + r * (k1 + r * (k2 + r * k3));
+    const float alpha = 1.0f + r * (k1 + r * (k2 + r * k3));
+    const float beta = 1.0f + r * (k4 + r * (k5 + r * k6));
+    const float d = alpha / beta;
 
     // The perfect projection is:
     // xd = x * d(x, y) + 2 * p1 * x * y + p2 * (r(x, y) + 2 * x^2);
@@ -41,8 +44,12 @@ inline __device__ void _compute_residual_and_jacobian(
     fx = d * x + 2 * p1 * x * y + p2 * (r + 2 * x * x) - xd;
     fy = d * y + 2 * p2 * x * y + p1 * (r + 2 * y * y) - yd;
 
+    // Compute derivative of alpha, beta over r.
+    const float alpha_r = k1 + r * (2.0 * k2 + r * (3.0 * k3));
+    const float beta_r = k4 + r * (2.0 * k5 + r * (3.0 * k6));
+
     // Compute derivative of d over [x, y]
-    const float d_r = k1 + r * (2.0 * k2 + r * (3.0 * k3));
+    const float d_r = (alpha_r * beta - alpha * beta_r) / (beta * beta); 
     const float d_x = 2.0 * x * d_r;
     const float d_y = 2.0 * y * d_r;
 
@@ -57,9 +64,9 @@ inline __device__ void _compute_residual_and_jacobian(
 
 // https://github.com/JamesPerlman/TurboNeRF/blob/75f1228d41b914b0a768a876d2a851f3b3213a58/src/utils/camera-kernels.cuh
 inline __device__ void radial_and_tangential_undistort(
-    const float& xd, const float& yd,
-    const float& k1, const float& k2, const float& k3,
-    const float& p1, const float& p2,
+    float xd, float yd,
+    float k1, float k2, float k3, float k4, float k5, float k6,
+    float p1, float p2,
     const float& eps,
     const int& max_iterations,
     float& x, float& y
@@ -75,7 +82,7 @@ inline __device__ void radial_and_tangential_undistort(
         _compute_residual_and_jacobian(
             x, y,
             xd, yd,
-            k1, k2, k3,
+            k1, k2, k3, k4, k5, k6,
             p1, p2,
             fx, fy,
             fx_x, fx_y, fy_x, fy_y

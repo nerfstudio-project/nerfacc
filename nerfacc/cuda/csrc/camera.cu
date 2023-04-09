@@ -50,11 +50,30 @@ __global__ void opencv_lens_undistortion(
             radial_and_tangential_undistort(
                 uv[tid * 2 + 0], 
                 uv[tid * 2 + 1],
-                params[tid * 5 + 0], // k1
-                params[tid * 5 + 1], // k2
-                params[tid * 5 + 4], // k3
-                params[tid * 5 + 2], // p1
-                params[tid * 5 + 3], // p2
+                params[tid * n_params + 0], // k1
+                params[tid * n_params + 1], // k2
+                params[tid * n_params + 4], // k3
+                0.f, // k4
+                0.f, // k5
+                0.f, // k6
+                params[tid * n_params + 2], // p1
+                params[tid * n_params + 3], // p2
+                eps,
+                max_iterations,
+                uv_out[tid * 2 + 0],
+                uv_out[tid * 2 + 1]);
+        } else if (n_params == 8) {
+            radial_and_tangential_undistort(
+                uv[tid * 2 + 0], 
+                uv[tid * 2 + 1],
+                params[tid * n_params + 0], // k1
+                params[tid * n_params + 1], // k2
+                params[tid * n_params + 4], // k3
+                params[tid * n_params + 5], // k4
+                params[tid * n_params + 6], // k5
+                params[tid * n_params + 7], // k6
+                params[tid * n_params + 2], // p1
+                params[tid * n_params + 3], // p2
                 eps,
                 max_iterations,
                 uv_out[tid * 2 + 0],
@@ -103,7 +122,7 @@ torch::Tensor opencv_lens_undistortion(
     CHECK_INPUT(params);
     TORCH_CHECK(uv.ndimension() == params.ndimension());
     TORCH_CHECK(uv.size(-1) == 2, "uv must have shape [..., 2]");
-    TORCH_CHECK(params.size(-1) == 5 || params.size(-1) == 12);
+    TORCH_CHECK(params.size(-1) == 5 || params.size(-1) == 8 || params.size(-1) == 12);
 
     int64_t N = uv.numel() / 2;
     int64_t n_params = params.size(-1);
