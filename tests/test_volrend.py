@@ -8,186 +8,106 @@ device = "cuda:0"
 def test_render_visibility():
     from nerfacc.volrend import render_visibility_from_alpha
 
-    ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
-    )  # (all_samples,)
-    alphas = torch.tensor(
-        [0.4, 0.3, 0.8, 0.8, 0.5], dtype=torch.float32, device=device
-    )  # (all_samples,)
+    alphas = torch.rand((100, 64), device=device)
+    masks = render_visibility_from_alpha(alphas)
+    assert masks.shape == (100, 64)
 
-    # transmittance: [1.0, 1.0, 0.7, 0.14, 0.028]
-    vis = render_visibility_from_alpha(
-        alphas, ray_indices=ray_indices, early_stop_eps=0.03, alpha_thre=0.0
+    alphas_csr = alphas.to_sparse_csr()
+    masks_csr = render_visibility_from_alpha(
+        alphas_csr.values(),
+        crow_indices=alphas_csr.crow_indices(),
     )
-    vis_tgt = torch.tensor(
-        [True, True, True, True, False], dtype=torch.bool, device=device
-    )
-    assert torch.allclose(vis, vis_tgt)
+    assert masks_csr.shape == (100 * 64,)
 
-    # transmittance: [1.0, 1.0, 1.0, 0.2, 0.04]
-    vis = render_visibility_from_alpha(
-        alphas, ray_indices=ray_indices, early_stop_eps=0.05, alpha_thre=0.35
-    )
-    vis_tgt = torch.tensor(
-        [True, False, True, True, False], dtype=torch.bool, device=device
-    )
-    assert torch.allclose(vis, vis_tgt)
+    assert torch.allclose(masks.flatten(), masks_csr)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_render_weight_from_alpha():
     from nerfacc.volrend import render_weight_from_alpha
 
-    ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
-    )  # (all_samples,)
-    alphas = torch.tensor(
-        [0.4, 0.3, 0.8, 0.8, 0.5], dtype=torch.float32, device=device
-    )  # (all_samples,)
+    alphas = torch.rand((100, 64), device=device, requires_grad=True)
+    weights, _ = render_weight_from_alpha(alphas)
+    assert weights.shape == (100, 64)
+    weights.sum().backward()
+    grads = alphas.grad.clone()
 
-    # transmittance: [1.0, 1.0, 0.7, 0.14, 0.028]
-    weights, _ = render_weight_from_alpha(
-        alphas, ray_indices=ray_indices, n_rays=3
+    alphas_csr = alphas.to_sparse_csr()
+    values = alphas_csr.values().detach()
+    values.requires_grad = True
+    weights_csr, _ = render_weight_from_alpha(
+        values,
+        crow_indices=alphas_csr.crow_indices(),
     )
-    weights_tgt = torch.tensor(
-        [1.0 * 0.4, 1.0 * 0.3, 0.7 * 0.8, 0.14 * 0.8, 0.028 * 0.5],
-        dtype=torch.float32,
-        device=device,
-    )
-    assert torch.allclose(weights, weights_tgt)
+    assert weights_csr.shape == (100 * 64,)
+    weights_csr.sum().backward()
+    grads_csr = values.grad.clone()
+
+    assert torch.allclose(weights.flatten(), weights_csr)
+    assert torch.allclose(grads.flatten(), grads_csr, atol=1e-4)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_render_weight_from_density():
-    from nerfacc.volrend import (
-        render_weight_from_alpha,
-        render_weight_from_density,
-    )
+    from nerfacc.volrend import render_weight_from_density
 
-    ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
-    )  # (all_samples,)
-    sigmas = torch.rand(
-        (ray_indices.shape[0],), device=device
-    )  # (all_samples,)
+    sigmas = torch.rand((100, 64), device=device, requires_grad=True)
     t_starts = torch.rand_like(sigmas)
-    t_ends = torch.rand_like(sigmas) + 1.0
-    alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
+    t_ends = torch.rand_like(sigmas) + torch.rand_like(sigmas)
+    weights, _, _ = render_weight_from_density(t_starts, t_ends, sigmas)
+    assert weights.shape == (100, 64)
+    weights.sum().backward()
+    grads = sigmas.grad.clone()
 
-    weights, _, _ = render_weight_from_density(
-        t_starts, t_ends, sigmas, ray_indices=ray_indices, n_rays=3
+    sigmas_csr = sigmas.to_sparse_csr()
+    values = sigmas_csr.values().detach()
+    values.requires_grad = True
+    weights_csr, _, _ = render_weight_from_density(
+        t_starts.flatten(),
+        t_ends.flatten(),
+        values,
+        crow_indices=sigmas_csr.crow_indices(),
     )
-    weights_tgt, _ = render_weight_from_alpha(
-        alphas, ray_indices=ray_indices, n_rays=3
-    )
-    assert torch.allclose(weights, weights_tgt)
+    assert weights_csr.shape == (100 * 64,)
+    weights_csr.sum().backward()
+    grads_csr = values.grad.clone()
+
+    assert torch.allclose(weights.flatten(), weights_csr)
+    assert torch.allclose(grads.flatten(), grads_csr, atol=1e-4)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_accumulate_along_rays():
     from nerfacc.volrend import accumulate_along_rays
 
-    weights = torch.rand((100, 64), device=device)
-    values = torch.rand((100, 64, 3), device=device)
+    weights = torch.rand((100, 64), device=device, requires_grad=True)
+    values = torch.rand((100, 64, 3), device=device, requires_grad=True)
     outputs = accumulate_along_rays(weights, values=values)
     assert outputs.shape == (100, 3)
+    outputs.sum().backward()
+    grads_weights = weights.grad.clone()
+    grads_values = values.grad.clone()
 
     weights_csr = weights.to_sparse_csr()
+    weights_values_csr = weights_csr.values().detach()
+    weights_values_csr.requires_grad = True
+    values_csr = values.reshape(-1, 3).detach()
+    values_csr.requires_grad = True
     outputs_csr = accumulate_along_rays(
-        weights_csr.values(),
-        values=values.reshape(-1, 3),
+        weights_values_csr,
+        values=values_csr,
         crow_indices=weights_csr.crow_indices(),
     )
     assert outputs.shape == (100, 3)
+    outputs_csr.sum().backward()
+    grads_weights_csr = weights_values_csr.grad.clone()
+    grads_values_csr = values_csr.grad.clone()
 
     assert torch.allclose(outputs, outputs_csr)
-
-
-@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
-def test_grads():
-    from nerfacc.volrend import (
-        render_transmittance_from_density,
-        render_weight_from_alpha,
-        render_weight_from_density,
+    assert torch.allclose(grads_weights.flatten(), grads_weights_csr, atol=1e-4)
+    assert torch.allclose(
+        grads_values.reshape(-1, 3), grads_values_csr, atol=1e-4
     )
-
-    ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
-    )  # (all_samples,)
-    packed_info = torch.tensor(
-        [[0, 1], [1, 0], [1, 4]], dtype=torch.long, device=device
-    )
-    sigmas = torch.tensor([0.4, 0.8, 0.1, 0.8, 0.1], device=device)
-    sigmas.requires_grad = True
-    t_starts = torch.rand_like(sigmas)
-    t_ends = t_starts + 1.0
-
-    weights_ref = torch.tensor(
-        [0.3297, 0.5507, 0.0428, 0.2239, 0.0174], device=device
-    )
-    sigmas_grad_ref = torch.tensor(
-        [0.6703, 0.1653, 0.1653, 0.1653, 0.1653], device=device
-    )
-
-    # naive impl. trans from sigma
-    trans, _ = render_transmittance_from_density(
-        t_starts, t_ends, sigmas, ray_indices=ray_indices, n_rays=3
-    )
-    weights = trans * (1.0 - torch.exp(-sigmas * (t_ends - t_starts)))
-    weights.sum().backward()
-    sigmas_grad = sigmas.grad.clone()
-    sigmas.grad.zero_()
-    assert torch.allclose(weights_ref, weights, atol=1e-4)
-    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
-
-    # naive impl. trans from alpha
-    trans, _ = render_transmittance_from_density(
-        t_starts, t_ends, sigmas, packed_info=packed_info, n_rays=3
-    )
-    weights = trans * (1.0 - torch.exp(-sigmas * (t_ends - t_starts)))
-    weights.sum().backward()
-    sigmas_grad = sigmas.grad.clone()
-    sigmas.grad.zero_()
-    assert torch.allclose(weights_ref, weights, atol=1e-4)
-    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
-
-    weights, _, _ = render_weight_from_density(
-        t_starts, t_ends, sigmas, ray_indices=ray_indices, n_rays=3
-    )
-    weights.sum().backward()
-    sigmas_grad = sigmas.grad.clone()
-    sigmas.grad.zero_()
-    assert torch.allclose(weights_ref, weights, atol=1e-4)
-    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
-
-    weights, _, _ = render_weight_from_density(
-        t_starts, t_ends, sigmas, packed_info=packed_info, n_rays=3
-    )
-    weights.sum().backward()
-    sigmas_grad = sigmas.grad.clone()
-    sigmas.grad.zero_()
-    assert torch.allclose(weights_ref, weights, atol=1e-4)
-    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
-
-    alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
-    weights, _ = render_weight_from_alpha(
-        alphas, ray_indices=ray_indices, n_rays=3
-    )
-    weights.sum().backward()
-    sigmas_grad = sigmas.grad.clone()
-    sigmas.grad.zero_()
-    assert torch.allclose(weights_ref, weights, atol=1e-4)
-    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
-
-    alphas = 1.0 - torch.exp(-sigmas * (t_ends - t_starts))
-    weights, _ = render_weight_from_alpha(
-        alphas, packed_info=packed_info, n_rays=3
-    )
-    weights.sum().backward()
-    sigmas_grad = sigmas.grad.clone()
-    sigmas.grad.zero_()
-    assert torch.allclose(weights_ref, weights, atol=1e-4)
-    assert torch.allclose(sigmas_grad_ref, sigmas_grad, atol=1e-4)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
@@ -197,33 +117,21 @@ def test_rendering():
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         return torch.stack([t_starts] * 3, dim=-1), t_starts
 
-    ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
-    )  # (all_samples,)
-    sigmas = torch.rand(
-        (ray_indices.shape[0],), device=device
-    )  # (all_samples,)
+    crow_indices = torch.tensor(
+        [0, 1, 1, 5], dtype=torch.int64, device=device
+    )  # (ncrows + 1,)
+    sigmas = torch.rand((5,), device=device)  # (nse,)
     t_starts = torch.rand_like(sigmas)
     t_ends = torch.rand_like(sigmas) + 1.0
 
-    _, _, _, _ = rendering(
-        t_starts,
-        t_ends,
-        ray_indices=ray_indices,
-        n_rays=3,
-        rgb_sigma_fn=rgb_sigma_fn,
+    _ = rendering(
+        t_starts, t_ends, crow_indices=crow_indices, rgb_sigma_fn=rgb_sigma_fn
     )
 
 
 if __name__ == "__main__":
-    # test_render_visibility()
-    # test_render_weight_from_alpha()
-    # test_render_weight_from_density()
+    test_render_visibility()
+    test_render_weight_from_alpha()
+    test_render_weight_from_density()
     test_accumulate_along_rays()
-    # test_grads()
-    # test_rendering()
-
-    # # this doesn't work as of torch 2.0.0
-    # alphas = torch.rand((100, 64), device=device)
-    # aa = alphas.to_sparse_csr()
-    # bb = 1.0 + aa
+    test_rendering()
