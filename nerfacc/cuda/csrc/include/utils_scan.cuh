@@ -7,24 +7,6 @@
 
 #include "utils_cuda.cuh"
 
-// CUB support for scan by key is added to cub 1.15
-// in https://github.com/NVIDIA/cub/pull/376
-#if CUB_VERSION >= 101500
-#define CUB_SUPPORTS_SCAN_BY_KEY() 1
-#else
-#define CUB_SUPPORTS_SCAN_BY_KEY() 0
-#endif
-
-// https://github.com/pytorch/pytorch/blob/233305a852e1cd7f319b15b5137074c9eac455f6/aten/src/ATen/cuda/cub.cuh#L38-L46
-#define CUB_WRAPPER(func, ...) do {                                       \
-  size_t temp_storage_bytes = 0;                                          \
-  func(nullptr, temp_storage_bytes, __VA_ARGS__);                         \
-  auto& caching_allocator = *::c10::cuda::CUDACachingAllocator::get();    \
-  auto temp_storage = caching_allocator.allocate(temp_storage_bytes);     \
-  func(temp_storage.get(), temp_storage_bytes, __VA_ARGS__);              \
-  AT_CUDA_CHECK(cudaGetLastError());                                      \
-} while (false)
-
 
 namespace {
 namespace device {
@@ -32,7 +14,7 @@ namespace device {
 /* Perform an inclusive scan for a flattened tensor.
  *
  * - num_rows is the size of the outer dimensions;
- * - {chunk_starts, chunk_cnts} defines the regions of the flattened tensor to be scanned.
+ * - {chunk_starts, chunk_ends} defines the regions of the flattened tensor to be scanned.
  *
  * Each thread block processes one or more sets of contiguous rows (processing multiple rows
  * per thread block is quicker than processing a single row, especially for short rows).
@@ -48,7 +30,7 @@ __device__ void inclusive_scan_impl(
     T* row_buf, DataIteratorT tgt_, DataIteratorT src_,
     const uint32_t num_rows, 
     // const uint32_t row_size,
-    IdxIteratorT chunk_starts, IdxIteratorT chunk_cnts,
+    IdxIteratorT chunk_starts, IdxIteratorT chunk_ends,
     T init, BinaryFunction binary_op, 
     bool normalize = false){
   for (uint32_t block_row = blockIdx.x * blockDim.y;
@@ -60,7 +42,7 @@ __device__ void inclusive_scan_impl(
 
     DataIteratorT row_src = src_ + chunk_starts[row];
     DataIteratorT row_tgt = tgt_ + chunk_starts[row];
-    uint32_t row_size = chunk_cnts[row];
+    uint32_t row_size = chunk_ends[row] - chunk_starts[row];
     if (row_size == 0) continue;
 
     // Perform scan on one block at a time, keeping track of the total value of
@@ -143,7 +125,7 @@ inclusive_scan_kernel(
     DataIteratorT src_,
     const uint32_t num_rows,
     IdxIteratorT chunk_starts,
-    IdxIteratorT chunk_cnts,
+    IdxIteratorT chunk_ends,
     T init,
     BinaryFunction binary_op,
     bool normalize = false) {
@@ -151,13 +133,13 @@ inclusive_scan_kernel(
   T* row_buf = sbuf[threadIdx.y];
 
   inclusive_scan_impl<T, num_threads_x, num_threads_y>(
-      row_buf, tgt_, src_, num_rows, chunk_starts, chunk_cnts, init, binary_op, normalize);
+      row_buf, tgt_, src_, num_rows, chunk_starts, chunk_ends, init, binary_op, normalize);
 }
 
 /* Perform an exclusive scan for a flattened tensor.
  *
  * - num_rows is the size of the outer dimensions;
- * - {chunk_starts, chunk_cnts} defines the regions of the flattened tensor to be scanned.
+ * - {chunk_starts, chunk_ends} defines the regions of the flattened tensor to be scanned.
  *
  * Each thread block processes one or more sets of contiguous rows (processing multiple rows
  * per thread block is quicker than processing a single row, especially for short rows).
@@ -173,7 +155,7 @@ __device__ void exclusive_scan_impl(
     T* row_buf, DataIteratorT tgt_, DataIteratorT src_,
     const uint32_t num_rows, 
     // const uint32_t row_size,
-    IdxIteratorT chunk_starts, IdxIteratorT chunk_cnts,
+    IdxIteratorT chunk_starts, IdxIteratorT chunk_ends,
     T init, BinaryFunction binary_op, 
     bool normalize = false){
   for (uint32_t block_row = blockIdx.x * blockDim.y;
@@ -185,7 +167,7 @@ __device__ void exclusive_scan_impl(
 
     DataIteratorT row_src = src_ + chunk_starts[row];
     DataIteratorT row_tgt = tgt_ + chunk_starts[row];
-    uint32_t row_size = chunk_cnts[row];
+    uint32_t row_size = chunk_ends[row] - chunk_starts[row];
     if (row_size == 0) continue;
     
     row_tgt[0] = init;       
@@ -270,7 +252,7 @@ exclusive_scan_kernel(
     DataIteratorT src_,
     const uint32_t num_rows,
     IdxIteratorT chunk_starts,
-    IdxIteratorT chunk_cnts,
+    IdxIteratorT chunk_ends,
     T init,
     BinaryFunction binary_op,
     bool normalize = false) {
@@ -278,7 +260,7 @@ exclusive_scan_kernel(
   T* row_buf = sbuf[threadIdx.y];
 
   exclusive_scan_impl<T, num_threads_x, num_threads_y>(
-      row_buf, tgt_, src_, num_rows, chunk_starts, chunk_cnts, init, binary_op, normalize);
+      row_buf, tgt_, src_, num_rows, chunk_starts, chunk_ends, init, binary_op, normalize);
 }
 
 
