@@ -219,9 +219,14 @@ def test_rendering():
 
 
 if __name__ == "__main__":
-    test_render_visibility()
-    test_render_weight_from_alpha()
-    test_render_weight_from_density()
-    test_accumulate_along_rays()
-    test_grads()
-    test_rendering()
+    # test_render_visibility()
+    # test_render_weight_from_alpha()
+    # test_render_weight_from_density()
+    # test_accumulate_along_rays()
+    # test_grads()
+    # test_rendering()
+
+    # this doesn't work as of torch 2.0.0
+    alphas = torch.rand((100, 64), device=device)
+    aa = alphas.to_sparse_csr()
+    bb = 1.0 + aa
