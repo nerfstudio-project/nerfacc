@@ -6,6 +6,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 import torch
 from torch import Tensor
+from torch_scatter import segment_csr
 
 from .common import _try_to_sparse_csr
 from .pack import pack_info
@@ -215,26 +216,23 @@ def render_visibility_from_density(
 
 
 def accumulate_along_rays(
-    weights: Tensor, values: Optional[Tensor] = None, ray_indices: Optional[Tensor] = None
+    weights: Tensor,
+    values: Optional[Tensor] = None,
+    crow_indices: Optional[Tensor] = None,
 ) -> Tensor:
     """Accumulate volumetric values along the ray."""
-    if values is not None:
-        assert values.layout == torch.strided, "values must be a dense tensor."
+    if values is None:
+        src = weights[..., None]
+    else:
         assert values.dim() == weights.dim() + 1
-        assert weights.shape == values.shape[:-1]
+        assert values.shape[:-1] == weights.shape
+        src = weights[..., None] * values
 
-    if weights.layout == torch.strided: # Dense tensor.
-        src = weights[..., None] * (1.0 if values is None else values)
-        return torch.sum(src, dim=-2)
-    
-    else: # Sparse tensor.
-        assert weights.layout == torch.sparse_csr, "Only CSR sparse tensor is supported"
-        assert weights.dim() == 2, "Only 2D CSR sparse tensor is supported"
-        assert ray_indices is not None, "ray_indices must be provided for sparse tensor."
-    
-        src = weights.values()[:, None] * (1.0 if values is None else values)
-        outputs = torch.zeros(
-            (weights.shape[0], src.shape[-1]), device=src.device, dtype=src.dtype
-        )
-        outputs.index_add_(0, ray_indices, src)
-        return outputs
+    if crow_indices is None:  # Dense tensor.
+        outputs = torch.sum(src, dim=-2)
+    else:  # Sparse tensor.
+        assert crow_indices.dim() == 1
+        assert weights.dim() == 1
+        outputs = segment_csr(src, crow_indices, reduce="sum")  # [nrows, D]
+
+    return outputs

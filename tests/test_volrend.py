@@ -87,23 +87,20 @@ def test_render_weight_from_density():
 def test_accumulate_along_rays():
     from nerfacc.volrend import accumulate_along_rays
 
-    ray_indices = torch.tensor(
-        [0, 2, 2, 2, 2], dtype=torch.int64, device=device
-    )  # (all_samples,)
-    weights = torch.tensor(
-        [0.4, 0.3, 0.8, 0.8, 0.5], dtype=torch.float32, device=device
-    )  # (all_samples,)
-    values = torch.rand((5, 2), device=device)  # (all_samples, 2)
+    weights = torch.rand((100, 64), device=device)
+    values = torch.rand((100, 64, 3), device=device)
+    outputs = accumulate_along_rays(weights, values=values)
+    assert outputs.shape == (100, 3)
 
-    ray_values = accumulate_along_rays(
-        weights, values=values, ray_indices=ray_indices, n_rays=3
+    weights_csr = weights.to_sparse_csr()
+    outputs_csr = accumulate_along_rays(
+        weights_csr.values(),
+        values=values.reshape(-1, 3),
+        crow_indices=weights_csr.crow_indices(),
     )
-    assert ray_values.shape == (3, 2)
-    assert torch.allclose(ray_values[0, :], weights[0, None] * values[0, :])
-    assert (ray_values[1, :] == 0).all()
-    assert torch.allclose(
-        ray_values[2, :], (weights[1:, None] * values[1:]).sum(dim=0)
-    )
+    assert outputs.shape == (100, 3)
+
+    assert torch.allclose(outputs, outputs_csr)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
@@ -222,11 +219,11 @@ if __name__ == "__main__":
     # test_render_visibility()
     # test_render_weight_from_alpha()
     # test_render_weight_from_density()
-    # test_accumulate_along_rays()
+    test_accumulate_along_rays()
     # test_grads()
     # test_rendering()
 
-    # this doesn't work as of torch 2.0.0
-    alphas = torch.rand((100, 64), device=device)
-    aa = alphas.to_sparse_csr()
-    bb = 1.0 + aa
+    # # this doesn't work as of torch 2.0.0
+    # alphas = torch.rand((100, 64), device=device)
+    # aa = alphas.to_sparse_csr()
+    # bb = 1.0 + aa
