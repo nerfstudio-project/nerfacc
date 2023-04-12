@@ -79,6 +79,12 @@ std::vector<RaySegmentsSpec> importance_sampling(
 std::vector<torch::Tensor> searchsorted(
     RaySegmentsSpec query,
     RaySegmentsSpec key);
+std::vector<torch::Tensor> searchsorted_sparse_csr(
+    torch::Tensor sorted_sequence,  // [nse_s]
+    torch::Tensor values,           // [nse_v]
+    torch::Tensor sorted_sequence_crow_indices,  // [nrows + 1]
+    torch::Tensor values_crow_indices);          // [nrows + 1]
+
 
 // cameras
 torch::Tensor opencv_lens_undistortion(
@@ -109,6 +115,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     _REG_FUNC(ray_aabb_intersect);
     _REG_FUNC(traverse_grids);
     _REG_FUNC(searchsorted);
+    _REG_FUNC(searchsorted_sparse_csr);
 
     _REG_FUNC(opencv_lens_undistortion);
     _REG_FUNC(opencv_lens_undistortion_fisheye);

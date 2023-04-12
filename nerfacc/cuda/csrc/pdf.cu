@@ -285,6 +285,41 @@ __global__ void searchsorted_kernel(
     }
 }
 
+__global__ void searchsorted_sparse_csr_kernel(
+    int64_t nrows,
+    float *sorted_sequence,
+    int64_t nse_s,
+    int64_t *crow_indices_s,
+    float *values,
+    int64_t nse_v,
+    int64_t *crow_indices_v,
+    // outputs
+    int64_t *ids_left,
+    int64_t *ids_right)
+{
+    // parallelize over outputs
+    for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < nse_v; tid += blockDim.x * gridDim.x)
+    {
+        int32_t row_id = binary_search_chunk_id(tid, nrows, crow_indices_v) - 1;
+
+        int64_t base = crow_indices_s[row_id];
+        int64_t last = crow_indices_s[row_id + 1] - 1;
+
+        // searchsorted with "right" option:
+        // i.e. sorted_sequence.vals[p - 1] <= values.vals[tid] < sorted_sequence.vals[p]
+        int64_t p;
+        if (values[tid] < sorted_sequence[base]) {
+            p = base - 1;
+        } else if (values[tid] >= sorted_sequence[last]) {
+            p = last + 1;
+        } else {
+            p = upper_bound<float>(sorted_sequence, base, last, values[tid], nullptr);
+        }
+        ids_left[tid] = max(min(p - 1, last), base);
+        ids_right[tid] = max(min(p, last), base);
+    }
+}
+
 
 }  // namespace device
 }  // namespace
@@ -448,6 +483,55 @@ std::vector<torch::Tensor> searchsorted(
     device::searchsorted_kernel<<<blocks, threads, 0, stream>>>(
         device::PackedRaySegmentsSpec(query),
         device::PackedRaySegmentsSpec(key),
+        // outputs
+        ids_left.data_ptr<int64_t>(),
+        ids_right.data_ptr<int64_t>());
+
+    return {ids_left, ids_right};
+}
+
+
+
+// Find two indices {left, right} for each item in values,
+// such that: sorted_sequence[left] <= values < sorted_sequence[right]
+std::vector<torch::Tensor> searchsorted_sparse_csr(
+    torch::Tensor sorted_sequence,  // [nse_s]
+    torch::Tensor values,  // [nse_v]
+    torch::Tensor sorted_sequence_crow_indices,  // [nrows + 1]
+    torch::Tensor values_crow_indices)  // [nrows + 1]
+{
+    DEVICE_GUARD(sorted_sequence);
+    CHECK_INPUT(sorted_sequence);
+    CHECK_INPUT(sorted_sequence_crow_indices);
+    CHECK_INPUT(values);
+    CHECK_INPUT(values_crow_indices);
+    TORCH_CHECK(sorted_sequence_crow_indices.size(0) == values_crow_indices.size(0));
+
+    int64_t nrows = sorted_sequence_crow_indices.size(0) - 1;
+    int64_t nse_s = sorted_sequence.size(0);
+    int64_t nse_v = values.size(0);
+
+    torch::Tensor ids_left = torch::empty(
+        values.sizes(), values.options().dtype(torch::kLong));
+    torch::Tensor ids_right = torch::empty(
+        values.sizes(), values.options().dtype(torch::kLong));
+
+    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+    int64_t max_threads = 512;
+    int64_t max_blocks = 65535;
+    dim3 threads = dim3(min(max_threads, nse_v));
+    dim3 blocks = dim3(min(max_blocks, ceil_div<int64_t>(nse_v, threads.x)));
+
+    device::searchsorted_sparse_csr_kernel<<<blocks, threads, 0, stream>>>(
+        nrows,
+        // input: sorted_sequence
+        sorted_sequence.data_ptr<float>(),
+        nse_s,
+        sorted_sequence_crow_indices.data_ptr<int64_t>(),
+        // input: values
+        values.data_ptr<float>(),
+        nse_v,
+        values_crow_indices.data_ptr<int64_t>(),
         // outputs
         ids_left.data_ptr<int64_t>(),
         ids_right.data_ptr<int64_t>());
