@@ -6,7 +6,7 @@ from .estimators.occ_grid import OccGridEstimator
 from .estimators.prop_net import PropNetEstimator
 from .grid import ray_aabb_intersect, traverse_grids
 from .pack import pack_info
-from .pdf import importance_sampling, searchsorted
+from .pdf import importance_sampling, searchsorted_clamp
 from .scan import exclusive_prod, exclusive_sum, inclusive_prod, inclusive_sum
 from .version import __version__
 from .volrend import (
@@ -36,7 +36,7 @@ __all__ = [
     "accumulate_along_rays",
     "rendering",
     "importance_sampling",
-    "searchsorted",
+    "searchsorted_clamp",
     "RayIntervals",
     "RaySamples",
     "ray_aabb_intersect",

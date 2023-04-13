@@ -9,7 +9,7 @@ import torch
 from torch import Tensor
 
 from ..data_specs import RayIntervals
-from ..pdf import importance_sampling, searchsorted
+from ..pdf import importance_sampling, searchsorted_clamp
 from ..volrend import render_transmittance_from_density
 from .base import AbstractEstimator
 
@@ -236,7 +236,7 @@ def _pdf_loss(
     cdfs_key: torch.Tensor,
     eps: float = 1e-7,
 ) -> torch.Tensor:
-    ids_left, ids_right = searchsorted(segments_key, segments_query)
+    ids_left, ids_right = searchsorted_clamp(segments_key, segments_query)
     if segments_query.vals.dim() > 1:
         w = cdfs_query[..., 1:] - cdfs_query[..., :-1]
         ids_left = ids_left[..., :-1]

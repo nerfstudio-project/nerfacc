@@ -76,9 +76,6 @@ std::vector<RaySegmentsSpec> importance_sampling(
     torch::Tensor cdfs,                  
     int64_t n_intervels_per_ray,
     bool stratified);
-std::vector<torch::Tensor> searchsorted(
-    RaySegmentsSpec query,
-    RaySegmentsSpec key);
 std::vector<torch::Tensor> searchsorted_sparse_csr(
     torch::Tensor sorted_sequence,  // [nse_s]
     torch::Tensor values,           // [nse_v]
@@ -114,7 +111,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 
     _REG_FUNC(ray_aabb_intersect);
     _REG_FUNC(traverse_grids);
-    _REG_FUNC(searchsorted);
     _REG_FUNC(searchsorted_sparse_csr);
 
     _REG_FUNC(opencv_lens_undistortion);

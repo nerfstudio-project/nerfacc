@@ -1,7 +1,7 @@
 """
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import torch
 from torch import Tensor
@@ -10,70 +10,51 @@ from . import cuda as _C
 from .data_specs import RayIntervals, RaySamples
 
 
-def searchsorted_sparse_csr(
+def searchsorted_clamp(
     sorted_sequence: Tensor,
-    sorted_sequence_crow_indices: Tensor,
     values: Tensor,
-    values_crow_indices: Tensor,
+    sorted_sequence_crow_indices: Optional[Tensor] = None,
+    values_crow_indices: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Tensor]:
     """Searchsorted that supports CSR Sparse tensor."""
+    if (
+        sorted_sequence_crow_indices is None or values_crow_indices is None
+    ):  # Dense tensor.
+        ids_right = torch.searchsorted(sorted_sequence, values, right=True)
+        ids_left = ids_right - 1
+        ids_right = torch.clamp(ids_right, 0, sorted_sequence.shape[-1] - 1)
+        ids_left = torch.clamp(ids_left, 0, sorted_sequence.shape[-1] - 1)
+    else:  # Sparse tensor.
+        ids_left, ids_right = _searchsorted_sparse_csr(
+            sorted_sequence,
+            values,
+            sorted_sequence_crow_indices,
+            values_crow_indices,
+        )
+    return ids_left, ids_right
+
+
+def _searchsorted_sparse_csr(
+    sorted_sequence: Tensor,
+    values: Tensor,
+    sorted_sequence_crow_indices: Tensor,
+    values_crow_indices: Tensor,
+) -> Tuple[Tensor, Tensor]:
+    """Searchsorted for CSR Sparse tensor."""
+    assert (
+        sorted_sequence.dim() == sorted_sequence_crow_indices.dim() == 1
+    ), "sorted_sequence and sorted_sequence_crow_indices must be 1D tensors."
+    assert (
+        values.dim() == values_crow_indices.dim() == 1
+    ), "values and values_crow_indices must be 1D tensors."
+    assert (
+        sorted_sequence_crow_indices.shape[0] == values_crow_indices.shape[0]
+    ), "sorted_sequence_crow_indices and values_crow_indices must have the same length (nrows + 1)."
     ids_left, ids_right = _C.searchsorted_sparse_csr(
         sorted_sequence.contiguous(),
         values.contiguous(),
         sorted_sequence_crow_indices.contiguous(),
         values_crow_indices.contiguous(),
-    )
-    return ids_left, ids_right
-
-
-def searchsorted(
-    sorted_sequence: Union[RayIntervals, RaySamples],
-    values: Union[RayIntervals, RaySamples],
-) -> Tuple[Tensor, Tensor]:
-    """Searchsorted that supports flattened tensor.
-
-    This function returns {`ids_left`, `ids_right`} such that:
-
-    `sorted_sequence.vals.gather(-1, ids_left) <= values.vals < sorted_sequence.vals.gather(-1, ids_right)`
-
-    Note:
-        When values is out of range of sorted_sequence, we return the
-        corresponding ids as if the values is clipped to the range of
-        sorted_sequence. See the example below.
-
-    Args:
-        sorted_sequence: A :class:`RayIntervals` or :class:`RaySamples` object. We assume
-            the `sorted_sequence.vals` is acendingly sorted for each ray.
-        values: A :class:`RayIntervals` or :class:`RaySamples` object.
-
-    Returns:
-        A tuple of LongTensor:
-
-        - **ids_left**: A LongTensor with the same shape as `values.vals`.
-        - **ids_right**: A LongTensor with the same shape as `values.vals`.
-
-    Example:
-        >>> sorted_sequence = RayIntervals(
-        ...     vals=torch.tensor([0.0, 1.0, 0.0, 1.0, 2.0], device="cuda"),
-        ...     packed_info=torch.tensor([[0, 2], [2, 3]], device="cuda"),
-        ... )
-        >>> values = RayIntervals(
-        ...     vals=torch.tensor([0.5, 1.5, 2.5], device="cuda"),
-        ...     packed_info=torch.tensor([[0, 1], [1, 2]], device="cuda"),
-        ... )
-        >>> ids_left, ids_right = searchsorted(sorted_sequence, values)
-        >>> ids_left
-        tensor([0, 3, 3], device='cuda:0')
-        >>> ids_right
-        tensor([1, 4, 4], device='cuda:0')
-        >>> sorted_sequence.vals.gather(-1, ids_left)
-        tensor([0., 1., 1.], device='cuda:0')
-        >>> sorted_sequence.vals.gather(-1, ids_right)
-        tensor([1., 2., 2.], device='cuda:0')
-    """
-
-    ids_left, ids_right = _C.searchsorted(
-        values._to_cpp(), sorted_sequence._to_cpp()
     )
     return ids_left, ids_right
 

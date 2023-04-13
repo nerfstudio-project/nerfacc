@@ -241,49 +241,6 @@ __global__ void compute_intervels_kernel(
 }
 
 
-/* kernels for searchsorted */
-__global__ void searchsorted_kernel(
-    PackedRaySegmentsSpec query,
-    PackedRaySegmentsSpec key,
-    // outputs
-    int64_t *ids_left,
-    int64_t *ids_right)
-{
-    // parallelize over outputs
-    for (int64_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < query.n_edges; tid += blockDim.x * gridDim.x)
-    {
-        int32_t ray_id;
-        if (query.is_batched) {
-            ray_id = tid / query.n_edges_per_ray;    
-        } else {
-            if (query.ray_indices == nullptr) {
-                ray_id = binary_search_chunk_id(tid, query.n_rays, query.chunk_starts) - 1;
-            } else {
-                ray_id = query.ray_indices[tid];
-            }
-        }
-
-        int64_t base, last;
-        if (key.is_batched) {
-            base = ray_id * key.n_edges_per_ray;
-            last = base + key.n_edges_per_ray - 1;
-        } else {
-            base = key.chunk_starts[ray_id];
-            last = base + key.chunk_cnts[ray_id] - 1;
-        }
-
-        // searchsorted with "right" option:
-        // i.e. key.vals[p - 1] <= query.vals[tid] < key.vals[p]
-        int64_t p = upper_bound<float>(key.vals, base, last, query.vals[tid], nullptr);
-        if (query.is_batched) {
-            ids_left[tid] = max(min(p - 1, last), base) - base;
-            ids_right[tid] = max(min(p, last), base) - base;
-        } else {
-            ids_left[tid] = max(min(p - 1, last), base);
-            ids_right[tid] = max(min(p, last), base);
-        }
-    }
-}
 
 __global__ void searchsorted_sparse_csr_kernel(
     int64_t nrows,
@@ -454,42 +411,6 @@ std::vector<RaySegmentsSpec> importance_sampling(
 
     return {intervals, samples};
 }
-
-
-// Find two indices {left, right} for each item in query,
-// such that: key.vals[left] <= query.vals < key.vals[right]
-std::vector<torch::Tensor> searchsorted(
-    RaySegmentsSpec query,
-    RaySegmentsSpec key)
-{
-    DEVICE_GUARD(query.vals);
-    query.check();
-    key.check();
-
-    // outputs
-    int64_t n_edges = query.vals.numel();
-
-    torch::Tensor ids_left = torch::empty(
-        query.vals.sizes(), query.vals.options().dtype(torch::kLong));
-    torch::Tensor ids_right = torch::empty(
-        query.vals.sizes(), query.vals.options().dtype(torch::kLong));
-
-    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
-    int64_t max_threads = 512; // at::cuda::getCurrentDeviceProperties()->maxThreadsPerBlock;
-    int64_t max_blocks = 65535;
-    dim3 threads = dim3(min(max_threads, n_edges));
-    dim3 blocks = dim3(min(max_blocks, ceil_div<int64_t>(n_edges, threads.x)));
-
-    device::searchsorted_kernel<<<blocks, threads, 0, stream>>>(
-        device::PackedRaySegmentsSpec(query),
-        device::PackedRaySegmentsSpec(key),
-        // outputs
-        ids_left.data_ptr<int64_t>(),
-        ids_right.data_ptr<int64_t>());
-
-    return {ids_left, ids_right};
-}
-
 
 
 // Find two indices {left, right} for each item in values,
