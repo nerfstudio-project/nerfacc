@@ -140,6 +140,7 @@ __global__ void traverse_grids_kernel(
             const int3 overflow_index = final_index + step_index;
             while (true) {
                 float t_traverse = min(tdist.x, min(tdist.y, tdist.z));
+                t_traverse = fminf(t_traverse, this_tmax);
                 int64_t cell_id = (
                     current_index.x * resolution.y * resolution.z
                     + current_index.y * resolution.z
