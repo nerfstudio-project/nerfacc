@@ -68,6 +68,34 @@ def test_traverse_grids():
     assert selector.all(), selector.float().mean()
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_traverse_grids_with_near_far_planes():
+    from nerfacc.grid import traverse_grids
+
+    rays_o = torch.tensor([[-1., 0., 0.]], device=device)
+    rays_d = torch.tensor([[1., 0.01, 0.01]], device=device)
+    rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+
+    binaries = torch.ones((1, 1, 1, 1), dtype=torch.bool, device=device)
+    aabbs = torch.tensor([[0., 0., 0., 1., 1., 1.]], device=device)
+
+    near_planes = torch.tensor([1.2], device=device)
+    far_planes = torch.tensor([1.5], device=device)
+    eps = 1e-7
+
+    intervals, samples = traverse_grids(
+        rays_o=rays_o, 
+        rays_d=rays_d, 
+        binaries=binaries, 
+        aabbs=aabbs, 
+        step_size=0.05, 
+        near_planes=near_planes, 
+        far_planes=far_planes)
+    assert (intervals.vals >= (near_planes - eps)).all()
+    assert (intervals.vals <= (far_planes + eps)).all()
+    
+    
 if __name__ == "__main__":
     test_ray_aabb_intersect()
     test_traverse_grids()
+    test_traverse_grids_with_near_far_planes()
