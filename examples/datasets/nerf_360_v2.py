@@ -306,7 +306,7 @@ class SubjectLoader(torch.utils.data.Dataset):
                     device=self.images.device,
                 )
             else:
-                image_id = [index]
+                image_id = [index] * num_rays
             x = torch.randint(
                 0, self.width, size=(num_rays,), device=self.images.device
             )
