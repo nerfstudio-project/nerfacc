@@ -113,14 +113,15 @@ def test_sampling_with_min_max_distances():
     rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
 
     aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device)
-    binaries = torch.rand((levels, resolution, resolution, resolution), device=device) > 0.5
+    binaries = (
+        torch.rand((levels, resolution, resolution, resolution), device=device)
+        > 0.5
+    )
     t_min = torch.rand((n_rays,), device=device)
     t_max = t_min + torch.rand((n_rays,), device=device)
 
     grid_estimator = OccGridEstimator(
-        roi_aabb=aabb,
-        resolution=resolution,
-        levels=levels
+        roi_aabb=aabb, resolution=resolution, levels=levels
     )
 
     grid_estimator.binaries = binaries
@@ -132,7 +133,7 @@ def test_sampling_with_min_max_distances():
         far_plane=far_plane,
         t_min=t_min,
         t_max=t_max,
-        render_step_size=render_step_size
+        render_step_size=render_step_size,
     )
 
     assert (t_starts >= (t_min[ray_indices] - render_step_size / 2)).all()
