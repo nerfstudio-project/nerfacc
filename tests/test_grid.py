@@ -96,7 +96,51 @@ def test_traverse_grids_with_near_far_planes():
     assert (intervals.vals <= (far_planes + step_size / 2)).all()
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_sampling_with_min_max_distances():
+    from nerfacc import OccGridEstimator
+
+    torch.manual_seed(42)
+    n_rays = 64
+    levels = 4
+    resolution = 32
+    render_step_size = 0.01
+    near_plane = 0.15
+    far_plane = 0.85
+
+    rays_o = torch.rand((n_rays, 3), device=device) * 2 - 1.0
+    rays_d = torch.rand((n_rays, 3), device=device)
+    rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+
+    aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device)
+    binaries = torch.rand((levels, resolution, resolution, resolution), device=device) > 0.5
+    t_min = torch.rand((n_rays,), device=device)
+    t_max = t_min + torch.rand((n_rays,), device=device)
+
+    grid_estimator = OccGridEstimator(
+        roi_aabb=aabb,
+        resolution=resolution,
+        levels=levels
+    )
+
+    grid_estimator.binaries = binaries
+
+    ray_indices, t_starts, t_ends = grid_estimator.sampling(
+        rays_o=rays_o,
+        rays_d=rays_d,
+        near_plane=near_plane,
+        far_plane=far_plane,
+        t_min=t_min,
+        t_max=t_max,
+        render_step_size=render_step_size
+    )
+
+    assert (t_starts >= (t_min[ray_indices] - render_step_size / 2)).all()
+    assert (t_ends <= (t_max[ray_indices] + render_step_size / 2)).all()
+
+
 if __name__ == "__main__":
     test_ray_aabb_intersect()
     test_traverse_grids()
     test_traverse_grids_with_near_far_planes()
+    test_sampling_with_min_max_distances()
