@@ -93,6 +93,8 @@ class OccGridEstimator(AbstractEstimator):
         alpha_fn: Optional[Callable] = None,
         near_plane: float = 0.0,
         far_plane: float = 1e10,
+        t_min: Optional[Tensor] = None, # [n_rays]
+        t_max: Optional[Tensor] = None, # [n_rays]
         # rendering options
         render_step_size: float = 1e-3,
         early_stop_eps: float = 1e-4,
@@ -120,6 +122,10 @@ class OccGridEstimator(AbstractEstimator):
                 You should only provide either `sigma_fn` or `alpha_fn`.
             near_plane: Optional. Near plane distance. Default: 0.0.
             far_plane: Optional. Far plane distance. Default: 1e10.
+            t_min: Optional. Per-ray minimum distance. Tensor with shape (n_rays). 
+                If profided, the marching will start from maximum of t_min and near_plane.
+            t_max: Optional. Per-ray maximum distance. Tensor with shape (n_rays).
+                If profided, the marching will stop by minimum of t_max and far_plane.
             render_step_size: Step size for marching. Default: 1e-3.
             early_stop_eps: Early stop threshold for skipping invisible space. Default: 1e-4.
             alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
@@ -147,6 +153,12 @@ class OccGridEstimator(AbstractEstimator):
 
         near_planes = torch.full_like(rays_o[..., 0], fill_value=near_plane)
         far_planes = torch.full_like(rays_o[..., 0], fill_value=far_plane)
+
+        if t_min is not None:
+            near_planes = torch.clamp(near_planes, min=t_min)
+        if t_max is not None:
+            far_planes = torch.clamp(far_planes, max=t_max)
+
         if stratified:
             near_planes += torch.rand_like(near_planes) * render_step_size
         intervals, samples = traverse_grids(
