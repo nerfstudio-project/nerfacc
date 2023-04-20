@@ -109,7 +109,7 @@ def traverse_grids(
     t_sorted: Optional[Tensor] = None, # [n_rays, n_grids]
     t_indices: Optional[Tensor] = None, # [n_rays, n_grids]
     hits: Optional[Tensor] = None, # [n_rays, n_grids]
-) -> Tuple[RayIntervals, RaySamples]:
+) -> Tuple[RayIntervals, RaySamples, Tensor]:
     """Ray Traversal within Multiple Grids.
 
     Note:
