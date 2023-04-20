@@ -10,6 +10,22 @@ from . import cuda as _C
 from .data_specs import RayIntervals, RaySamples
 
 
+def searchsorted_sparse_csr(
+    sorted_sequence: Tensor,
+    sorted_sequence_crow_indices: Tensor,
+    values: Tensor,
+    values_crow_indices: Tensor,
+) -> Tuple[Tensor, Tensor]:
+    """Searchsorted that supports CSR Sparse tensor."""
+    ids_left, ids_right = _C.searchsorted_sparse_csr(
+        sorted_sequence.contiguous(),
+        values.contiguous(),
+        sorted_sequence_crow_indices.contiguous(),
+        values_crow_indices.contiguous(),
+    )
+    return ids_left, ids_right
+
+
 def searchsorted(
     sorted_sequence: Union[RayIntervals, RaySamples],
     values: Union[RayIntervals, RaySamples],

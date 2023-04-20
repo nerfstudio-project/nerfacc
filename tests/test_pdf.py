@@ -44,22 +44,38 @@ def _create_intervals(n_rays, n_samples, flat=False):
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_searchsorted():
-    from nerfacc.data_specs import RayIntervals
-    from nerfacc.pdf import searchsorted
+    from nerfacc.pdf import searchsorted_sparse_csr
 
     torch.manual_seed(42)
-    query: RayIntervals = _create_intervals(10, 100, flat=False)
-    key: RayIntervals = _create_intervals(10, 100, flat=False)
 
-    ids_left, ids_right = searchsorted(key, query)
-    y = key.vals.gather(-1, ids_right)
+    sorted_sequence = torch.randn((100, 64), device=device)
+    sorted_sequence = torch.sort(sorted_sequence, -1)[0]
+    values = torch.randn((100, 64), device=device)
 
-    _ids_right = torch.searchsorted(key.vals, query.vals, right=True)
-    _ids_right = torch.clamp(_ids_right, 0, key.vals.shape[-1] - 1)
-    _y = key.vals.gather(-1, _ids_right)
+    ids_right = torch.searchsorted(sorted_sequence, values, right=True)
+    ids_left = ids_right - 1
+    ids_right = torch.clamp(ids_right, 0, sorted_sequence.shape[-1] - 1)
+    ids_left = torch.clamp(ids_left, 0, sorted_sequence.shape[-1] - 1)
+    values_right = sorted_sequence.gather(-1, ids_right)
+    values_left = sorted_sequence.gather(-1, ids_left)
+    assert values_right.shape == values.shape
+    assert values_left.shape == values.shape
 
-    assert torch.allclose(ids_right, _ids_right)
-    assert torch.allclose(y, _y)
+    sorted_sequence_csr = sorted_sequence.to_sparse_csr()
+    values_csr = values.to_sparse_csr()
+    ids_left_csr, ids_right_csr = searchsorted_sparse_csr(
+        sorted_sequence_csr.values(),
+        sorted_sequence_csr.crow_indices(),
+        values_csr.values(),
+        values_csr.crow_indices(),
+    )
+    values_right_csr = sorted_sequence_csr.values().gather(-1, ids_right_csr)
+    values_left_csr = sorted_sequence_csr.values().gather(-1, ids_left_csr)
+    assert values_right_csr.shape == values_csr.values().shape
+    assert values_left_csr.shape == values_csr.values().shape
+
+    assert torch.allclose(values_right.flatten(), values_right_csr)
+    assert torch.allclose(values_left.flatten(), values_left_csr)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
@@ -128,6 +144,6 @@ def test_pdf_loss():
 
 
 if __name__ == "__main__":
-    test_importance_sampling()
+    # test_importance_sampling()
     test_searchsorted()
-    test_pdf_loss()
+    # test_pdf_loss()

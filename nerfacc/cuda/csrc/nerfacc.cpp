@@ -9,42 +9,34 @@ bool is_cub_available() {
 }
 
 // scan
-torch::Tensor exclusive_sum_by_key(
-    torch::Tensor indices,
-    torch::Tensor inputs,
-    bool backward);
-torch::Tensor inclusive_sum(
-    torch::Tensor chunk_starts,
-    torch::Tensor chunk_cnts,
-    torch::Tensor inputs,
-    bool normalize,
-    bool backward);
-torch::Tensor exclusive_sum(
-    torch::Tensor chunk_starts,
-    torch::Tensor chunk_cnts,
-    torch::Tensor inputs,
-    bool normalize,
-    bool backward);
-torch::Tensor inclusive_prod_forward(
-    torch::Tensor chunk_starts,
-    torch::Tensor chunk_cnts,
-    torch::Tensor inputs);
-torch::Tensor inclusive_prod_backward(
-    torch::Tensor chunk_starts,
-    torch::Tensor chunk_cnts,
-    torch::Tensor inputs,
-    torch::Tensor outputs,
-    torch::Tensor grad_outputs);
-torch::Tensor exclusive_prod_forward(
-    torch::Tensor chunk_starts,
-    torch::Tensor chunk_cnts,
-    torch::Tensor inputs);
-torch::Tensor exclusive_prod_backward(
-    torch::Tensor chunk_starts,
-    torch::Tensor chunk_cnts,
-    torch::Tensor inputs,
-    torch::Tensor outputs,
-    torch::Tensor grad_outputs);
+torch::Tensor inclusive_sum_sparse_csr_forward(
+    torch::Tensor values,        // [nse]
+    torch::Tensor crow_indices); // [n_rows + 1]
+torch::Tensor inclusive_sum_sparse_csr_backward(
+    torch::Tensor grad_cumsums,  // [nse]
+    torch::Tensor crow_indices); // [n_rows + 1]
+torch::Tensor exclusive_sum_sparse_csr_forward(
+    torch::Tensor values,        // [nse]
+    torch::Tensor crow_indices); // [n_rows + 1]
+torch::Tensor exclusive_sum_sparse_csr_backward(
+    torch::Tensor grad_cumsums,  // [nse]
+    torch::Tensor crow_indices); // [n_rows + 1]
+torch::Tensor inclusive_prod_sparse_csr_forward(
+    torch::Tensor values,        // [nse]
+    torch::Tensor crow_indices); // [n_rows + 1]
+torch::Tensor inclusive_prod_sparse_csr_backward(
+    torch::Tensor values,        // [nse]
+    torch::Tensor cumprods,      // [nse]
+    torch::Tensor grad_cumprods, // [nse]
+    torch::Tensor crow_indices); // [n_rows + 1]
+torch::Tensor exclusive_prod_sparse_csr_forward(
+    torch::Tensor values,        // [nse]
+    torch::Tensor crow_indices); // [n_rows + 1]
+torch::Tensor exclusive_prod_sparse_csr_backward(
+    torch::Tensor values,        // [nse]
+    torch::Tensor cumprods,      // [nse]
+    torch::Tensor grad_cumprods, // [nse]
+    torch::Tensor crow_indices); // [n_rows + 1]
 
 // grid
 std::vector<torch::Tensor> ray_aabb_intersect(
@@ -87,6 +79,12 @@ std::vector<RaySegmentsSpec> importance_sampling(
 std::vector<torch::Tensor> searchsorted(
     RaySegmentsSpec query,
     RaySegmentsSpec key);
+std::vector<torch::Tensor> searchsorted_sparse_csr(
+    torch::Tensor sorted_sequence,  // [nse_s]
+    torch::Tensor values,           // [nse_v]
+    torch::Tensor sorted_sequence_crow_indices,  // [nrows + 1]
+    torch::Tensor values_crow_indices);          // [nrows + 1]
+
 
 // cameras
 torch::Tensor opencv_lens_undistortion(
@@ -105,17 +103,19 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
     _REG_FUNC(is_cub_available);  // TODO: check this function
 
-    _REG_FUNC(exclusive_sum_by_key);
-    _REG_FUNC(inclusive_sum);
-    _REG_FUNC(exclusive_sum);
-    _REG_FUNC(inclusive_prod_forward);
-    _REG_FUNC(inclusive_prod_backward);
-    _REG_FUNC(exclusive_prod_forward);
-    _REG_FUNC(exclusive_prod_backward);
+    _REG_FUNC(inclusive_sum_sparse_csr_forward);
+    _REG_FUNC(inclusive_sum_sparse_csr_backward);
+    _REG_FUNC(exclusive_sum_sparse_csr_forward);
+    _REG_FUNC(exclusive_sum_sparse_csr_backward);
+    _REG_FUNC(inclusive_prod_sparse_csr_forward);
+    _REG_FUNC(inclusive_prod_sparse_csr_backward);
+    _REG_FUNC(exclusive_prod_sparse_csr_forward);
+    _REG_FUNC(exclusive_prod_sparse_csr_backward);
 
     _REG_FUNC(ray_aabb_intersect);
     _REG_FUNC(traverse_grids);
     _REG_FUNC(searchsorted);
+    _REG_FUNC(searchsorted_sparse_csr);
 
     _REG_FUNC(opencv_lens_undistortion);
     _REG_FUNC(opencv_lens_undistortion_fisheye);
