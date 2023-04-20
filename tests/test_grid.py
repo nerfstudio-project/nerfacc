@@ -54,7 +54,7 @@ def test_traverse_grids():
 
     binaries = torch.rand((n_aabbs, 32, 32, 32), device=device) > 0.5
 
-    intervals, samples = traverse_grids(rays_o, rays_d, binaries, aabbs)
+    intervals, samples, _ = traverse_grids(rays_o, rays_d, binaries, aabbs)
 
     ray_indices = samples.ray_indices
     t_starts = intervals.vals[intervals.is_left]
@@ -66,6 +66,55 @@ def test_traverse_grids():
     occs, selector = _query(positions, binaries, base_aabb)
     assert occs.all(), occs.float().mean()
     assert selector.all(), selector.float().mean()
+
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_traverse_grids_test_mode():
+    from nerfacc.grid import _enlarge_aabb, _query, traverse_grids, ray_aabb_intersect
+
+    torch.manual_seed(42)
+    n_rays = 10
+    n_aabbs = 4
+    max_samples_per_ray = 100
+
+    ray_mask_id = torch.arange(n_rays, device=device)
+
+    rays_o = torch.randn((n_rays, 3), device=device)
+    rays_d = torch.randn((n_rays, 3), device=device)
+    rays_d = rays_d / rays_d.norm(dim=-1, keepdim=True)
+
+    base_aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device)
+    aabbs = torch.stack(
+        [_enlarge_aabb(base_aabb, 2**i) for i in range(n_aabbs)]
+    )
+
+    binaries = torch.rand((n_aabbs, 32, 32, 32), device=device) > 0.5
+
+    t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs) 
+    t_sorted, t_indices = torch.sort(torch.cat([t_mins, t_maxs], -1), -1) 
+
+    intervals, samples, _ = traverse_grids(
+        rays_o, 
+        rays_d, 
+        binaries, 
+        aabbs,
+        max_samples_per_ray=max_samples_per_ray,
+        ray_mask_id=ray_mask_id,
+        t_sorted=t_sorted,
+        t_indices=t_indices,
+        hits=hits
+    )
+
+    ray_indices = samples.ray_indices
+    t_starts = intervals.vals[intervals.is_left]
+    t_ends = intervals.vals[intervals.is_right]
+    positions = (
+        rays_o[ray_indices]
+        + rays_d[ray_indices] * (t_starts + t_ends)[:, None] / 2.0
+    )
+    occs, selector = _query(positions, binaries, base_aabb)
+    assert occs.all(), occs.float().mean()
+    assert selector.all(), selector.float().mean()
+    assert positions.shape[0] == max_samples_per_ray * n_rays
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
@@ -83,7 +132,7 @@ def test_traverse_grids_with_near_far_planes():
     far_planes = torch.tensor([1.5], device=device)
     step_size = 0.05
 
-    intervals, samples = traverse_grids(
+    intervals, samples, _ = traverse_grids(
         rays_o=rays_o,
         rays_d=rays_d,
         binaries=binaries,
@@ -139,9 +188,50 @@ def test_sampling_with_min_max_distances():
     assert (t_starts >= (t_min[ray_indices] - render_step_size / 2)).all()
     assert (t_ends <= (t_max[ray_indices] + render_step_size / 2)).all()
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_mark_invisible_cells():
+    from nerfacc import OccGridEstimator
+
+    torch.manual_seed(42)
+    levels = 4
+    resolution = 32
+    width = 100
+    height = 100
+    fx, fy = width, height
+    cx, cy = width / 2, height / 2
+
+    aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device)
+
+    grid_estimator = OccGridEstimator(
+        roi_aabb=aabb, resolution=resolution, levels=levels
+    ).to(device)
+
+    K = torch.tensor([
+        [fx, 0, cx],
+        [0, fy, cy],
+        [0, 0, 1]
+    ], device=device)
+
+    pose = torch.tensor(
+        [[
+            [-1.0,  0.0,  0.0,  0.0],
+            [ 0.0,  1.0,  0.0,  0.0],
+            [ 0.0,  0.0, -1.0,  2.5]
+        ]],
+        device=device
+    )
+
+    grid_estimator.mark_invisible_cells(K, pose, width, height)
+
+    assert (grid_estimator.occs == -1).sum() == 77660
+    assert (grid_estimator.occs == 0).sum() == 53412
+
+
 
 if __name__ == "__main__":
     test_ray_aabb_intersect()
     test_traverse_grids()
     test_traverse_grids_with_near_far_planes()
     test_sampling_with_min_max_distances()
+    test_mark_invisible_cells()
+    test_traverse_grids_test_mode()
