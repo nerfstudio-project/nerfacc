@@ -256,29 +256,29 @@ class OccGridEstimator(AbstractEstimator):
     def mark_invisible_cells(
         self, 
         K: Tensor, 
-        poses: Tensor, 
+        c2w: Tensor, 
         width: int,
         height: int, 
         near_plane: float = 0.0,
         chunk: int =32**3
     ) -> None:
-        """
-        This code is adapted from: https://github.com/kwea123/ngp_pl/blob/master/models/networks.py
+        """Mark the cells that aren't covered by the cameras with density -1
+        only executed once before training starts.
 
-        Mark the cells that aren't covered by the cameras with density -1
-        only executed once before training starts
+        Note: 
+            This code is adapted from: https://github.com/kwea123/ngp_pl/blob/master/models/networks.py
 
-        Inputs:
-            K: (3, 3) camera intrinsics
-            poses: (N, 3, 4) camera to world poses
-            width: image width in pixels
-            height: image height in pixels
-            near_plane: near plane distance
-            chunk: the chunk size to split the cells (to avoid OOM)
+        Args:
+            K: Camera intrinsics of shape (3, 3).
+            c2w: Camera to world poses of shape (N, 3, 4).
+            width: Image width in pixels
+            height: Image height in pixels
+            near_plane: Near plane distance
+            chunk: The chunk size to split the cells (to avoid OOM)
         """
-        N_cams = poses.shape[0]
-        w2c_R = poses[:, :3, :3].transpose(2, 1) # (N_cams, 3, 3)
-        w2c_T = -w2c_R@poses[:, :3, 3:] # (N_cams, 3, 1)
+        N_cams = c2w.shape[0]
+        w2c_R = c2w[:, :3, :3].transpose(2, 1) # (N_cams, 3, 3)
+        w2c_T = -w2c_R@c2w[:, :3, 3:] # (N_cams, 3, 1)
         
         lvl_indices = self._get_all_cells()
         for lvl, indices in enumerate(lvl_indices):

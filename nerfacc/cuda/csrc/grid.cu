@@ -82,6 +82,7 @@ __global__ void traverse_grids_kernel(
         } else {
             chunk_start = tid * max_samples_per_ray * 2;
             chunk_start_bin = tid * max_samples_per_ray;
+            // ray_mask_id stores the original ray id for each test time ray.
             tid_t = ray_mask_id[tid];
         }
 
@@ -191,14 +192,14 @@ __global__ void traverse_grids_kernel(
                                 if (!first_pass) {  // left side of the intervel
                                     int64_t idx = chunk_start + n_intervals;
                                     intervals.vals[idx] = t_last;
-                                    intervals.ray_indices[idx] = tid_t;
+                                    intervals.ray_indices[idx] = tid;
                                     intervals.is_left[idx] = true;
                                 }
                                 n_intervals++;
                                 if (!first_pass) {  // right side of the intervel
                                     int64_t idx = chunk_start + n_intervals;
                                     intervals.vals[idx] = t_next;
-                                    intervals.ray_indices[idx] = tid_t;
+                                    intervals.ray_indices[idx] = tid;
                                     intervals.is_right[idx] = true;
                                 }
                                 n_intervals++;
@@ -206,7 +207,7 @@ __global__ void traverse_grids_kernel(
                                 if (!first_pass) {  // right side of the intervel
                                     int64_t idx = chunk_start + n_intervals;
                                     intervals.vals[idx] = t_next;
-                                    intervals.ray_indices[idx] = tid_t;
+                                    intervals.ray_indices[idx] = tid;
                                     intervals.is_left[idx - 1] = true;
                                     intervals.is_right[idx] = true;
                                 }

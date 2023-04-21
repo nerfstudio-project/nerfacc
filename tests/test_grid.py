@@ -74,7 +74,6 @@ def test_traverse_grids_test_mode():
     torch.manual_seed(42)
     n_rays = 10
     n_aabbs = 4
-    max_samples_per_ray = 100
 
     ray_mask_id = torch.arange(n_rays, device=device)
 
@@ -89,20 +88,8 @@ def test_traverse_grids_test_mode():
 
     binaries = torch.rand((n_aabbs, 32, 32, 32), device=device) > 0.5
 
-    t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs) 
-    t_sorted, t_indices = torch.sort(torch.cat([t_mins, t_maxs], -1), -1) 
-
-    intervals, samples, _ = traverse_grids(
-        rays_o, 
-        rays_d, 
-        binaries, 
-        aabbs,
-        max_samples_per_ray=max_samples_per_ray,
-        ray_mask_id=ray_mask_id,
-        t_sorted=t_sorted,
-        t_indices=t_indices,
-        hits=hits
-    )
+    # ref results: train mode
+    intervals, samples, _ = traverse_grids(rays_o, rays_d, binaries, aabbs)
 
     ray_indices = samples.ray_indices
     t_starts = intervals.vals[intervals.is_left]
@@ -114,7 +101,30 @@ def test_traverse_grids_test_mode():
     occs, selector = _query(positions, binaries, base_aabb)
     assert occs.all(), occs.float().mean()
     assert selector.all(), selector.float().mean()
-    assert positions.shape[0] == max_samples_per_ray * n_rays
+
+    # test mode
+    t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs) 
+    t_sorted, t_indices = torch.sort(torch.cat([t_mins, t_maxs], -1), -1) 
+
+    intervals, samples, _ = traverse_grids(
+        rays_o, 
+        rays_d, 
+        binaries, 
+        aabbs,
+        max_samples_per_ray=4096,
+        ray_mask_id=ray_mask_id,
+        t_sorted=t_sorted,
+        t_indices=t_indices,
+        hits=hits
+    )
+    ray_indices_test = samples.ray_indices[samples.is_valid]
+    t_starts_test = intervals.vals[intervals.is_left]
+    t_ends_test = intervals.vals[intervals.is_right]
+
+    assert (ray_indices == ray_indices_test).all()
+    assert (t_starts == t_starts_test).all()
+    assert (t_ends == t_ends_test).all()
+
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
@@ -192,7 +202,6 @@ def test_sampling_with_min_max_distances():
 def test_mark_invisible_cells():
     from nerfacc import OccGridEstimator
 
-    torch.manual_seed(42)
     levels = 4
     resolution = 32
     width = 100

@@ -125,10 +125,16 @@ def traverse_grids(
         step_size: Optional. Step size for ray traversal. Default to 1e-3.
         cone_angle: Optional. Cone angle for linearly-increased step size. 0. means
             constant step size. Default: 0.0.
+        max_samples_per_ray: Optional. Maximum number of samples per ray. Default to 4096.
+        ray_mask_id: Optional. (n_rays_chunk,) Ray mask id for each ray. Default to None.
+        t_sorted: Optional. (n_rays, n_grids) Pre-computed sorted t values for each ray-grid pair. Default to None.
+        t_indices: Optional. (n_rays, n_grids) Pre-computed sorted t indices for each ray-grid pair. Default to None.
+        hits: Optional. (n_rays, n_grids) Pre-computed hit flags for each ray-grid pair. Default to None.
 
     Returns:
         A :class:`RayIntervals` object containing the intervals of the ray traversal, and
         a :class:`RaySamples` object containing the samples within each interval.
+        t :class:`Tensor` of shape (n_rays,) containing the terminated t values for each ray, only return `Tensor` when ray_mask_id is provided, otherwise return None.
     """
 
     if near_planes is None:
