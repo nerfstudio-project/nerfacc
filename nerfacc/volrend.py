@@ -201,6 +201,7 @@ def render_transmittance_from_density(
     packed_info: Optional[Tensor] = None,
     ray_indices: Optional[Tensor] = None,
     n_rays: Optional[int] = None,
+    prefix_trans: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Tensor]:
     """Compute transmittance :math:`T_i` from density :math:`\\sigma_i`.
 
@@ -221,6 +222,7 @@ def render_transmittance_from_density(
             Useful for flattened input.
         ray_indices: Ray indices of the flattened samples. LongTensor with shape (all_samples).
         n_rays: Number of rays. Only useful when `ray_indices` is provided.
+        prefix_trans: The pre-computed transmittance of the samples. Tensor with shape (all_samples,).
 
     Returns:
         The rendering transmittance and opacities, both with the same shape as `sigmas`.
@@ -245,6 +247,8 @@ def render_transmittance_from_density(
     sigmas_dt = sigmas * (t_ends - t_starts)
     alphas = 1.0 - torch.exp(-sigmas_dt)
     trans = torch.exp(-exclusive_sum(sigmas_dt, packed_info))
+    if prefix_trans is not None:
+        trans *= prefix_trans
     return trans, alphas
 
 
