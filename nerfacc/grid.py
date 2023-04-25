@@ -145,9 +145,13 @@ def traverse_grids(
         far_planes = torch.full_like(rays_o[:, 0], float("inf"))
 
     if rays_mask is None:
-        rays_mask = torch.Tensor()
+        rays_mask = torch.Tensor()  # Dummy tensor.
     if traverse_steps_limit is None:
         traverse_steps_limit = -1
+    if over_allocate:
+        assert (
+            traverse_steps_limit > 0
+        ), "traverse_steps_limit must be set if over_allocate is True."
 
     if t_sorted is None or t_indices is None or hits is None:
         # Compute ray aabb intersection for all levels of grid. [n_rays, m]
