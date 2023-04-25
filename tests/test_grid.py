@@ -67,15 +67,16 @@ def test_traverse_grids():
     assert occs.all(), occs.float().mean()
     assert selector.all(), selector.float().mean()
 
+
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_traverse_grids_test_mode():
-    from nerfacc.grid import _enlarge_aabb, _query, traverse_grids, ray_aabb_intersect
+    from nerfacc.grid import _enlarge_aabb, _query, traverse_grids
 
     torch.manual_seed(42)
     n_rays = 10
     n_aabbs = 4
 
-    ray_mask_id = torch.arange(n_rays, device=device)
+    rays_mask = torch.ones((n_rays,), device=device, dtype=torch.bool)
 
     rays_o = torch.randn((n_rays, 3), device=device)
     rays_d = torch.randn((n_rays, 3), device=device)
@@ -103,19 +104,14 @@ def test_traverse_grids_test_mode():
     assert selector.all(), selector.float().mean()
 
     # test mode
-    t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs) 
-    t_sorted, t_indices = torch.sort(torch.cat([t_mins, t_maxs], -1), -1) 
-
     intervals, samples, _ = traverse_grids(
-        rays_o, 
-        rays_d, 
-        binaries, 
+        rays_o,
+        rays_d,
+        binaries,
         aabbs,
-        max_samples_per_ray=4096,
-        ray_mask_id=ray_mask_id,
-        t_sorted=t_sorted,
-        t_indices=t_indices,
-        hits=hits
+        traverse_steps_limit=6400,
+        over_allocate=True,
+        rays_mask=rays_mask,
     )
     ray_indices_test = samples.ray_indices[samples.is_valid]
     t_starts_test = intervals.vals[intervals.is_left]
@@ -124,7 +120,6 @@ def test_traverse_grids_test_mode():
     assert (ray_indices == ray_indices_test).all()
     assert (t_starts == t_starts_test).all()
     assert (t_ends == t_ends_test).all()
-
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
@@ -198,6 +193,7 @@ def test_sampling_with_min_max_distances():
     assert (t_starts >= (t_min[ray_indices] - render_step_size / 2)).all()
     assert (t_ends <= (t_max[ray_indices] + render_step_size / 2)).all()
 
+
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_mark_invisible_cells():
     from nerfacc import OccGridEstimator
@@ -215,26 +211,17 @@ def test_mark_invisible_cells():
         roi_aabb=aabb, resolution=resolution, levels=levels
     ).to(device)
 
-    K = torch.tensor([
-        [fx, 0, cx],
-        [0, fy, cy],
-        [0, 0, 1]
-    ], device=device)
+    K = torch.tensor([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], device=device)
 
     pose = torch.tensor(
-        [[
-            [-1.0,  0.0,  0.0,  0.0],
-            [ 0.0,  1.0,  0.0,  0.0],
-            [ 0.0,  0.0, -1.0,  2.5]
-        ]],
-        device=device
+        [[[-1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 2.5]]],
+        device=device,
     )
 
     grid_estimator.mark_invisible_cells(K, pose, width, height)
 
     assert (grid_estimator.occs == -1).sum() == 77660
     assert (grid_estimator.occs == 0).sum() == 53412
-
 
 
 if __name__ == "__main__":

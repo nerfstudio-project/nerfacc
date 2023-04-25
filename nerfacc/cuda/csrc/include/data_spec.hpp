@@ -136,7 +136,7 @@ struct RaySegmentsSpec {
   // compute the chunk_start from chunk_cnts
   inline int64_t compute_chunk_start() {
     TORCH_CHECK(chunk_cnts.defined());
-    TORCH_CHECK(!chunk_starts.defined());
+    // TORCH_CHECK(!chunk_starts.defined());
     
     torch::Tensor cumsum = torch::cumsum(chunk_cnts, 0, chunk_cnts.scalar_type());
     chunk_starts = cumsum - chunk_cnts;
