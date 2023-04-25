@@ -76,8 +76,8 @@ class RaySamples:
             is_valid = None
         vals = spec.vals
         return cls(
-            vals=vals, 
-            packed_info=packed_info, 
+            vals=vals,
+            packed_info=packed_info,
             ray_indices=ray_indices,
             is_valid=is_valid,
         )
