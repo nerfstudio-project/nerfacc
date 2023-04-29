@@ -145,7 +145,7 @@ def traverse_grids(
         far_planes = torch.full_like(rays_o[:, 0], float("inf"))
 
     if rays_mask is None:
-        rays_mask = torch.Tensor()  # Dummy tensor.
+        rays_mask = torch.ones_like(rays_o[:, 0], dtype=torch.bool)
     if traverse_steps_limit is None:
         traverse_steps_limit = -1
     if over_allocate:

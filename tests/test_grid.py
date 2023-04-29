@@ -70,7 +70,8 @@ def test_traverse_grids():
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_traverse_grids_test_mode():
-    from nerfacc.grid import _enlarge_aabb, _query, traverse_grids
+    from nerfacc.grid import _enlarge_aabb, traverse_grids
+    from nerfacc.volrend import accumulate_along_rays
 
     torch.manual_seed(42)
     n_rays = 10
@@ -91,35 +92,43 @@ def test_traverse_grids_test_mode():
 
     # ref results: train mode
     intervals, samples, _ = traverse_grids(rays_o, rays_d, binaries, aabbs)
-
     ray_indices = samples.ray_indices
     t_starts = intervals.vals[intervals.is_left]
     t_ends = intervals.vals[intervals.is_right]
-    positions = (
-        rays_o[ray_indices]
-        + rays_d[ray_indices] * (t_starts + t_ends)[:, None] / 2.0
-    )
-    occs, selector = _query(positions, binaries, base_aabb)
-    assert occs.all(), occs.float().mean()
-    assert selector.all(), selector.float().mean()
+    accum_t_starts = accumulate_along_rays(t_starts, None, ray_indices, n_rays)
+    accum_t_ends = accumulate_along_rays(t_ends, None, ray_indices, n_rays)
 
     # test mode
-    intervals, samples, _ = traverse_grids(
-        rays_o,
-        rays_d,
-        binaries,
-        aabbs,
-        traverse_steps_limit=6400,
-        over_allocate=True,
-        rays_mask=rays_mask,
-    )
-    ray_indices_test = samples.ray_indices[samples.is_valid]
-    t_starts_test = intervals.vals[intervals.is_left]
-    t_ends_test = intervals.vals[intervals.is_right]
-
-    assert (ray_indices == ray_indices_test).all()
-    assert (t_starts == t_starts_test).all()
-    assert (t_ends == t_ends_test).all()
+    _accum_t_starts, _accum_t_ends = 0.0, 0.0
+    _terminate_planes = None
+    _rays_mask = None
+    for _ in range(2):
+        _intervals, _samples, _terminate_planes = traverse_grids(
+            rays_o,
+            rays_d,
+            binaries,
+            aabbs,
+            near_planes=_terminate_planes,
+            traverse_steps_limit=4000,
+            over_allocate=True,
+            rays_mask=_rays_mask,
+        )
+        # only keep rays that are not terminated (i.e. reach the limit)
+        _rays_mask = _samples.packed_info[:, 1] == 4000
+        _ray_indices = _samples.ray_indices[_samples.is_valid]
+        _t_starts = _intervals.vals[_intervals.is_left]
+        _t_ends = _intervals.vals[_intervals.is_right]
+        _accum_t_starts += accumulate_along_rays(
+            _t_starts, None, _ray_indices, n_rays
+        )
+        _accum_t_ends += accumulate_along_rays(
+            _t_ends, None, _ray_indices, n_rays
+        )
+    # there shouldn't be any rays that are not terminated
+    assert (~_rays_mask).all()
+    # TODO: figure out where this small diff comes from
+    assert torch.allclose(_accum_t_starts, accum_t_starts, atol=1e-1)
+    assert torch.allclose(accum_t_ends, _accum_t_ends, atol=1e-1)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")

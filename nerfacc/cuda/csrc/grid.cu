@@ -181,7 +181,7 @@ __global__ void traverse_grids_kernel(
             // );
 
             const int3 overflow_index = final_index + step_index;
-            while (true) {
+            while (traverse_steps_limit <= 0 || n_samples < traverse_steps_limit) {
                 float t_traverse = min(tdist.x, min(tdist.y, tdist.z));
                 t_traverse = fminf(t_traverse, this_tmax);
                 int64_t cell_id = (
@@ -205,7 +205,7 @@ __global__ void traverse_grids_kernel(
                     continuous = false;
                 } else {
                     // this cell is not empty, so we need to traverse it.
-                    while (true) {
+                    while (traverse_steps_limit <= 0 || n_samples < traverse_steps_limit) {
                         float t_next;
                         if (step_size <= 0.0f) {
                             t_next = t_traverse;
@@ -258,7 +258,6 @@ __global__ void traverse_grids_kernel(
                         continuous = true;
                         t_last = t_next;
                         if (t_next >= t_traverse) break;
-                        if (traverse_steps_limit > 0 && n_samples >= traverse_steps_limit) break;
                     }
                 }
 
@@ -364,18 +363,13 @@ std::tuple<RaySegmentsSpec, RaySegmentsSpec, torch::Tensor> traverse_grids(
 
     if (over_allocate) {
         // over allocate the memory so that we can traverse the grids in a single pass.
-        int total_steps = n_rays * traverse_steps_limit;
         if (compute_intervals) {
-            intervals.chunk_cnts = torch::full({n_rays}, -1, rays_o.options().dtype(torch::kLong));
-            intervals.chunk_starts = torch::arange(
-                0, total_steps * 2, traverse_steps_limit * 2, rays_o.options().dtype(torch::kLong));
-            intervals.memalloc_data(total_steps * 2, true, true);
+            intervals.chunk_cnts = torch::full({n_rays}, traverse_steps_limit * 2, rays_o.options().dtype(torch::kLong)) * rays_mask;
+            intervals.memalloc_data_from_chunk(true, true);
         }
         if (compute_samples) {
-            samples.chunk_cnts = torch::full({n_rays}, -1, rays_o.options().dtype(torch::kLong));
-            samples.chunk_starts = torch::arange(
-                0, total_steps, traverse_steps_limit, rays_o.options().dtype(torch::kLong));
-            samples.memalloc_data(total_steps, false, true, true);
+            samples.chunk_cnts = torch::full({n_rays}, traverse_steps_limit, rays_o.options().dtype(torch::kLong)) * rays_mask;
+            samples.memalloc_data_from_chunk(false, true, true);
         }
 
         device::traverse_grids_kernel<<<blocks, threads, 0, stream>>>(

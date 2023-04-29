@@ -499,6 +499,7 @@ def accumulate_along_rays(
             and values (if not None) must be a flattened tensor with shape (all_samples, D).
             Default: None.
         n_rays: Number of rays. Should be provided together with `ray_indices`. Default: None.
+        targets: If given, we accumulate the values to this given tensor of shape [n_rays, D]. Default: None.
 
     Returns:
         Accumulated values with shape (n_rays, D). If `values` is not given we return
@@ -537,3 +538,29 @@ def accumulate_along_rays(
     else:
         outputs = torch.sum(src, dim=-2)
     return outputs
+
+
+def accumulate_along_rays_(
+    weights: Tensor,
+    values: Optional[Tensor] = None,
+    ray_indices: Optional[Tensor] = None,
+    outputs: Optional[Tensor] = None,
+) -> None:
+    """Accumulate volumetric values along the ray.
+
+    Inplace version of :func:`accumulate_along_rays`.
+    """
+    if values is None:
+        src = weights[..., None]
+    else:
+        assert values.dim() == weights.dim() + 1
+        assert weights.shape == values.shape[:-1]
+        src = weights[..., None] * values
+    if ray_indices is not None:
+        assert weights.dim() == 1, "weights must be flattened"
+        assert (
+            outputs.dim() == 2 and outputs.shape[-1] == src.shape[-1]
+        ), "outputs must be of shape (n_rays, D)"
+        outputs.index_add_(0, ray_indices, src)
+    else:
+        outputs.add_(src.sum(dim=-2))
