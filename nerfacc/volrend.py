@@ -499,7 +499,6 @@ def accumulate_along_rays(
             and values (if not None) must be a flattened tensor with shape (all_samples, D).
             Default: None.
         n_rays: Number of rays. Should be provided together with `ray_indices`. Default: None.
-        targets: If given, we accumulate the values to this given tensor of shape [n_rays, D]. Default: None.
 
     Returns:
         Accumulated values with shape (n_rays, D). If `values` is not given we return
