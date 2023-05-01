@@ -25,7 +25,6 @@ RaySegmentsSpec = _make_lazy_cuda_func("RaySegmentsSpec")
 # grid
 ray_aabb_intersect = _make_lazy_cuda_func("ray_aabb_intersect")
 traverse_grids = _make_lazy_cuda_func("traverse_grids")
-# traverse_grids_test = _make_lazy_cuda_func("traverse_grids_test")
 
 # scan
 exclusive_sum_by_key = _make_lazy_cuda_func("exclusive_sum_by_key")

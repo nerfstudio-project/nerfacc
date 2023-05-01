@@ -262,20 +262,25 @@ class OccGridEstimator(AbstractEstimator):
         near_plane: float = 0.0,
         chunk: int = 32**3,
     ) -> None:
-        """Mark the cells that aren't covered by the cameras with density -1
-        only executed once before training starts.
+        """Mark the cells that aren't covered by the cameras with density -1.
+        Should only be executed once before training starts.
 
         Note:
             This code is adapted from: https://github.com/kwea123/ngp_pl/blob/master/models/networks.py
 
         Args:
-            K: Camera intrinsics of shape (3, 3).
-            c2w: Camera to world poses of shape (N, 3, 4).
+            K: Camera intrinsics of shape (N, 3, 3) or (1, 3, 3).
+            c2w: Camera to world poses of shape (N, 3, 4) or (N, 4, 4).
             width: Image width in pixels
             height: Image height in pixels
             near_plane: Near plane distance
             chunk: The chunk size to split the cells (to avoid OOM)
         """
+        assert K.dim() == 3 and K.shape[1:] == (3, 3)
+        assert c2w.dim() == 3 and (
+            c2w.shape[1:] == (3, 4) or c2w.shape[1:] == (4, 4)
+        )
+
         N_cams = c2w.shape[0]
         w2c_R = c2w[:, :3, :3].transpose(2, 1)  # (N_cams, 3, 3)
         w2c_T = -w2c_R @ c2w[:, :3, 3:]  # (N_cams, 3, 1)
@@ -285,7 +290,6 @@ class OccGridEstimator(AbstractEstimator):
             grid_coords = self.grid_coords[indices]
 
             for i in range(0, len(indices), chunk):
-
                 x = grid_coords[i : i + chunk] / (self.resolution - 1)
                 indices_chunk = indices[i : i + chunk]
                 # voxel coordinates [0, 1]^3 -> world
@@ -335,6 +339,9 @@ class OccGridEstimator(AbstractEstimator):
             uniform_indices = torch.randint(
                 self.cells_per_lvl, (n,), device=self.device
             )
+            # filter out the cells with -1 density (non-visible to any camera)
+            cell_ids = lvl * self.cells_per_lvl + uniform_indices
+            uniform_indices = uniform_indices[self.occs[cell_ids] >= 0.0]
             occupied_indices = torch.nonzero(self.binaries[lvl].flatten())[:, 0]
             if n < len(occupied_indices):
                 selector = torch.randint(
@@ -375,16 +382,14 @@ class OccGridEstimator(AbstractEstimator):
             occ = occ_eval_fn(x).squeeze(-1)
             # ema update
             cell_ids = lvl * self.cells_per_lvl + indices
-            self.occs[cell_ids] = torch.where(
-                self.occs[cell_ids] < 0,
-                self.occs[cell_ids],
-                torch.maximum(self.occs[cell_ids] * ema_decay, occ),
+            self.occs[cell_ids] = torch.maximum(
+                self.occs[cell_ids] * ema_decay, occ
             )
             # suppose to use scatter max but emperically it is almost the same.
             # self.occs, _ = scatter_max(
             #     occ, indices, dim=0, out=self.occs * ema_decay
             # )
-        thre = torch.clamp(self.occs[self.occs > 0].mean(), max=occ_thre)
+        thre = torch.clamp(self.occs[self.occs >= 0].mean(), max=occ_thre)
         self.binaries = (self.occs > thre).view(self.binaries.shape)
 
 

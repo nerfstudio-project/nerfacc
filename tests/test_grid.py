@@ -220,7 +220,7 @@ def test_mark_invisible_cells():
         roi_aabb=aabb, resolution=resolution, levels=levels
     ).to(device)
 
-    K = torch.tensor([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], device=device)
+    K = torch.tensor([[[fx, 0, cx], [0, fy, cy], [0, 0, 1]]], device=device)
 
     pose = torch.tensor(
         [[[-1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 2.5]]],
