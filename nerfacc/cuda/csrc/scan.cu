@@ -28,12 +28,15 @@ torch::Tensor inclusive_sum(
     uint32_t n_rays = chunk_cnts.size(0);
     int64_t n_edges = inputs.size(0);
 
+    torch::Tensor outputs = torch::empty_like(inputs);
+    if (n_edges == 0) {
+        return outputs;
+    }
+
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rays, threads.y)));
-
-    torch::Tensor outputs = torch::empty_like(inputs);
     
     if (backward) {
         chunk_starts = n_edges - (chunk_starts + chunk_cnts);
@@ -84,12 +87,15 @@ torch::Tensor exclusive_sum(
     uint32_t n_rays = chunk_cnts.size(0);
     int64_t n_edges = inputs.size(0);
 
+    torch::Tensor outputs = torch::empty_like(inputs);
+    if (n_edges == 0) {
+        return outputs;
+    }
+
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rays, threads.y)));
-
-    torch::Tensor outputs = torch::empty_like(inputs);
     
     if (backward) {
         chunk_starts = n_edges - (chunk_starts + chunk_cnts);
@@ -136,12 +142,15 @@ torch::Tensor inclusive_prod_forward(
     uint32_t n_rays = chunk_cnts.size(0);
     int64_t n_edges = inputs.size(0);
 
+    torch::Tensor outputs = torch::empty_like(inputs);
+    if (n_edges == 0) {
+        return outputs;
+    }
+    
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rays, threads.y)));
-
-    torch::Tensor outputs = torch::empty_like(inputs);
     
     device::inclusive_scan_kernel<float, 16, 32><<<blocks, threads, 0, stream>>>(
         outputs.data_ptr<float>(),
@@ -177,12 +186,15 @@ torch::Tensor inclusive_prod_backward(
     uint32_t n_rays = chunk_cnts.size(0);
     int64_t n_edges = inputs.size(0);
 
+    torch::Tensor grad_inputs = torch::empty_like(grad_outputs);
+    if (n_edges == 0) {
+        return grad_inputs;
+    }
+
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rays, threads.y)));
-
-    torch::Tensor grad_inputs = torch::empty_like(grad_outputs);
     
     chunk_starts = n_edges - (chunk_starts + chunk_cnts);
     device::inclusive_scan_kernel<float, 16, 32><<<blocks, threads, 0, stream>>>(
@@ -220,12 +232,15 @@ torch::Tensor exclusive_prod_forward(
     uint32_t n_rays = chunk_cnts.size(0);
     int64_t n_edges = inputs.size(0);
 
+    torch::Tensor outputs = torch::empty_like(inputs);
+    if (n_edges == 0) {
+        return outputs;
+    }
+
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rays, threads.y)));
-
-    torch::Tensor outputs = torch::empty_like(inputs);
     
     device::exclusive_scan_kernel<float, 16, 32><<<blocks, threads, 0, stream>>>(
         outputs.data_ptr<float>(),
@@ -261,12 +276,15 @@ torch::Tensor exclusive_prod_backward(
     uint32_t n_rays = chunk_cnts.size(0);
     int64_t n_edges = inputs.size(0);
 
+    torch::Tensor grad_inputs = torch::empty_like(grad_outputs);
+    if (n_edges == 0) {
+        return grad_inputs;
+    }
+
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rays, threads.y)));
-
-    torch::Tensor grad_inputs = torch::empty_like(grad_outputs);
     
     chunk_starts = n_edges - (chunk_starts + chunk_cnts);
     device::exclusive_scan_kernel<float, 16, 32><<<blocks, threads, 0, stream>>>(
