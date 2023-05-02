@@ -184,7 +184,10 @@ class OccGridEstimator(AbstractEstimator):
 
             # Compute visibility of the samples, and filter out invisible samples
             if sigma_fn is not None:
-                sigmas = sigma_fn(t_starts, t_ends, ray_indices)
+                if t_starts.shape[0] != 0:
+                    sigmas = sigma_fn(t_starts, t_ends, ray_indices)
+                else:
+                    sigmas = torch.empty((0,), device=t_starts.device)
                 assert (
                     sigmas.shape == t_starts.shape
                 ), "sigmas must have shape of (N,)! Got {}".format(sigmas.shape)
@@ -197,7 +200,10 @@ class OccGridEstimator(AbstractEstimator):
                     alpha_thre=alpha_thre,
                 )
             elif alpha_fn is not None:
-                alphas = alpha_fn(t_starts, t_ends, ray_indices)
+                if t_starts.shape[0] != 0:
+                    alphas = alpha_fn(t_starts, t_ends, ray_indices)
+                else:
+                    alphas = torch.empty((0,), device=t_starts.device)
                 assert (
                     alphas.shape == t_starts.shape
                 ), "alphas must have shape of (N,)! Got {}".format(alphas.shape)

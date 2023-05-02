@@ -3,16 +3,8 @@
 
 #include <torch/extension.h>
 
-bool is_cub_available() {
-    // FIXME: why return false?
-    return (bool) CUB_SUPPORTS_SCAN_BY_KEY();
-}
 
 // scan
-torch::Tensor exclusive_sum_by_key(
-    torch::Tensor indices,
-    torch::Tensor inputs,
-    bool backward);
 torch::Tensor inclusive_sum(
     torch::Tensor chunk_starts,
     torch::Tensor chunk_cnts,
@@ -107,9 +99,6 @@ torch::Tensor opencv_lens_undistortion_fisheye(
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 #define _REG_FUNC(funname) m.def(#funname, &funname)
-    _REG_FUNC(is_cub_available);  // TODO: check this function
-
-    _REG_FUNC(exclusive_sum_by_key);
     _REG_FUNC(inclusive_sum);
     _REG_FUNC(exclusive_sum);
     _REG_FUNC(inclusive_prod_forward);
@@ -122,23 +111,11 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     _REG_FUNC(searchsorted);
 
     _REG_FUNC(opencv_lens_undistortion);
-    _REG_FUNC(opencv_lens_undistortion_fisheye);
-
+    _REG_FUNC(opencv_lens_undistortion_fisheye);  // TODO: check this function.
 #undef _REG_FUNC
 
     m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, torch::Tensor, bool>(&importance_sampling));
     m.def("importance_sampling", py::overload_cast<RaySegmentsSpec, torch::Tensor, int64_t, bool>(&importance_sampling));
-
-    py::class_<MultiScaleGridSpec>(m, "MultiScaleGridSpec")
-        .def(py::init<>())
-        .def_readwrite("data", &MultiScaleGridSpec::data)
-        .def_readwrite("occupied", &MultiScaleGridSpec::occupied)
-        .def_readwrite("base_aabb", &MultiScaleGridSpec::base_aabb);
-
-    py::class_<RaysSpec>(m, "RaysSpec")
-        .def(py::init<>())
-        .def_readwrite("origins", &RaysSpec::origins)
-        .def_readwrite("dirs", &RaysSpec::dirs);
 
     py::class_<RaySegmentsSpec>(m, "RaySegmentsSpec")
         .def(py::init<>())
