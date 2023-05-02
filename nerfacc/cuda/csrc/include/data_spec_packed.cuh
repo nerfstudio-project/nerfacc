@@ -49,23 +49,6 @@ struct SingleRaySpec {
         tmax{tmax}
     { }
 
-    __device__ SingleRaySpec(
-        PackedRaysSpec& rays, int32_t id, float tmin, float tmax) :
-        origin{
-            rays.origins[id * 3], 
-            rays.origins[id * 3 + 1], 
-            rays.origins[id * 3 + 2]},
-        dir{
-            rays.dirs[id * 3], 
-            rays.dirs[id * 3 + 1], 
-            rays.dirs[id * 3 + 2]},
-        inv_dir{
-            1.0f / rays.dirs[id * 3], 
-            1.0f / rays.dirs[id * 3 + 1], 
-            1.0f / rays.dirs[id * 3 + 2]},
-        tmin{tmin},
-        tmax{tmax}
-    { }
     float3 origin;
     float3 dir;
     float3 inv_dir;
