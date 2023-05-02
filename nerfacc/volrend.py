@@ -85,7 +85,11 @@ def rendering(
 
     # Query sigma/alpha and color with gradients
     if rgb_sigma_fn is not None:
-        rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
+        if t_starts.shape[0] != 0:
+            rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
+        else:
+            rgbs = torch.empty((0, 3), device=t_starts.device)
+            sigmas = torch.empty((0,), device=t_starts.device)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
         )
@@ -108,7 +112,11 @@ def rendering(
             "rgbs": rgbs,
         }
     elif rgb_alpha_fn is not None:
-        rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
+        if t_starts.shape[0] != 0:
+            rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
+        else:
+            rgbs = torch.empty((0, 3), device=t_starts.device)
+            alphas = torch.empty((0,), device=t_starts.device)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
         )
@@ -250,6 +258,7 @@ def render_transmittance_from_density(
 
     sigmas_dt = sigmas * (t_ends - t_starts)
     alphas = 1.0 - torch.exp(-sigmas_dt)
+    print (sigmas_dt.shape, packed_info.shape)
     trans = torch.exp(-exclusive_sum(sigmas_dt, packed_info))
     if prefix_trans is not None:
         trans *= prefix_trans
