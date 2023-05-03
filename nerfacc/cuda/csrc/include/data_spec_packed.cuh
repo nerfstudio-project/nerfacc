@@ -17,6 +17,7 @@ struct PackedRaySegmentsSpec {
         ray_indices(spec.ray_indices.defined() ? spec.ray_indices.data_ptr<int64_t>() : nullptr),
         is_left(spec.is_left.defined() ? spec.is_left.data_ptr<bool>() : nullptr),
         is_right(spec.is_right.defined() ? spec.is_right.data_ptr<bool>() : nullptr),
+        is_valid(spec.is_valid.defined() ? spec.is_valid.data_ptr<bool>() : nullptr),
         // for dimensions
         n_edges(spec.vals.defined() ? spec.vals.numel() : 0),
         n_rays(spec.chunk_cnts.defined() ? spec.chunk_cnts.size(0) : 0),  // for flattened tensor
@@ -31,6 +32,7 @@ struct PackedRaySegmentsSpec {
     int64_t* ray_indices;
     bool* is_left;
     bool* is_right;
+    bool* is_valid;
 
     int64_t n_edges;
     int32_t n_rays;

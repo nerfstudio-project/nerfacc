@@ -46,16 +46,17 @@ std::vector<torch::Tensor> ray_aabb_intersect(
     const float near_plane,
     const float far_plane, 
     const float miss_value);
-std::vector<RaySegmentsSpec> traverse_grids(
+std::tuple<RaySegmentsSpec, RaySegmentsSpec, torch::Tensor> traverse_grids(
     // rays
     const torch::Tensor rays_o, // [n_rays, 3]
     const torch::Tensor rays_d, // [n_rays, 3]
+    const torch::Tensor rays_mask,   // [n_rays]
     // grids
     const torch::Tensor binaries,  // [n_grids, resx, resy, resz]
     const torch::Tensor aabbs,     // [n_grids, 6]
     // intersections
-    const torch::Tensor t_mins,  // [n_rays, n_grids]
-    const torch::Tensor t_maxs,  // [n_rays, n_grids]
+    const torch::Tensor t_sorted,  // [n_rays, n_grids]
+    const torch::Tensor t_indices,  // [n_rays, n_grids]
     const torch::Tensor hits,    // [n_rays, n_grids]
     // options
     const torch::Tensor near_planes,
@@ -63,7 +64,10 @@ std::vector<RaySegmentsSpec> traverse_grids(
     const float step_size,
     const float cone_angle,
     const bool compute_intervals,
-    const bool compute_samples);
+    const bool compute_samples,
+    const bool compute_terminate_planes,
+    const int32_t traverse_steps_limit, // <= 0 means no limit
+    const bool over_allocate); // over allocate the memory for intervals and samples
 
 // pdf
 std::vector<RaySegmentsSpec> importance_sampling(
@@ -118,6 +122,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .def_readwrite("vals", &RaySegmentsSpec::vals)
         .def_readwrite("is_left", &RaySegmentsSpec::is_left)
         .def_readwrite("is_right", &RaySegmentsSpec::is_right)
+        .def_readwrite("is_valid", &RaySegmentsSpec::is_valid)
         .def_readwrite("chunk_starts", &RaySegmentsSpec::chunk_starts)
         .def_readwrite("chunk_cnts", &RaySegmentsSpec::chunk_cnts)
         .def_readwrite("ray_indices", &RaySegmentsSpec::ray_indices);
