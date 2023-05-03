@@ -258,6 +258,7 @@ class OccGridEstimator(AbstractEstimator):
                 warmup_steps=warmup_steps,
             )
 
+    # adapted from https://github.com/kwea123/ngp_pl/blob/master/models/networks.py
     @torch.no_grad()
     def mark_invisible_cells(
         self,
@@ -271,9 +272,6 @@ class OccGridEstimator(AbstractEstimator):
         """Mark the cells that aren't covered by the cameras with density -1.
         Should only be executed once before training starts.
 
-        Note:
-            This code is adapted from: https://github.com/kwea123/ngp_pl/blob/master/models/networks.py
-
         Args:
             K: Camera intrinsics of shape (N, 3, 3) or (1, 3, 3).
             c2w: Camera to world poses of shape (N, 3, 4) or (N, 4, 4).
@@ -286,6 +284,7 @@ class OccGridEstimator(AbstractEstimator):
         assert c2w.dim() == 3 and (
             c2w.shape[1:] == (3, 4) or c2w.shape[1:] == (4, 4)
         )
+        assert K.shape[0] == c2w.shape[0] or K.shape[0] == 1
 
         N_cams = c2w.shape[0]
         w2c_R = c2w[:, :3, :3].transpose(2, 1)  # (N_cams, 3, 3)
@@ -335,7 +334,13 @@ class OccGridEstimator(AbstractEstimator):
     @torch.no_grad()
     def _get_all_cells(self) -> List[Tensor]:
         """Returns all cells of the grid."""
-        return [self.grid_indices] * self.levels
+        lvl_indices = []
+        for lvl in range(self.levels):
+            # filter out the cells with -1 density (non-visible to any camera)
+            cell_ids = lvl * self.cells_per_lvl + self.grid_indices
+            indices = self.grid_indices[self.occs[cell_ids] >= 0.0]
+            lvl_indices.append(indices)
+        return lvl_indices
 
     @torch.no_grad()
     def _sample_uniform_and_occupied_cells(self, n: int) -> List[Tensor]:
