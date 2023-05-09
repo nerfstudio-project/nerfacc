@@ -203,11 +203,17 @@ bash script.sh nerfsyn-nerfacc-occgrid 0
 ```
 
 ### 3rd-Party Usages:
+
+#### Awesome Codebases.
 - [nerfstudio](https://github.com/nerfstudio-project/nerfstudio): A collaboration friendly studio for NeRFs.
-- [sdfstudio](https://autonomousvision.github.io/sdfstudio/): A unified framework for surface reconstruction..
+- [sdfstudio](https://autonomousvision.github.io/sdfstudio/): A unified framework for surface reconstruction.
+- [threestudio](https://github.com/threestudio-project/threestudio): A unified framework for 3D content creation.
 - [instant-nsr-pl](https://github.com/bennyguo/instant-nsr-pl): NeuS in 10 minutes.
 - [modelscope](https://github.com/modelscope/modelscope/blob/master/modelscope/models/cv/nerf_recon_acc/network/nerf.py): A collection of deep-learning algorithms.
+
+#### Awesome Papers.
 - [Representing Volumetric Videos as Dynamic MLP Maps, CVPR 2023](https://github.com/zju3dv/mlp_maps)
+- [NeRSemble: Multi-view Radiance Field Reconstruction of Human Heads, ArXiv 2023](https://tobias-kirschstein.github.io/nersemble/)
 
 
 ## Common Installation Issues
