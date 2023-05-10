@@ -16,7 +16,7 @@ in training various recent NeRF papers.
 |
 
 | Github: https://github.com/KAIR-BAIR/nerfacc
-| Paper: https://arxiv.org/pdf/2210.04847.pdf (To Be Updated)
+| Paper: https://arxiv.org/pdf/2305.04966.pdf
 | Authors: `Ruilong Li`_, `Hang Gao`_, `Matthew Tancik`_, `Angjoo Kanazawa`_
 
 .. note::

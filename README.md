@@ -229,7 +229,7 @@ bash script.sh nerfsyn-nerfacc-occgrid 0
 @article{li2023nerfacc,
   title={NerfAcc: Efficient Sampling Accelerates NeRFs.},
   author={Li, Ruilong and Gao, Hang and Tancik, Matthew and Kanazawa, Angjoo},
-  journal={To Be Updated},
+  journal={arXiv preprint arXiv:2305.04966},
   year={2023}
 }
 ```
