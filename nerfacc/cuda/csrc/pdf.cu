@@ -242,7 +242,7 @@ __global__ void compute_intervels_kernel(
 
 
 
-__global__ void searchsorted_sparse_csr_kernel(
+__global__ void searchsorted_clamp_sparse_csr_kernel(
     int64_t nrows,
     float *sorted_sequence,
     int64_t nse_s,
@@ -415,7 +415,7 @@ std::vector<RaySegmentsSpec> importance_sampling(
 
 // Find two indices {left, right} for each item in values,
 // such that: sorted_sequence[left] <= values < sorted_sequence[right]
-std::vector<torch::Tensor> searchsorted_sparse_csr(
+std::vector<torch::Tensor> searchsorted_clamp_sparse_csr(
     torch::Tensor sorted_sequence,  // [nse_s]
     torch::Tensor values,  // [nse_v]
     torch::Tensor sorted_sequence_crow_indices,  // [nrows + 1]
@@ -443,7 +443,7 @@ std::vector<torch::Tensor> searchsorted_sparse_csr(
     dim3 threads = dim3(min(max_threads, nse_v));
     dim3 blocks = dim3(min(max_blocks, ceil_div<int64_t>(nse_v, threads.x)));
 
-    device::searchsorted_sparse_csr_kernel<<<blocks, threads, 0, stream>>>(
+    device::searchsorted_clamp_sparse_csr_kernel<<<blocks, threads, 0, stream>>>(
         nrows,
         // input: sorted_sequence
         sorted_sequence.data_ptr<float>(),

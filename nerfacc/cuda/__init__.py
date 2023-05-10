@@ -50,7 +50,7 @@ exclusive_prod_sparse_csr_backward = _make_lazy_cuda_func(
 
 # pdf
 importance_sampling = _make_lazy_cuda_func("importance_sampling")
-searchsorted_sparse_csr = _make_lazy_cuda_func("searchsorted_sparse_csr")
+searchsorted_clamp_sparse_csr = _make_lazy_cuda_func("searchsorted_clamp_sparse_csr")
 
 # camera
 opencv_lens_undistortion = _make_lazy_cuda_func("opencv_lens_undistortion")
