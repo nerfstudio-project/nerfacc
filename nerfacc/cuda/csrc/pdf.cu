@@ -413,8 +413,10 @@ std::vector<RaySegmentsSpec> importance_sampling(
 }
 
 
-// Find two indices {left, right} for each item in values,
-// such that: sorted_sequence[left] <= values < sorted_sequence[right]
+// Find two indices {left, right} for each item in values, such that: 
+// sorted_sequence[left] <= values < sorted_sequence[right].
+// Note this function will also clip the left and right so that they both 
+// in the range of [0, nse_s), which can be directly used for indexing.
 std::vector<torch::Tensor> searchsorted_clamp_sparse_csr(
     torch::Tensor sorted_sequence,  // [nse_s]
     torch::Tensor values,  // [nse_v]
