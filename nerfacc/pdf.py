@@ -16,7 +16,7 @@ def searchsorted_clamp(
     sorted_sequence_crow_indices: Optional[Tensor] = None,
     values_crow_indices: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Tensor]:
-    """Searchsorted that supports CSR Sparse tensor."""
+    """Searchsorted with clamp."""
     if (
         sorted_sequence_crow_indices is None or values_crow_indices is None
     ):  # Dense tensor.
@@ -25,7 +25,7 @@ def searchsorted_clamp(
         ids_right = torch.clamp(ids_right, 0, sorted_sequence.shape[-1] - 1)
         ids_left = torch.clamp(ids_left, 0, sorted_sequence.shape[-1] - 1)
     else:  # Sparse tensor.
-        ids_left, ids_right = _searchsorted_sparse_csr(
+        ids_left, ids_right = _searchsorted_clamp_sparse_csr(
             sorted_sequence,
             values,
             sorted_sequence_crow_indices,
@@ -34,7 +34,7 @@ def searchsorted_clamp(
     return ids_left, ids_right
 
 
-def _searchsorted_sparse_csr(
+def _searchsorted_clamp_sparse_csr(
     sorted_sequence: Tensor,
     values: Tensor,
     sorted_sequence_crow_indices: Tensor,

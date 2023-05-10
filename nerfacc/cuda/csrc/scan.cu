@@ -23,12 +23,15 @@ torch::Tensor inclusive_sum_sparse_csr_forward(
 
     int64_t n_rows = crow_indices.size(0) - 1;
 
+    torch::Tensor cumsums = torch::empty_like(values);
+    if (cumsums.size(0) == 0) {
+        return cumsums;
+    }
+
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rows, threads.y)));
-
-    torch::Tensor cumsums = torch::empty_like(values);
 
     device::inclusive_scan_kernel<float, 16, 32><<<blocks, threads, 0, stream>>>(
         cumsums.data_ptr<float>(),
@@ -57,12 +60,15 @@ torch::Tensor inclusive_sum_sparse_csr_backward(
     int64_t n_rows = crow_indices.size(0) - 1;
     int64_t nse = grad_cumsums.size(0);
 
+    torch::Tensor grad_values = torch::empty_like(grad_cumsums);
+    if (grad_values.size(0) == 0) {
+        return grad_values;
+    }
+
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rows, threads.y)));
-
-    torch::Tensor grad_values = torch::empty_like(grad_cumsums);
 
     crow_indices = nse - crow_indices;
     device::inclusive_scan_kernel<float, 16, 32><<<blocks, threads, 0, stream>>>(
@@ -93,12 +99,15 @@ torch::Tensor exclusive_sum_sparse_csr_forward(
 
     int64_t n_rows = crow_indices.size(0) - 1;
 
+    torch::Tensor cumsums = torch::empty_like(values);
+    if (cumsums.size(0) == 0) {
+        return cumsums;
+    }
+
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rows, threads.y)));
-
-    torch::Tensor cumsums = torch::empty_like(values);
 
     device::exclusive_scan_kernel<float, 16, 32><<<blocks, threads, 0, stream>>>(
         cumsums.data_ptr<float>(),
@@ -127,12 +136,15 @@ torch::Tensor exclusive_sum_sparse_csr_backward(
     int64_t n_rows = crow_indices.size(0) - 1;
     int64_t nse = grad_cumsums.size(0);
 
+    torch::Tensor grad_values = torch::empty_like(grad_cumsums);
+    if (grad_values.size(0) == 0) {
+        return grad_values;
+    }
+
     at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
     int32_t max_blocks = 65535;
     dim3 threads = dim3(16, 32);
     dim3 blocks = dim3(min(max_blocks, ceil_div<int32_t>(n_rows, threads.y)));
-
-    torch::Tensor grad_values = torch::empty_like(grad_cumsums);
 
     crow_indices = nse - crow_indices;
     device::exclusive_scan_kernel<float, 16, 32><<<blocks, threads, 0, stream>>>(

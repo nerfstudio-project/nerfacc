@@ -93,6 +93,8 @@ class OccGridEstimator(AbstractEstimator):
         alpha_fn: Optional[Callable] = None,
         near_plane: float = 0.0,
         far_plane: float = 1e10,
+        t_min: Optional[Tensor] = None,  # [n_rays]
+        t_max: Optional[Tensor] = None,  # [n_rays]
         # rendering options
         render_step_size: float = 1e-3,
         early_stop_eps: float = 1e-4,
@@ -120,6 +122,10 @@ class OccGridEstimator(AbstractEstimator):
                 You should only provide either `sigma_fn` or `alpha_fn`.
             near_plane: Optional. Near plane distance. Default: 0.0.
             far_plane: Optional. Far plane distance. Default: 1e10.
+            t_min: Optional. Per-ray minimum distance. Tensor with shape (n_rays).
+                If profided, the marching will start from maximum of t_min and near_plane.
+            t_max: Optional. Per-ray maximum distance. Tensor with shape (n_rays).
+                If profided, the marching will stop by minimum of t_max and far_plane.
             render_step_size: Step size for marching. Default: 1e-3.
             early_stop_eps: Early stop threshold for skipping invisible space. Default: 1e-4.
             alpha_thre: Alpha threshold for skipping empty space. Default: 0.0.
@@ -147,9 +153,15 @@ class OccGridEstimator(AbstractEstimator):
 
         near_planes = torch.full_like(rays_o[..., 0], fill_value=near_plane)
         far_planes = torch.full_like(rays_o[..., 0], fill_value=far_plane)
+
+        if t_min is not None:
+            near_planes = torch.clamp(near_planes, min=t_min)
+        if t_max is not None:
+            far_planes = torch.clamp(far_planes, max=t_max)
+
         if stratified:
             near_planes += torch.rand_like(near_planes) * render_step_size
-        intervals, samples = traverse_grids(
+        intervals, samples, _ = traverse_grids(
             rays_o,
             rays_d,
             self.binaries,
@@ -172,7 +184,10 @@ class OccGridEstimator(AbstractEstimator):
 
             # Compute visibility of the samples, and filter out invisible samples
             if sigma_fn is not None:
-                sigmas = sigma_fn(t_starts, t_ends, ray_indices)
+                if t_starts.shape[0] != 0:
+                    sigmas = sigma_fn(t_starts, t_ends, ray_indices)
+                else:
+                    sigmas = torch.empty((0,), device=t_starts.device)
                 assert (
                     sigmas.shape == t_starts.shape
                 ), "sigmas must have shape of (N,)! Got {}".format(sigmas.shape)
@@ -185,7 +200,10 @@ class OccGridEstimator(AbstractEstimator):
                     alpha_thre=alpha_thre,
                 )
             elif alpha_fn is not None:
-                alphas = alpha_fn(t_starts, t_ends, ray_indices)
+                if t_starts.shape[0] != 0:
+                    alphas = alpha_fn(t_starts, t_ends, ray_indices)
+                else:
+                    alphas = torch.empty((0,), device=t_starts.device)
                 assert (
                     alphas.shape == t_starts.shape
                 ), "alphas must have shape of (N,)! Got {}".format(alphas.shape)
@@ -240,10 +258,89 @@ class OccGridEstimator(AbstractEstimator):
                 warmup_steps=warmup_steps,
             )
 
+    # adapted from https://github.com/kwea123/ngp_pl/blob/master/models/networks.py
+    @torch.no_grad()
+    def mark_invisible_cells(
+        self,
+        K: Tensor,
+        c2w: Tensor,
+        width: int,
+        height: int,
+        near_plane: float = 0.0,
+        chunk: int = 32**3,
+    ) -> None:
+        """Mark the cells that aren't covered by the cameras with density -1.
+        Should only be executed once before training starts.
+
+        Args:
+            K: Camera intrinsics of shape (N, 3, 3) or (1, 3, 3).
+            c2w: Camera to world poses of shape (N, 3, 4) or (N, 4, 4).
+            width: Image width in pixels
+            height: Image height in pixels
+            near_plane: Near plane distance
+            chunk: The chunk size to split the cells (to avoid OOM)
+        """
+        assert K.dim() == 3 and K.shape[1:] == (3, 3)
+        assert c2w.dim() == 3 and (
+            c2w.shape[1:] == (3, 4) or c2w.shape[1:] == (4, 4)
+        )
+        assert K.shape[0] == c2w.shape[0] or K.shape[0] == 1
+
+        N_cams = c2w.shape[0]
+        w2c_R = c2w[:, :3, :3].transpose(2, 1)  # (N_cams, 3, 3)
+        w2c_T = -w2c_R @ c2w[:, :3, 3:]  # (N_cams, 3, 1)
+
+        lvl_indices = self._get_all_cells()
+        for lvl, indices in enumerate(lvl_indices):
+            grid_coords = self.grid_coords[indices]
+
+            for i in range(0, len(indices), chunk):
+                x = grid_coords[i : i + chunk] / (self.resolution - 1)
+                indices_chunk = indices[i : i + chunk]
+                # voxel coordinates [0, 1]^3 -> world
+                xyzs_w = (
+                    self.aabbs[lvl, :3]
+                    + x * (self.aabbs[lvl, 3:] - self.aabbs[lvl, :3])
+                ).T
+                xyzs_c = w2c_R @ xyzs_w + w2c_T  # (N_cams, 3, chunk)
+                uvd = K @ xyzs_c  # (N_cams, 3, chunk)
+                uv = uvd[:, :2] / uvd[:, 2:]  # (N_cams, 2, chunk)
+                in_image = (
+                    (uvd[:, 2] >= 0)
+                    & (uv[:, 0] >= 0)
+                    & (uv[:, 0] < width)
+                    & (uv[:, 1] >= 0)
+                    & (uv[:, 1] < height)
+                )
+                covered_by_cam = (
+                    uvd[:, 2] >= near_plane
+                ) & in_image  # (N_cams, chunk)
+                # if the cell is visible by at least one camera
+                count = covered_by_cam.sum(0) / N_cams
+
+                too_near_to_cam = (
+                    uvd[:, 2] < near_plane
+                ) & in_image  # (N, chunk)
+                # if the cell is too close (in front) to any camera
+                too_near_to_any_cam = too_near_to_cam.any(0)
+                # a valid cell should be visible by at least one camera and not too close to any camera
+                valid_mask = (count > 0) & (~too_near_to_any_cam)
+
+                cell_ids_base = lvl * self.cells_per_lvl
+                self.occs[cell_ids_base + indices_chunk] = torch.where(
+                    valid_mask, 0.0, -1.0
+                )
+
     @torch.no_grad()
     def _get_all_cells(self) -> List[Tensor]:
         """Returns all cells of the grid."""
-        return [self.grid_indices] * self.levels
+        lvl_indices = []
+        for lvl in range(self.levels):
+            # filter out the cells with -1 density (non-visible to any camera)
+            cell_ids = lvl * self.cells_per_lvl + self.grid_indices
+            indices = self.grid_indices[self.occs[cell_ids] >= 0.0]
+            lvl_indices.append(indices)
+        return lvl_indices
 
     @torch.no_grad()
     def _sample_uniform_and_occupied_cells(self, n: int) -> List[Tensor]:
@@ -253,6 +350,9 @@ class OccGridEstimator(AbstractEstimator):
             uniform_indices = torch.randint(
                 self.cells_per_lvl, (n,), device=self.device
             )
+            # filter out the cells with -1 density (non-visible to any camera)
+            cell_ids = lvl * self.cells_per_lvl + uniform_indices
+            uniform_indices = uniform_indices[self.occs[cell_ids] >= 0.0]
             occupied_indices = torch.nonzero(self.binaries[lvl].flatten())[:, 0]
             if n < len(occupied_indices):
                 selector = torch.randint(
@@ -300,9 +400,8 @@ class OccGridEstimator(AbstractEstimator):
             # self.occs, _ = scatter_max(
             #     occ, indices, dim=0, out=self.occs * ema_decay
             # )
-        self.binaries = (
-            self.occs > torch.clamp(self.occs.mean(), max=occ_thre)
-        ).view(self.binaries.shape)
+        thre = torch.clamp(self.occs[self.occs >= 0].mean(), max=occ_thre)
+        self.binaries = (self.occs > thre).view(self.binaries.shape)
 
 
 def _meshgrid3d(

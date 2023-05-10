@@ -7,7 +7,6 @@
 
 #include "utils_cuda.cuh"
 
-
 namespace {
 namespace device {
 

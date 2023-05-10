@@ -37,7 +37,11 @@ def rendering(
 
     # Query sigma/alpha and color with gradients
     if rgb_sigma_fn is not None:
-        rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
+        if t_starts.shape[0] != 0:
+            rgbs, sigmas = rgb_sigma_fn(t_starts, t_ends, ray_indices)
+        else:
+            rgbs = torch.empty((0, 3), device=t_starts.device)
+            sigmas = torch.empty((0,), device=t_starts.device)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
         )
@@ -56,7 +60,11 @@ def rendering(
             "rgbs": rgbs,
         }
     elif rgb_alpha_fn is not None:
-        rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
+        if t_starts.shape[0] != 0:
+            rgbs, alphas = rgb_alpha_fn(t_starts, t_ends, ray_indices)
+        else:
+            rgbs = torch.empty((0, 3), device=t_starts.device)
+            alphas = torch.empty((0,), device=t_starts.device)
         assert rgbs.shape[-1] == 3, "rgbs must have 3 channels, got {}".format(
             rgbs.shape
         )
@@ -96,7 +104,9 @@ def rendering(
 
 
 def render_transmittance_from_alpha(
-    alphas: Tensor, crow_indices: Optional[Tensor] = None
+    alphas: Tensor, 
+    crow_indices: Optional[Tensor] = None, 
+    prefix_trans: Optional[Tensor] = None,
 ) -> Tensor:
     """Compute transmittance :math:`T_i` from alpha :math:`\\alpha_i`."""
     # FIXME raise a UserWarning if torch.cumprod is used.
@@ -111,6 +121,7 @@ def render_transmittance_from_density(
     t_ends: Tensor,
     sigmas: Tensor,
     crow_indices: Optional[Tensor] = None,
+    prefix_trans: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Tensor]:
     """Compute transmittance :math:`T_i` from density :math:`\\sigma_i`."""
     sigmas_dt = sigmas * (t_ends - t_starts)
@@ -120,7 +131,9 @@ def render_transmittance_from_density(
 
 
 def render_weight_from_alpha(
-    alphas: Tensor, crow_indices: Optional[Tensor] = None
+    alphas: Tensor, 
+    crow_indices: Optional[Tensor] = None, 
+    prefix_trans: Optional[Tensor] = None
 ) -> Tuple[Tensor, Tensor]:
     """Compute rendering weights :math:`w_i` from opacity :math:`\\alpha_i`."""
     trans = render_transmittance_from_alpha(alphas, crow_indices)
@@ -133,6 +146,7 @@ def render_weight_from_density(
     t_ends: Tensor,
     sigmas: Tensor,
     crow_indices: Optional[Tensor] = None,
+    prefix_trans: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """Compute rendering weights :math:`w_i` from density :math:`\\sigma_i` and interval :math:`\\delta_i`."""
     trans, alphas = render_transmittance_from_density(
@@ -148,6 +162,7 @@ def render_visibility_from_alpha(
     crow_indices: Optional[Tensor] = None,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
+    prefix_trans: Optional[Tensor] = None,
 ) -> Tensor:
     """Compute visibility from opacity :math:`\\alpha_i`."""
     trans = render_transmittance_from_alpha(alphas, crow_indices)
@@ -165,6 +180,7 @@ def render_visibility_from_density(
     crow_indices: Optional[Tensor] = None,
     early_stop_eps: float = 1e-4,
     alpha_thre: float = 0.0,
+    prefix_trans: Optional[Tensor] = None,
 ) -> Tensor:
     """Compute visibility from density :math:`\\sigma_i` and interval :math:`\\delta_i`."""
     trans, alphas = render_transmittance_from_density(
@@ -197,3 +213,29 @@ def accumulate_along_rays(
         outputs = segment_csr(src, crow_indices, reduce="sum")  # [nrows, D]
 
     return outputs
+
+
+def accumulate_along_rays_(
+    weights: Tensor,
+    values: Optional[Tensor] = None,
+    ray_indices: Optional[Tensor] = None,
+    outputs: Optional[Tensor] = None,
+) -> None:
+    """Accumulate volumetric values along the ray.
+
+    Inplace version of :func:`accumulate_along_rays`.
+    """
+    if values is None:
+        src = weights[..., None]
+    else:
+        assert values.dim() == weights.dim() + 1
+        assert weights.shape == values.shape[:-1]
+        src = weights[..., None] * values
+    if ray_indices is not None:
+        assert weights.dim() == 1, "weights must be flattened"
+        assert (
+            outputs.dim() == 2 and outputs.shape[-1] == src.shape[-1]
+        ), "outputs must be of shape (n_rays, D)"
+        outputs.index_add_(0, ray_indices, src)
+    else:
+        outputs.add_(src.sum(dim=-2))

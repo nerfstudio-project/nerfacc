@@ -103,7 +103,14 @@ def traverse_grids(
     far_planes: Optional[Tensor] = None,  # [n_rays]
     step_size: Optional[float] = 1e-3,
     cone_angle: Optional[float] = 0.0,
-) -> Tuple[RayIntervals, RaySamples]:
+    traverse_steps_limit: Optional[int] = None,
+    over_allocate: Optional[bool] = False,
+    rays_mask: Optional[Tensor] = None,  # [n_rays]
+    # pre-compute intersections
+    t_sorted: Optional[Tensor] = None,  # [n_rays, n_grids]
+    t_indices: Optional[Tensor] = None,  # [n_rays, n_grids]
+    hits: Optional[Tensor] = None,  # [n_rays, n_grids]
+) -> Tuple[RayIntervals, RaySamples, Tensor]:
     """Ray Traversal within Multiple Grids.
 
     Note:
@@ -119,29 +126,53 @@ def traverse_grids(
         step_size: Optional. Step size for ray traversal. Default to 1e-3.
         cone_angle: Optional. Cone angle for linearly-increased step size. 0. means
             constant step size. Default: 0.0.
+        traverse_steps_limit: Optional. Maximum number of samples per ray.
+        over_allocate: Optional. Whether to over-allocate the memory for the outputs.
+        rays_mask: Optional. (n_rays,) Skip some rays if given.
+        t_sorted: Optional. (n_rays, n_grids) Pre-computed sorted t values for each ray-grid pair. Default to None.
+        t_indices: Optional. (n_rays, n_grids) Pre-computed sorted t indices for each ray-grid pair. Default to None.
+        hits: Optional. (n_rays, n_grids) Pre-computed hit flags for each ray-grid pair. Default to None.
 
     Returns:
         A :class:`RayIntervals` object containing the intervals of the ray traversal, and
         a :class:`RaySamples` object containing the samples within each interval.
+        t :class:`Tensor` of shape (n_rays,) containing the terminated t values for each ray.
     """
-    # Compute ray aabb intersection for all levels of grid. [n_rays, m]
-    t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs)
 
     if near_planes is None:
         near_planes = torch.zeros_like(rays_o[:, 0])
     if far_planes is None:
         far_planes = torch.full_like(rays_o[:, 0], float("inf"))
 
-    intervals, samples = _C.traverse_grids(
+    if rays_mask is None:
+        rays_mask = torch.ones_like(rays_o[:, 0], dtype=torch.bool)
+    if traverse_steps_limit is None:
+        traverse_steps_limit = -1
+    if over_allocate:
+        assert (
+            traverse_steps_limit > 0
+        ), "traverse_steps_limit must be set if over_allocate is True."
+
+    if t_sorted is None or t_indices is None or hits is None:
+        # Compute ray aabb intersection for all levels of grid. [n_rays, m]
+        t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, aabbs)
+        # Sort the t values for each ray. [n_rays, m]
+        t_sorted, t_indices = torch.sort(
+            torch.cat([t_mins, t_maxs], dim=-1), dim=-1
+        )
+
+    # Traverse the grids.
+    intervals, samples, termination_planes = _C.traverse_grids(
         # rays
         rays_o.contiguous(),  # [n_rays, 3]
         rays_d.contiguous(),  # [n_rays, 3]
+        rays_mask.contiguous(),  # [n_rays]
         # grids
         binaries.contiguous(),  # [m, resx, resy, resz]
         aabbs.contiguous(),  # [m, 6]
         # intersections
-        t_mins.contiguous(),  # [n_rays, m]
-        t_maxs.contiguous(),  # [n_rays, m]
+        t_sorted.contiguous(),  # [n_rays, m]
+        t_indices.contiguous(),  # [n_rays, m]
         hits.contiguous(),  # [n_rays, m]
         # options
         near_planes.contiguous(),  # [n_rays]
@@ -150,8 +181,15 @@ def traverse_grids(
         cone_angle,
         True,
         True,
+        True,
+        traverse_steps_limit,
+        over_allocate,
     )
-    return RayIntervals._from_cpp(intervals), RaySamples._from_cpp(samples)
+    return (
+        RayIntervals._from_cpp(intervals),
+        RaySamples._from_cpp(samples),
+        termination_planes,
+    )
 
 
 def _enlarge_aabb(aabb, factor: float) -> Tensor:

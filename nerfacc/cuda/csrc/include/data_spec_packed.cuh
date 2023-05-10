@@ -17,6 +17,7 @@ struct PackedRaySegmentsSpec {
         ray_indices(spec.ray_indices.defined() ? spec.ray_indices.data_ptr<int64_t>() : nullptr),
         is_left(spec.is_left.defined() ? spec.is_left.data_ptr<bool>() : nullptr),
         is_right(spec.is_right.defined() ? spec.is_right.data_ptr<bool>() : nullptr),
+        is_valid(spec.is_valid.defined() ? spec.is_valid.data_ptr<bool>() : nullptr),
         // for dimensions
         n_edges(spec.vals.defined() ? spec.vals.numel() : 0),
         n_rays(spec.chunk_cnts.defined() ? spec.chunk_cnts.size(0) : 0),  // for flattened tensor
@@ -31,40 +32,13 @@ struct PackedRaySegmentsSpec {
     int64_t* ray_indices;
     bool* is_left;
     bool* is_right;
+    bool* is_valid;
 
     int64_t n_edges;
     int32_t n_rays;
     int32_t n_edges_per_ray;
 };
 
-struct PackedMultiScaleGridSpec {
-    PackedMultiScaleGridSpec(MultiScaleGridSpec& spec) :
-        data(spec.data.data_ptr<float>()),
-        occupied(spec.occupied.data_ptr<bool>()),
-        base_aabb(spec.base_aabb.data_ptr<float>()),
-        levels(spec.data.size(0)),
-        resolution{
-            (int32_t)spec.data.size(1), 
-            (int32_t)spec.data.size(2), 
-            (int32_t)spec.data.size(3)} 
-    { }
-    float* data;
-    bool* occupied;
-    float* base_aabb;
-    int32_t levels;
-    int3 resolution;
-};
-
-struct PackedRaysSpec {
-    PackedRaysSpec(RaysSpec& spec) :
-        origins(spec.origins.data_ptr<float>()),
-        dirs(spec.dirs.data_ptr<float>()),
-        N(spec.origins.size(0))
-    { }
-    float *origins;
-    float *dirs;
-    int32_t N;
-};
 
 struct SingleRaySpec {
     // TODO: check inv_dir if dir is zero.
@@ -77,23 +51,6 @@ struct SingleRaySpec {
         tmax{tmax}
     { }
 
-    __device__ SingleRaySpec(
-        PackedRaysSpec& rays, int32_t id, float tmin, float tmax) :
-        origin{
-            rays.origins[id * 3], 
-            rays.origins[id * 3 + 1], 
-            rays.origins[id * 3 + 2]},
-        dir{
-            rays.dirs[id * 3], 
-            rays.dirs[id * 3 + 1], 
-            rays.dirs[id * 3 + 2]},
-        inv_dir{
-            1.0f / rays.dirs[id * 3], 
-            1.0f / rays.dirs[id * 3 + 1], 
-            1.0f / rays.dirs[id * 3 + 2]},
-        tmin{tmin},
-        tmax{tmax}
-    { }
     float3 origin;
     float3 dir;
     float3 inv_dir;
