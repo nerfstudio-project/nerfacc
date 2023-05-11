@@ -17,8 +17,12 @@ from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 from nerfacc.estimators.occ_grid import OccGridEstimator
 from nerfacc.estimators.prop_net import PropNetEstimator
-from nerfacc.volrend import rendering, render_weight_from_density, accumulate_along_rays_
-from nerfacc.grid import traverse_grids, ray_aabb_intersect
+from nerfacc.grid import ray_aabb_intersect, traverse_grids
+from nerfacc.volrend import (
+    accumulate_along_rays_,
+    render_weight_from_density,
+    rendering,
+)
 
 NERF_SYNTHETIC_SCENES = [
     "chair",
@@ -273,10 +277,13 @@ def render_image_with_occgrid_test(
         )
     else:
         num_rays, _ = rays_shape
+
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         t_origins = rays.origins[ray_indices]
         t_dirs = rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts[:, None] + t_ends[:, None]) / 2.0
+        positions = (
+            t_origins + t_dirs * (t_starts[:, None] + t_ends[:, None]) / 2.0
+        )
         if timestamps is not None:
             # dnerf
             t = (
@@ -298,17 +305,17 @@ def render_image_with_occgrid_test(
     ray_mask = torch.ones(N_rays, device=device).bool()
 
     # 1 for synthetic scenes, 4 for real scenes
-    min_samples = 1 if cone_angle==0 else 4
+    min_samples = 1 if cone_angle == 0 else 4
 
     iter_samples = total_samples = 0
 
     rays_o = rays.origins
     rays_d = rays.viewdirs
-    
+
     near_planes = torch.full_like(rays_o[..., 0], fill_value=near_plane)
     far_planes = torch.full_like(rays_o[..., 0], fill_value=far_plane)
 
-    t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, estimator.aabbs)  
+    t_mins, t_maxs, hits = ray_aabb_intersect(rays_o, rays_d, estimator.aabbs)
 
     n_grids = estimator.binaries.size(0)
 
@@ -325,18 +332,15 @@ def render_image_with_occgrid_test(
     while iter_samples < max_samples:
 
         N_alive = ray_mask.sum().item()
-        if N_alive==0: break
+        if N_alive == 0:
+            break
 
         # the number of samples to add on each ray
-        N_samples = max(min(N_rays//N_alive, 64), min_samples)
+        N_samples = max(min(N_rays // N_alive, 64), min_samples)
         iter_samples += N_samples
 
         # ray marching
-        (
-            intervals, 
-            samples, 
-            termination_planes
-        ) = traverse_grids(
+        (intervals, samples, termination_planes) = traverse_grids(
             # rays
             rays_o,  # [n_rays, 3]
             rays_d,  # [n_rays, 3]
@@ -350,7 +354,7 @@ def render_image_with_occgrid_test(
             cone_angle,
             N_samples,
             True,
-            ray_mask, 
+            ray_mask,
             # pre-compute intersections
             t_sorted,  # [n_rays, m*2]
             t_indices,  # [n_rays, m*2]
@@ -384,20 +388,20 @@ def render_image_with_occgrid_test(
 
         accumulate_along_rays_(
             weights,
-            values=rgbs, 
-            ray_indices=ray_indices, 
+            values=rgbs,
+            ray_indices=ray_indices,
             outputs=rgb,
         )
         accumulate_along_rays_(
             weights,
-            values=None, 
-            ray_indices=ray_indices, 
+            values=None,
+            ray_indices=ray_indices,
             outputs=opacity,
         )
         accumulate_along_rays_(
             weights,
-            values=(t_starts + t_ends)[..., None] / 2.0, 
-            ray_indices=ray_indices, 
+            values=(t_starts + t_ends)[..., None] / 2.0,
+            ray_indices=ray_indices,
             outputs=depth,
         )
         # update near_planes using termination planes
@@ -410,7 +414,7 @@ def render_image_with_occgrid_test(
             packed_info[:, 1] == N_samples,
         )
         total_samples += ray_indices.shape[0]
-    
+
     rgb = rgb + render_bkgd * (1.0 - opacity)
     depth = depth / opacity.clamp_min(torch.finfo(rgbs.dtype).eps)
 

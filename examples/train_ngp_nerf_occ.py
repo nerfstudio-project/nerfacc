@@ -19,8 +19,8 @@ from examples.utils import (
     MIPNERF360_UNBOUNDED_SCENES,
     NERF_SYNTHETIC_SCENES,
     render_image_with_occgrid,
-    set_random_seed,
     render_image_with_occgrid_test,
+    set_random_seed,
 )
 from nerfacc.estimators.occ_grid import OccGridEstimator
 
