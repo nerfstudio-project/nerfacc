@@ -296,13 +296,12 @@ def render_image_with_occgrid_test(
             rgbs, sigmas = radiance_field(positions, t_dirs)
         return rgbs, sigmas.squeeze(-1)
 
-    N_rays = rays.origins.shape[0]
     device = rays.origins.device
-    opacity = torch.zeros(N_rays, 1, device=device)
-    depth = torch.zeros(N_rays, 1, device=device)
-    rgb = torch.zeros(N_rays, 3, device=device)
+    opacity = torch.zeros(num_rays, 1, device=device)
+    depth = torch.zeros(num_rays, 1, device=device)
+    rgb = torch.zeros(num_rays, 3, device=device)
 
-    ray_mask = torch.ones(N_rays, device=device).bool()
+    ray_mask = torch.ones(num_rays, device=device).bool()
 
     # 1 for synthetic scenes, 4 for real scenes
     min_samples = 1 if cone_angle == 0 else 4
@@ -325,19 +324,19 @@ def render_image_with_occgrid_test(
         t_sorted = torch.cat([t_mins, t_maxs], -1)
         t_indices = torch.arange(
             0, n_grids * 2, device=t_mins.device, dtype=torch.int64
-        ).expand(N_rays, n_grids * 2)
+        ).expand(num_rays, n_grids * 2)
 
     opc_thre = 1 - early_stop_eps
 
     while iter_samples < max_samples:
 
-        N_alive = ray_mask.sum().item()
-        if N_alive == 0:
+        n_alive = ray_mask.sum().item()
+        if n_alive == 0:
             break
 
         # the number of samples to add on each ray
-        N_samples = max(min(N_rays // N_alive, 64), min_samples)
-        iter_samples += N_samples
+        n_samples = max(min(num_rays // n_alive, 64), min_samples)
+        iter_samples += n_samples
 
         # ray marching
         (intervals, samples, termination_planes) = traverse_grids(
@@ -352,7 +351,7 @@ def render_image_with_occgrid_test(
             far_planes,  # [n_rays]
             render_step_size,
             cone_angle,
-            N_samples,
+            n_samples,
             True,
             ray_mask,
             # pre-compute intersections
@@ -373,7 +372,7 @@ def render_image_with_occgrid_test(
             t_ends,
             sigmas,
             ray_indices=ray_indices,
-            n_rays=N_rays,
+            n_rays=num_rays,
             prefix_trans=1 - opacity[ray_indices].squeeze(-1),
         )
         if alpha_thre > 0:
@@ -411,7 +410,7 @@ def render_image_with_occgrid_test(
             # early stopping
             opacity.view(-1) <= opc_thre,
             # remove rays that have reached the far plane
-            packed_info[:, 1] == N_samples,
+            packed_info[:, 1] == n_samples,
         )
         total_samples += ray_indices.shape[0]
 
