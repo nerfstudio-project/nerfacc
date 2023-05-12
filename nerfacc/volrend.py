@@ -104,8 +104,8 @@ def rendering(
 
 
 def render_transmittance_from_alpha(
-    alphas: Tensor, 
-    crow_indices: Optional[Tensor] = None, 
+    alphas: Tensor,
+    crow_indices: Optional[Tensor] = None,
     prefix_trans: Optional[Tensor] = None,
 ) -> Tensor:
     """Compute transmittance :math:`T_i` from alpha :math:`\\alpha_i`."""
@@ -131,9 +131,9 @@ def render_transmittance_from_density(
 
 
 def render_weight_from_alpha(
-    alphas: Tensor, 
-    crow_indices: Optional[Tensor] = None, 
-    prefix_trans: Optional[Tensor] = None
+    alphas: Tensor,
+    crow_indices: Optional[Tensor] = None,
+    prefix_trans: Optional[Tensor] = None,
 ) -> Tuple[Tensor, Tensor]:
     """Compute rendering weights :math:`w_i` from opacity :math:`\\alpha_i`."""
     trans = render_transmittance_from_alpha(alphas, crow_indices)
