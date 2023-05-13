@@ -3,6 +3,8 @@ from typing import List, Optional, Tuple, Union
 import torch
 import torch.nn.functional as F
 from torch import Tensor
+from . import cuda as _C
+from torch_scatter import gather_csr
 
 
 def arange(crow_indices: Tensor) -> Tensor:
@@ -20,6 +22,25 @@ def arange(crow_indices: Tensor) -> Tensor:
         nse, device=crow_indices.device, dtype=crow_indices.dtype
     )
     return ids - strides.repeat_interleave(row_cnts)
+
+
+def linspace(start: Tensor, end: Tensor, crow_indices: Tensor) -> Tensor:
+    """torch.linspace() for Sparse CSR Tensor."""
+    # start, end: (nrows,)
+    # crow_indices: (nrows + 1,)
+    assert start.dim() == end.dim() == 1
+    assert crow_indices.dim() == 1
+    assert (
+        start.shape[0] == end.shape[0] == crow_indices.shape[0] - 1
+    ), "start, end, and crow_indices must have the same length (nrows + 1)."
+    steps = crow_indices[1:] - crow_indices[:-1]  # (nrows,)
+    
+    start_csr = gather_csr(start, crow_indices)  # (nse,)
+    end_csr = gather_csr(end, crow_indices)  # (nse,)
+    steps_csr = gather_csr(steps, crow_indices)  # (nse,)
+    range_csr = arange(crow_indices)  # (nse,)
+    values = range_csr / (steps_csr - 1)  * (end_csr - start_csr) + start_csr  # (nse,)
+    return values
 
 
 def exclude_edges(
@@ -53,3 +74,38 @@ def exclude_edges(
         ids + strides[1:].repeat_interleave(row_cnts_out)
     ]  # (nse_out,)
     return lefts, rights, crow_indices_out
+
+
+def searchsorted(
+    sorted_sequence: Tensor,
+    sorted_sequence_crow_indices: Tensor,
+    values: Tensor,
+    values_crow_indices: Tensor,
+) -> Tuple[Tensor, Tensor]:
+    """Searchsorted (with clamp) for CSR Sparse tensor.
+    
+    Equavaluent to:
+
+    ```python
+    ids_right = torch.searchsorted(sorted_sequence, values, right=True)
+    ids_left = ids_right - 1
+    ids_right = torch.clamp(ids_right, 0, sorted_sequence.shape[-1] - 1)
+    ids_left = torch.clamp(ids_left, 0, sorted_sequence.shape[-1] - 1)
+    ```
+    """
+    assert (
+        sorted_sequence.dim() == sorted_sequence_crow_indices.dim() == 1
+    ), "sorted_sequence and sorted_sequence_crow_indices must be 1D tensors."
+    assert (
+        values.dim() == values_crow_indices.dim() == 1
+    ), "values and values_crow_indices must be 1D tensors."
+    assert (
+        sorted_sequence_crow_indices.shape[0] == values_crow_indices.shape[0]
+    ), "sorted_sequence_crow_indices and values_crow_indices must have the same length (nrows + 1)."
+    ids_left, ids_right = _C.searchsorted_clamp_sparse_csr(
+        sorted_sequence.contiguous(),
+        sorted_sequence_crow_indices.contiguous(),
+        values.contiguous(),
+        values_crow_indices.contiguous(),
+    )
+    return ids_left, ids_right
