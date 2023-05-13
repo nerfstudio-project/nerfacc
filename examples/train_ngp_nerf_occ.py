@@ -19,6 +19,7 @@ from examples.utils import (
     MIPNERF360_UNBOUNDED_SCENES,
     NERF_SYNTHETIC_SCENES,
     render_image_with_occgrid,
+    render_image_with_occgrid_test,
     set_random_seed,
 )
 from nerfacc.estimators.occ_grid import OccGridEstimator
@@ -44,11 +45,6 @@ parser.add_argument(
     default="lego",
     choices=NERF_SYNTHETIC_SCENES + MIPNERF360_UNBOUNDED_SCENES,
     help="which scene to use",
-)
-parser.add_argument(
-    "--test_chunk_size",
-    type=int,
-    default=8192,
 )
 args = parser.parse_args()
 
@@ -233,7 +229,9 @@ for step in range(max_steps + 1):
                 pixels = data["pixels"]
 
                 # rendering
-                rgb, acc, depth, _ = render_image_with_occgrid(
+                rgb, acc, depth, _ = render_image_with_occgrid_test(
+                    1024,
+                    # scene
                     radiance_field,
                     estimator,
                     rays,
@@ -243,8 +241,6 @@ for step in range(max_steps + 1):
                     render_bkgd=render_bkgd,
                     cone_angle=cone_angle,
                     alpha_thre=alpha_thre,
-                    # test options
-                    test_chunk_size=args.test_chunk_size,
                 )
                 mse = F.mse_loss(rgb, pixels)
                 psnr = -10.0 * torch.log(mse) / np.log(10.0)
