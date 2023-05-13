@@ -214,7 +214,7 @@ bash script.sh nerfsyn-nerfacc-occgrid 0
 #### Awesome Papers.
 - [Representing Volumetric Videos as Dynamic MLP Maps, CVPR 2023](https://github.com/zju3dv/mlp_maps)
 - [NeRSemble: Multi-view Radiance Field Reconstruction of Human Heads, ArXiv 2023](https://tobias-kirschstein.github.io/nersemble/)
-- [HumanRF: High-Fidelity Neural Radiance Fields for Humans in Motion](https://synthesiaresearch.github.io/humanrf/)
+- [HumanRF: High-Fidelity Neural Radiance Fields for Humans in Motion, ArXiv 2023](https://synthesiaresearch.github.io/humanrf/)
 
 ## Common Installation Issues
 
