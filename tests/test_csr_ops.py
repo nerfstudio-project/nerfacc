@@ -1,5 +1,6 @@
 import pytest
 import torch
+import torch.nn.functional as F
 
 device = "cuda:0"
 
@@ -132,6 +133,31 @@ def test_interp():
     assert torch.allclose(ret.flatten(), ret_csr)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_inv_transform():
+    from nerfacc.csr_ops import inv_transform, interp, exclude_edges
+
+    xp = torch.randn((100, 64), device=device)
+    xp = torch.sort(xp, -1)[0]
+    fp = torch.randn_like(xp)
+    fp = torch.sort(fp, -1)[0]
+
+    cnts = torch.full((100,), 10, device=device, dtype=torch.int64)
+    crow_indices = torch.cumsum(F.pad(cnts, (1, 0), value=0), dim=0)
+
+    xp_csr = xp.to_sparse_csr()
+    fp_csr = fp.to_sparse_csr()
+    x_csr = inv_transform(
+        crow_indices, xp_csr.values(), fp_csr.values(), xp_csr.crow_indices(), False
+    )
+
+    f_csr = interp(
+        x_csr, crow_indices, xp_csr.values(), fp_csr.values(), xp_csr.crow_indices()
+    )
+    f0, f1, _ = exclude_edges(f_csr, crow_indices)
+    
+    assert torch.all((f1 - f0).reshape(100, -1).std(-1).abs() < 1e-4)
+
 
 if __name__ == "__main__":
     test_arange()
@@ -139,3 +165,4 @@ if __name__ == "__main__":
     test_exclude_edges()
     test_searchsorted()
     test_interp()
+    test_inv_transform()

@@ -24,7 +24,7 @@ def arange(crow_indices: Tensor) -> Tensor:
     return ids - strides.repeat_interleave(row_cnts)
 
 
-def linspace(start: Tensor, end: Tensor, crow_indices: Tensor) -> Tensor:
+def linspace(start: Tensor, end: Tensor, crow_indices: Tensor, stratified: bool = False) -> Tensor:
     """torch.linspace() for Sparse CSR Tensor."""
     # start, end: (nrows,)
     # crow_indices: (nrows + 1,)
@@ -38,7 +38,10 @@ def linspace(start: Tensor, end: Tensor, crow_indices: Tensor) -> Tensor:
     end_csr = gather_csr(end, crow_indices)  # (nse,)
     steps_csr = gather_csr(steps, crow_indices)  # (nse,)
     range_csr = arange(crow_indices)  # (nse,)
-    values = range_csr / (steps_csr - 1)  * (end_csr - start_csr) + start_csr  # (nse,)
+    if stratified:
+        noise = torch.rand_like(start) * 2 - 1  # (nrows,) in (-1, 1)
+        range_csr = range_csr + gather_csr(noise, crow_indices)  # (nse,)
+    values = torch.clamp(range_csr / (steps_csr - 1), 0, 1)  * (end_csr - start_csr) + start_csr  # (nse,)
     return values
 
 
@@ -135,5 +138,25 @@ def interp(
     fp0, fp1 = fp.gather(-1, below), fp.gather(-1, above)
     xp0, xp1 = xp.gather(-1, below), xp.gather(-1, above)
     offset = torch.clamp(torch.nan_to_num((x - xp0) / (xp1 - xp0), 0), 0, 1)
-    ret = fp0 + offset * (fp1 - fp0)
-    return ret
+    f = fp0 + offset * (fp1 - fp0)
+    return f
+
+
+def inv_transform(
+    crow_indices: Tensor,
+    xp: Tensor,
+    fp: Tensor,
+    xp_crow_indices: Tensor,
+    stratified: bool = False,
+) -> Tensor:
+    """Inverse Transform Sampling for CSR Sparse tensor."""
+    # range of fp for each row   
+    f_floor = fp.gather(-1, xp_crow_indices[:-1])  # (nrows,)
+    f_ceil = fp.gather(-1, xp_crow_indices[1:] - 1)  # (nrows,)
+
+    # linspace for f
+    f = linspace(f_floor, f_ceil, crow_indices, stratified=stratified)  # (nse,)
+
+    # searchsorted the bin indices
+    x = interp(f, crow_indices, fp, xp, xp_crow_indices)
+    return x
