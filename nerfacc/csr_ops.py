@@ -34,7 +34,6 @@ def linspace(start: Tensor, end: Tensor, crow_indices: Tensor) -> Tensor:
         start.shape[0] == end.shape[0] == crow_indices.shape[0] - 1
     ), "start, end, and crow_indices must have the same length (nrows + 1)."
     steps = crow_indices[1:] - crow_indices[:-1]  # (nrows,)
-    
     start_csr = gather_csr(start, crow_indices)  # (nse,)
     end_csr = gather_csr(end, crow_indices)  # (nse,)
     steps_csr = gather_csr(steps, crow_indices)  # (nse,)
@@ -109,3 +108,32 @@ def searchsorted(
         values_crow_indices.contiguous(),
     )
     return ids_left, ids_right
+
+
+def interp(
+    x: Tensor,
+    x_crow_indices: Tensor,
+    xp: Tensor,
+    fp: Tensor,
+    xp_crow_indices: Tensor,
+) -> Tensor:
+    """np.interp() for Sparse CSR Tensor.
+    
+    Equavaluent to:
+
+    ```python
+    indices = torch.searchsorted(xp, x, right=True)
+    below = torch.clamp(indices - 1, 0, xp.shape[-1] - 1)
+    above = torch.clamp(indices, 0, xp.shape[-1] - 1)
+    fp0, fp1 = fp.gather(-1, below), fp.gather(-1, above)
+    xp0, xp1 = xp.gather(-1, below), xp.gather(-1, above)
+    offset = torch.clamp(torch.nan_to_num((x - xp0) / (xp1 - xp0), 0), 0, 1)
+    ret = fp0 + offset * (fp1 - fp0)
+    ```
+    """
+    below, above = searchsorted(xp, xp_crow_indices, x, x_crow_indices)
+    fp0, fp1 = fp.gather(-1, below), fp.gather(-1, above)
+    xp0, xp1 = xp.gather(-1, below), xp.gather(-1, above)
+    offset = torch.clamp(torch.nan_to_num((x - xp0) / (xp1 - xp0), 0), 0, 1)
+    ret = fp0 + offset * (fp1 - fp0)
+    return ret
