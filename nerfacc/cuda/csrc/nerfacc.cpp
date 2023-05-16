@@ -55,8 +55,8 @@ std::tuple<RaySegmentsSpec, RaySegmentsSpec, torch::Tensor> traverse_grids(
     const torch::Tensor binaries,  // [n_grids, resx, resy, resz]
     const torch::Tensor aabbs,     // [n_grids, 6]
     // intersections
-    const torch::Tensor t_sorted,  // [n_rays, n_grids]
-    const torch::Tensor t_indices,  // [n_rays, n_grids]
+    const torch::Tensor t_sorted,  // [n_rays, n_grids * 2]
+    const torch::Tensor t_indices,  // [n_rays, n_grids * 2]
     const torch::Tensor hits,    // [n_rays, n_grids]
     // options
     const torch::Tensor near_planes,
