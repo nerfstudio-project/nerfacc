@@ -55,5 +55,5 @@ for torch_version, wheel_names in wheels_dict.items():
     with open(f"{torch_version}.html", "w") as f:
         f.write(torch_version_html)
     bucket.Object(f"whl/{torch_version}.html").upload_file(
-        f"{torch_version}.html", args
+        f"{torch_version}.html", html_args
     )
