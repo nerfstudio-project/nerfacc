@@ -124,16 +124,12 @@ jobs:
         if: ${{ matrix.cuda-version == 'cpu' }}
         run: |
           BUILD_NO_CUDA=1 pip install .
-        shell:
-          bash
 
       - name: Install main package for GPU
         if: ${{ matrix.cuda-version != 'cpu' }}
         run: |
           source .github/workflows/cuda/${{ runner.os }}-env.sh ${{ matrix.cuda-version }}
           pip install .
-        shell:
-          bash
 
       - name: Test installation
         run: |
