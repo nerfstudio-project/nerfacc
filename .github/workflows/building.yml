@@ -121,27 +121,22 @@ jobs:
         if: ${{ matrix.cuda-version == 'cpu' }}
         run: |
           BUILD_NO_CUDA=1 pip install .
-        shell:
-          bash
-
-      - name: Install main package for GPU
-        if: ${{ matrix.cuda-version != 'cpu' }}
-        run: |
-          source .github/workflows/cuda/${{ runner.os }}-env.sh ${{ matrix.cuda-version }}
-          pip install .
-        shell:
-          bash
-
-      - name: Test installation
-        run: |
-          python -c "import nerfacc; print('nerfacc:', nerfacc.__version__)"
 
       - name: Build wheel
         run: |
           pip install wheel
           source .github/workflows/cuda/${{ runner.os }}-env.sh ${{ matrix.cuda-version }}
           python setup.py bdist_wheel --dist-dir=dist
-        shell: bash
+        shell: bash  # `source` does not exist in windows powershell
+
+      - name: Test wheel
+        run: |
+          cd dist
+          ls -lah
+          pip install *.whl
+          python -c "import nerfacc; print('nerfacc:', nerfacc.__version__)"
+          cd ..
+        shell: bash  # `ls -lah` does not exist in windows powershell
 
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v2
@@ -169,21 +164,13 @@ jobs:
 
       - name: Upgrade pip
         run: |
-          pip install --upgrade setuptools
           pip install boto3
-      
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-west-2
 
       - name: Update AWS listing
         run: |
           python scripts/run_aws_listing.py \
-            --access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }} \
-            --secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
             --bucket="nerfacc-bucket" \
             --region="us-west-2"
-
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

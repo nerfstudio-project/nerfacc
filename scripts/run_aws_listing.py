@@ -1,11 +1,9 @@
 import argparse
 from collections import defaultdict
 
-from boto3 import client
+from boto3 import resource
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--access_key_id", type=str, required=True)
-parser.add_argument("--secret_access_key", type=str, required=True)
 parser.add_argument("--bucket", type=str, required=True)
 parser.add_argument("--region", type=str, required=True)
 args = parser.parse_args()
@@ -19,13 +17,7 @@ html_args = {
     "ACL": "public-read",
 }
 
-s3 = client(
-    "s3",
-    aws_access_key_id=args.access_key_id,
-    aws_secret_access_key=args.secret_access_key,
-)
-
-bucket = s3.Bucket(name="nerfacc-bucket")
+bucket = resource("s3").Bucket(name="nerfacc-bucket")
 
 wheels_dict = defaultdict(list)
 for obj in bucket.objects.filter(Prefix="whl"):
@@ -38,8 +30,10 @@ for obj in bucket.objects.filter(Prefix="whl"):
 index_html = html.format(
     "\n".join(
         [
-            href.format(f"{torch_version}.html".replace("+", "%2B"), version)
-            for version in wheels_dict
+            href.format(
+                f"{torch_version}.html".replace("+", "%2B"), torch_version
+            )
+            for torch_version in wheels_dict
         ]
     )
 )
@@ -53,7 +47,8 @@ for torch_version, wheel_names in wheels_dict.items():
         "\n".join(
             [
                 href.format(
-                    f"{ROOT_URL}/{wheel_name}".replace("+", "%2B"), wheel_name
+                    f"{ROOT_URL}/{wheel_name}".replace("+", "%2B"),
+                    wheel_name.split("/")[-1],
                 )
                 for wheel_name in wheel_names
             ]
@@ -63,5 +58,5 @@ for torch_version, wheel_names in wheels_dict.items():
     with open(f"{torch_version}.html", "w") as f:
         f.write(torch_version_html)
     bucket.Object(f"whl/{torch_version}.html").upload_file(
-        f"{torch_version}.html", args
+        f"{torch_version}.html", html_args
     )
