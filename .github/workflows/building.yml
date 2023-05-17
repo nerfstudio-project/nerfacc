@@ -130,6 +130,7 @@ jobs:
           pip install wheel
           source .github/workflows/cuda/${{ runner.os }}-env.sh ${{ matrix.cuda-version }}
           python setup.py bdist_wheel --dist-dir=dist
+        shell: bash  # `source` does not exist in windows powershell
 
       - name: Test wheel
         run: |
