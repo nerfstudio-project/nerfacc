@@ -48,14 +48,14 @@ We also provide pre-built wheels covering major combinations of Pytorch + CUDA s
 pip install nerfacc -f https://nerfacc-bucket.s3.us-west-2.amazonaws.com/whl/torch-1.13.0_cu117.html
 ```
 
-| Windows & Linux | `cu102` | `cu113` | `cu116` | `cu117` |
-|-----------------|---------|---------|---------|---------|
-| torch 1.10.0    | ✅      | ✅      |         |         |
-| torch 1.11.0    | ✅*     | ✅      |         |         |
-| torch 1.12.0    | ✅*     | ✅      | ✅      |         |
-| torch 1.13.0    |         |         | ✅      | ✅      |
+| Windows & Linux | `cu113` | `cu115` | `cu116` | `cu117` | `cu118` |
+|-----------------|---------|---------|---------|---------|---------|
+| torch 1.11.0    | ✅      | ✅      |         |         |         |
+| torch 1.12.0    | ✅      |         | ✅      |         |         |
+| torch 1.13.0    |         |         | ✅      | ✅      |         |
+| torch 2.0.0     |         |         |         | ✅      | ✅      |
 
-\* Pytorch does not support Windows pre-built wheels for those combinations thus we do not support as well.
+For previous version of nerfacc, please check [here](https://nerfacc-bucket.s3.us-west-2.amazonaws.com/whl/index.html) on the supported pre-built wheels.
 
 ## Usage
 
