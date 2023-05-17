@@ -30,7 +30,9 @@ for obj in bucket.objects.filter(Prefix="whl"):
 index_html = html.format(
     "\n".join(
         [
-            href.format(f"{torch_version}.html".replace("+", "%2B"), torch_version)
+            href.format(
+                f"{torch_version}.html".replace("+", "%2B"), torch_version
+            )
             for torch_version in wheels_dict
         ]
     )
@@ -45,7 +47,8 @@ for torch_version, wheel_names in wheels_dict.items():
         "\n".join(
             [
                 href.format(
-                    f"{ROOT_URL}/{wheel_name}".replace("+", "%2B"), wheel_name.split("/")[-1]
+                    f"{ROOT_URL}/{wheel_name}".replace("+", "%2B"),
+                    wheel_name.split("/")[-1],
                 )
                 for wheel_name in wheel_names
             ]
