@@ -139,6 +139,7 @@ jobs:
           pip install *.whl
           python -c "import nerfacc; print('nerfacc:', nerfacc.__version__)"
           cd ..
+        shell: bash  # `ls -lah` does not exist in windows powershell
 
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v2
