@@ -125,22 +125,19 @@ jobs:
         run: |
           BUILD_NO_CUDA=1 pip install .
 
-      - name: Install main package for GPU
-        if: ${{ matrix.cuda-version != 'cpu' }}
-        run: |
-          source .github/workflows/cuda/${{ runner.os }}-env.sh ${{ matrix.cuda-version }}
-          pip install .
-
-      - name: Test installation
-        run: |
-          python -c "import nerfacc; print('nerfacc:', nerfacc.__version__)"
-
       - name: Build wheel
         run: |
           pip install wheel
           source .github/workflows/cuda/${{ runner.os }}-env.sh ${{ matrix.cuda-version }}
           python setup.py bdist_wheel --dist-dir=dist
-        shell: bash
+
+      - name: Test wheel
+        run: |
+          cd dist
+          ls -lah
+          pip install *.whl
+          python -c "import nerfacc; print('nerfacc:', nerfacc.__version__)"
+          cd ..
 
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v2
