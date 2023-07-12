@@ -44,11 +44,11 @@ class PropNetEstimator(AbstractEstimator):
         n_rays: int,
         near_plane: float,
         far_plane: float,
-        sampling_type: Literal["uniform", "lindisp"] = "lindisp",
+        sampling_type: Literal["uniform", "lindisp", "piecewise"] = "piecewise",
         # training options
         stratified: bool = False,
         requires_grad: bool = False,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, dict]:
         """Sampling with CDFs from proposal networks.
 
         Note:
@@ -126,7 +126,10 @@ class PropNetEstimator(AbstractEstimator):
         if requires_grad:
             self.prop_cache.append((intervals, None))
 
-        return t_starts, t_ends
+        extras = {}
+        extras["intervals"] = intervals
+
+        return t_starts, t_ends, extras
 
     @torch.enable_grad()
     def compute_loss(self, trans: Tensor, loss_scaler: float = 1.0) -> Tensor:
@@ -213,7 +216,7 @@ def get_proposal_requires_grad_fn(
 
 
 def _transform_stot(
-    transform_type: Literal["uniform", "lindisp"],
+    transform_type: Literal["uniform", "lindisp", "piecewise"],
     s_vals: torch.Tensor,
     t_min: torch.Tensor,
     t_max: torch.Tensor,
@@ -222,6 +225,8 @@ def _transform_stot(
         _contract_fn, _icontract_fn = lambda x: x, lambda x: x
     elif transform_type == "lindisp":
         _contract_fn, _icontract_fn = lambda x: 1 / x, lambda x: 1 / x
+    elif transform_type == "piecewise":
+        _contract_fn, _icontract_fn = lambda x: torch.where(x < 1, x / 2, 1 - 1 / (2 * x)), lambda x: torch.where(x < 0.5, 2 * x, 1 / (2 - 2 * x)),
     else:
         raise ValueError(f"Unknown transform_type: {transform_type}")
     s_min, s_max = _contract_fn(t_min), _contract_fn(t_max)
