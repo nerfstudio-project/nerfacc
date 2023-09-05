@@ -260,7 +260,7 @@ def render_transmittance_from_density(
     alphas = 1.0 - torch.exp(-sigmas_dt)
     trans = torch.exp(-exclusive_sum(sigmas_dt, packed_info))
     if prefix_trans is not None:
-        trans *= prefix_trans
+        trans = trans * prefix_trans
     return trans, alphas
 
 
