@@ -360,7 +360,7 @@ class OccGridEstimator(AbstractEstimator):
         assert K.shape[0] == c2w.shape[0] or K.shape[0] == 1
         assert masks is not None and len(masks) == c2w.shape[0]
         assert masks[0].dim() == 2
-        assert consensus_ratio > 1.0
+        assert consensus_ratio >= 1.0
 
         grid_res = self.resolution
         cells_per_lvl = self.cells_per_lvl
@@ -398,7 +398,7 @@ class OccGridEstimator(AbstractEstimator):
                 in_mask = in_mask.sum(0) >= (N_cams // consensus_ratio)
 
                 cell_ids_base = lvl * cells_per_lvl
-                occ_grid[cell_ids_base + indices_chunk] = torch.where(in_mask, 1.0, -1.0)
+                occ_grid[cell_ids_base + indices_chunk] = torch.where(in_mask, 0.0, -1.0)
 
         # Dilate all the not empty cells
         all_lvl_indices = [torch.arange(int(grid_res.prod().item()))]

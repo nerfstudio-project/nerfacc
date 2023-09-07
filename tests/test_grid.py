@@ -233,10 +233,42 @@ def test_mark_invisible_cells():
     assert (grid_estimator.occs == 0).sum() == 53412
 
 
+@pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
+def test_mark_invisible_cells_with_masks():
+    from nerfacc import OccGridEstimator
+
+    levels = 4
+    resolution = 32
+    width = 100
+    height = 100
+    fx, fy = width, height
+    cx, cy = width / 2, height / 2
+
+    aabb = torch.tensor([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], device=device)
+
+    grid_estimator = OccGridEstimator(
+        roi_aabb=aabb, resolution=resolution, levels=levels
+    ).to(device)
+
+    K = torch.tensor([[[fx, 0, cx], [0, fy, cy], [0, 0, 1]]], device=device)
+
+    pose = torch.tensor(
+        [[[-1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 2.5]]],
+        device=device,
+    )
+
+    mask = torch.ones((1, height, width), device=device)
+    grid_estimator.mark_invisible_cells_with_masks(K, pose, width, height, mask)
+
+    assert (grid_estimator.occs == -1).sum() == 0
+    assert (grid_estimator.occs == 0).sum() == 131072
+
+
 if __name__ == "__main__":
     test_ray_aabb_intersect()
     test_traverse_grids()
     test_traverse_grids_with_near_far_planes()
     test_sampling_with_min_max_distances()
     test_mark_invisible_cells()
+    test_mark_invisible_cells_with_masks()
     test_traverse_grids_test_mode()
