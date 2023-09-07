@@ -332,6 +332,85 @@ class OccGridEstimator(AbstractEstimator):
                 )
 
     @torch.no_grad()
+    def mark_invisible_cells_with_masks(
+        self,
+        K: torch.Tensor,
+        c2w: torch.Tensor,
+        width: int,
+        height: int,
+        masks: torch.Tensor,
+        consensus_ratio: float = 1.0,
+        chunk: int = 32**3,
+    ) -> None:
+        """
+        Mark the cells that aren't covered by the masks with density -1.
+        As seen in the paper: VaxNeRF: Revisiting the Classic for Voxel-Accelerated Neural Radiance Field
+
+        Args:
+            K: Camera intrinsics of shape (N, 3, 3) or (1, 3, 3).
+            c2w: Camera to world poses of shape (N, 3, 4) or (N, 4, 4).
+            width: Image width in pixels
+            height: Image height in pixels
+            masks (torch.Tensor): A list of masks of shape (height, width).
+            consensus_ratio (float, optional): The ratio of cameras that should see a cell as occupied.
+            chunk (int, optional): The chunk size to split the cells (to avoid OOM)
+        """
+        assert K.dim() == 3 and K.shape[1:] == (3, 3)
+        assert c2w.dim() == 3 and (c2w.shape[1:] == (3, 4) or c2w.shape[1:] == (4, 4))
+        assert K.shape[0] == c2w.shape[0] or K.shape[0] == 1
+        assert masks is not None and len(masks) == c2w.shape[0]
+        assert masks[0].dim() == 2
+        assert consensus_ratio > 1.0
+
+        grid_res = self.resolution
+        cells_per_lvl = self.cells_per_lvl
+        occ_grid = self.occs
+        aabbs = self.aabbs
+
+        grid_coords = self.grid_coords
+        lvl_indices = self._get_all_cells()
+
+        N_cams = c2w.shape[0]
+        w2c_R = c2w[:, :3, :3].transpose(2, 1)  # (N_cams, 3, 3)
+        w2c_T = -w2c_R @ c2w[:, :3, 3:]  # (N_cams, 3, 1)
+
+        for lvl, indices in enumerate(lvl_indices):
+            grid_coords_indices = grid_coords[indices]
+            for i in range(0, len(indices), chunk):
+                x = grid_coords_indices[i : i + chunk] / (grid_res - 1)
+                indices_chunk = indices[i : i + chunk]
+                # voxel coordinates [0, 1]^3 -> world
+                xyzs_w = (aabbs[lvl, :3] + x * (aabbs[lvl, 3:] - aabbs[lvl, :3])).T
+                xyzs_c = w2c_R @ xyzs_w + w2c_T  # (N_cams, 3, chunk)
+                uvd = K @ xyzs_c  # (N_cams, 3, chunk)
+                uv = uvd[:, :2] / uvd[:, 2:]  # (N_cams, 2, chunk)
+
+                # if the cell is visible by at least one mask
+                uv_x = torch.clamp(uv[:, 0, :], 0, width - 1)  # (N_cams, chunk)
+                uv_y = torch.clamp(uv[:, 1, :], 0, height - 1)  # (N_cams, chunk)
+                in_mask = torch.zeros_like(uv_x, dtype=torch.bool)  # (N_cams, chunk)
+                for cam_idx in range(N_cams):
+                    in_mask[cam_idx] = masks[cam_idx][
+                        uv_y[cam_idx].long(), uv_x[cam_idx].long()
+                    ]
+                in_mask = in_mask.bool()
+                # if the majority of the cameras see the cell as occupied then it is occupied
+                in_mask = in_mask.sum(0) >= (N_cams // consensus_ratio)
+
+                cell_ids_base = lvl * cells_per_lvl
+                occ_grid[cell_ids_base + indices_chunk] = torch.where(in_mask, 1.0, -1.0)
+
+        # Dilate all the not empty cells
+        all_lvl_indices = [torch.arange(int(grid_res.prod().item()))]
+        for indices in all_lvl_indices:
+            reshaped_occ = occ_grid[indices].reshape(*grid_res).unsqueeze(0)  # type: ignore
+            dilated_occ = torch.nn.functional.max_pool3d(
+                reshaped_occ, kernel_size=3, stride=1, padding=1
+            )
+            occ_grid[indices] = dilated_occ.squeeze(0).reshape(cells_per_lvl)      
+        self.occs = occ_grid
+
+    @torch.no_grad()
     def _get_all_cells(self) -> List[Tensor]:
         """Returns all cells of the grid."""
         lvl_indices = []
