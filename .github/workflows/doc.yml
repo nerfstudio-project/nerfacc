@@ -11,6 +11,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r docs/requirements.txt
+          pip install torch==2.0.0 --index-url https://download.pytorch.org/whl/cpu
+          BUILD_NO_CUDA=1 pip install .
       - name: Sphinx build
         run: |
           sphinx-build docs/source _build
