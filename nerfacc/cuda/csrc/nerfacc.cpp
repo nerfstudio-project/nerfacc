@@ -38,6 +38,31 @@ torch::Tensor exclusive_prod_backward(
     torch::Tensor outputs,
     torch::Tensor grad_outputs);
 
+torch::Tensor inclusive_sum_cub(
+    torch::Tensor ray_indices,
+    torch::Tensor inputs,
+    bool backward);
+torch::Tensor exclusive_sum_cub(
+    torch::Tensor indices,
+    torch::Tensor inputs,
+    bool backward);
+torch::Tensor inclusive_prod_cub_forward(
+    torch::Tensor indices,
+    torch::Tensor inputs);
+torch::Tensor inclusive_prod_cub_backward(
+    torch::Tensor indices,
+    torch::Tensor inputs,
+    torch::Tensor outputs,
+    torch::Tensor grad_outputs);
+torch::Tensor exclusive_prod_cub_forward(
+    torch::Tensor indices,
+    torch::Tensor inputs);
+torch::Tensor exclusive_prod_cub_backward(
+    torch::Tensor indices,
+    torch::Tensor inputs,
+    torch::Tensor outputs,
+    torch::Tensor grad_outputs);
+
 // grid
 std::vector<torch::Tensor> ray_aabb_intersect(
     const torch::Tensor rays_o, // [n_rays, 3]
@@ -105,6 +130,13 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     _REG_FUNC(inclusive_prod_backward);
     _REG_FUNC(exclusive_prod_forward);
     _REG_FUNC(exclusive_prod_backward);
+
+    _REG_FUNC(inclusive_sum_cub);
+    _REG_FUNC(exclusive_sum_cub);
+    _REG_FUNC(inclusive_prod_cub_forward);
+    _REG_FUNC(inclusive_prod_cub_backward);
+    _REG_FUNC(exclusive_prod_cub_forward);
+    _REG_FUNC(exclusive_prod_cub_backward);
 
     _REG_FUNC(ray_aabb_intersect);
     _REG_FUNC(traverse_grids);
