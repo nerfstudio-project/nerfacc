@@ -7,7 +7,6 @@ device = "cuda:0"
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_inclusive_sum():
     from nerfacc.scan import inclusive_sum
-    from nerfacc.scan_cub import inclusive_sum_cub
 
     torch.manual_seed(42)
 
@@ -34,7 +33,7 @@ def test_inclusive_sum():
     indices = torch.arange(data.shape[0], device=device, dtype=torch.long)
     indices = indices.repeat_interleave(data.shape[1])
     indices = indices.flatten()
-    outputs3 = inclusive_sum_cub(flatten_data, indices)
+    outputs3 = inclusive_sum(flatten_data, indices=indices)
     outputs3.sum().backward()
     grad3 = data.grad.clone()
     data.grad.zero_()
@@ -49,7 +48,6 @@ def test_inclusive_sum():
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_exclusive_sum():
     from nerfacc.scan import exclusive_sum
-    from nerfacc.scan_cub import exclusive_sum_cub
 
     torch.manual_seed(42)
 
@@ -76,7 +74,7 @@ def test_exclusive_sum():
     indices = torch.arange(data.shape[0], device=device, dtype=torch.long)
     indices = indices.repeat_interleave(data.shape[1])
     indices = indices.flatten()
-    outputs3 = exclusive_sum_cub(flatten_data, indices)
+    outputs3 = exclusive_sum(flatten_data, indices=indices)
     outputs3.sum().backward()
     grad3 = data.grad.clone()
     data.grad.zero_()
@@ -93,7 +91,6 @@ def test_exclusive_sum():
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_inclusive_prod():
     from nerfacc.scan import inclusive_prod
-    from nerfacc.scan_cub import inclusive_prod_cub
 
     torch.manual_seed(42)
 
@@ -120,7 +117,7 @@ def test_inclusive_prod():
     indices = torch.arange(data.shape[0], device=device, dtype=torch.long)
     indices = indices.repeat_interleave(data.shape[1])
     indices = indices.flatten()
-    outputs3 = inclusive_prod_cub(flatten_data, indices)
+    outputs3 = inclusive_prod(flatten_data, indices=indices)
     outputs3.sum().backward()
     grad3 = data.grad.clone()
     data.grad.zero_()
@@ -135,7 +132,6 @@ def test_inclusive_prod():
 @pytest.mark.skipif(not torch.cuda.is_available, reason="No CUDA device")
 def test_exclusive_prod():
     from nerfacc.scan import exclusive_prod
-    from nerfacc.scan_cub import exclusive_prod_cub
 
     torch.manual_seed(42)
 
@@ -162,7 +158,7 @@ def test_exclusive_prod():
     indices = torch.arange(data.shape[0], device=device, dtype=torch.long)
     indices = indices.repeat_interleave(data.shape[1])
     indices = indices.flatten()
-    outputs3 = exclusive_prod_cub(flatten_data, indices)
+    outputs3 = exclusive_prod(flatten_data, indices=indices)
     outputs3.sum().backward()
     grad3 = data.grad.clone()
     data.grad.zero_()
@@ -175,10 +171,11 @@ def test_exclusive_prod():
     assert torch.allclose(outputs1, outputs3)
     assert torch.allclose(grad1, grad3)
 
+
 def profile():
     import tqdm
+
     from nerfacc.scan import inclusive_sum
-    from nerfacc.scan_cub import inclusive_sum_cub
 
     torch.manual_seed(42)
 
@@ -202,7 +199,7 @@ def profile():
     indices = indices.flatten()
     torch.cuda.synchronize()
     for _ in tqdm.trange(2000):
-        outputs3 = inclusive_sum_cub(flatten_data, indices)
+        outputs3 = inclusive_sum(flatten_data, indices=indices)
         outputs3.sum().backward()
 
 
@@ -211,4 +208,4 @@ if __name__ == "__main__":
     test_exclusive_sum()
     test_inclusive_prod()
     test_exclusive_prod()
-    # profile()
+    profile()

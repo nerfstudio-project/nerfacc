@@ -56,6 +56,14 @@ inline void inclusive_prod_by_key(
 }
 #endif
 
+bool is_cub_available() {
+#if CUB_SUPPORTS_SCAN_BY_KEY()
+    return true;
+#else
+    return false;
+#endif
+}
+
 torch::Tensor inclusive_sum_cub(
     torch::Tensor indices,
     torch::Tensor inputs,

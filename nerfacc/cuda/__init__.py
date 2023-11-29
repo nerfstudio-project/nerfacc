@@ -30,12 +30,17 @@ inclusive_prod_backward = _make_lazy_cuda_func("inclusive_prod_backward")
 exclusive_prod_forward = _make_lazy_cuda_func("exclusive_prod_forward")
 exclusive_prod_backward = _make_lazy_cuda_func("exclusive_prod_backward")
 
+is_cub_available = _make_lazy_cuda_func("is_cub_available")
 inclusive_sum_cub = _make_lazy_cuda_func("inclusive_sum_cub")
 exclusive_sum_cub = _make_lazy_cuda_func("exclusive_sum_cub")
 inclusive_prod_cub_forward = _make_lazy_cuda_func("inclusive_prod_cub_forward")
-inclusive_prod_cub_backward = _make_lazy_cuda_func("inclusive_prod_cub_backward")
+inclusive_prod_cub_backward = _make_lazy_cuda_func(
+    "inclusive_prod_cub_backward"
+)
 exclusive_prod_cub_forward = _make_lazy_cuda_func("exclusive_prod_cub_forward")
-exclusive_prod_cub_backward = _make_lazy_cuda_func("exclusive_prod_cub_backward")
+exclusive_prod_cub_backward = _make_lazy_cuda_func(
+    "exclusive_prod_cub_backward"
+)
 
 # pdf
 importance_sampling = _make_lazy_cuda_func("importance_sampling")
