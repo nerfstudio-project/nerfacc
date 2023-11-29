@@ -5,6 +5,7 @@ from .data_specs import RayIntervals, RaySamples
 from .estimators.occ_grid import OccGridEstimator
 from .estimators.prop_net import PropNetEstimator
 from .grid import ray_aabb_intersect, traverse_grids
+from .losses import distortion
 from .pack import pack_info
 from .pdf import importance_sampling, searchsorted
 from .scan import exclusive_prod, exclusive_sum, inclusive_prod, inclusive_sum
@@ -47,4 +48,5 @@ __all__ = [
     "traverse_grids",
     "OccGridEstimator",
     "PropNetEstimator",
+    "distortion",
 ]
