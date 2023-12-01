@@ -329,7 +329,6 @@ def render_image_with_occgrid_test(
     opc_thre = 1 - early_stop_eps
 
     while iter_samples < max_samples:
-
         n_alive = ray_mask.sum().item()
         if n_alive == 0:
             break

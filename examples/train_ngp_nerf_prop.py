@@ -276,7 +276,12 @@ for step in range(max_steps + 1):
                 pixels = data["pixels"]
 
                 # rendering
-                rgb, acc, depth, _, = render_image_with_propnet(
+                (
+                    rgb,
+                    acc,
+                    depth,
+                    _,
+                ) = render_image_with_propnet(
                     radiance_field,
                     proposal_networks,
                     estimator,

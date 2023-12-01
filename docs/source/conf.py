@@ -54,7 +54,10 @@ html_theme_options = {
     # dropdown menu containing a list of links.
     "menu": [
         # A link
-        {"name": "GitHub", "url": "https://github.com/nerfstudio-project/nerfacc"},
+        {
+            "name": "GitHub",
+            "url": "https://github.com/nerfstudio-project/nerfacc",
+        },
         # A dropdown menu
         # {
         #     "name": "Projects",
