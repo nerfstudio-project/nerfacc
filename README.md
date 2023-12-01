@@ -10,8 +10,8 @@
   <!-- /pypi-strip -->
 </p>
 
-[![Core Tests.](https://github.com/nerfstudio-project/nerfacc/actions/workflows/code_checks.yml/badge.svg)](https://github.com/nerfstudio-project/nerfacc/actions/workflows/code_checks.yml)
-<!-- [![Documentation Status](https://readthedocs.com/projects/plenoptix-nerfacc/badge/?version=latest)](https://www.nerfacc.com/en/latest/?badge=latest) -->
+[![Core Tests](https://github.com/nerfstudio-project/nerfacc/actions/workflows/code_checks.yml/badge.svg)](https://github.com/nerfstudio-project/nerfacc/actions/workflows/code_checks.yml)
+[![Docs](https://github.com/nerfstudio-project/nerfacc/actions/workflows/doc.yml/badge.svg)](https://github.com/nerfstudio-project/nerfacc/actions/workflows/doc.yml)
 [![Downloads](https://pepy.tech/badge/nerfacc)](https://pepy.tech/project/nerfacc)
 
 https://www.nerfacc.com/
