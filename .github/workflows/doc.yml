@@ -1,5 +1,11 @@
 name: Docs
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
 permissions:
     contents: write
 jobs:
@@ -7,10 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Python 3.8.12
-        uses: actions/setup-python@v4
         with:
-          python-version: "3.8.12"
+          submodules: 'recursive'
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.9'
       - name: Install dependencies
         run: |
           pip install -r docs/requirements.txt
@@ -27,3 +34,4 @@ jobs:
           publish_dir: _build/
           force_orphan: true
           cname: www.nerfacc.com
+        if: github.event_name != 'pull_request'
