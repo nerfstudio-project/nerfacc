@@ -10,8 +10,8 @@
   <!-- /pypi-strip -->
 </p>
 
-[![Core Tests](https://github.com/nerfstudio-project/nerfacc/actions/workflows/code_checks.yml/badge.svg)](https://github.com/nerfstudio-project/nerfacc/actions/workflows/code_checks.yml)
-[![Docs](https://github.com/nerfstudio-project/nerfacc/actions/workflows/doc.yml/badge.svg)](https://github.com/nerfstudio-project/nerfacc/actions/workflows/doc.yml)
+[![Core Tests](https://github.com/nerfstudio-project/nerfacc/actions/workflows/code_checks.yml/badge.svg?branch=master)](https://github.com/nerfstudio-project/nerfacc/actions/workflows/code_checks.yml)
+[![Docs](https://github.com/nerfstudio-project/nerfacc/actions/workflows/doc.yml/badge.svg?branch=master)](https://github.com/nerfstudio-project/nerfacc/actions/workflows/doc.yml)
 [![Downloads](https://pepy.tech/badge/nerfacc)](https://pepy.tech/project/nerfacc)
 
 https://www.nerfacc.com/
