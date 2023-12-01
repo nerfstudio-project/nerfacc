@@ -81,8 +81,8 @@ Our experiments are conducted on a single NVIDIA TITAN RTX GPU.
 +-----------------------+-------+-------+---------+-------+-------+-------+-------+-------+
 
 
-.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/
+.. _`github repository`: https://github.com/nerfstudio-project/nerfacc/
 .. _`Instant-NGP`: https://arxiv.org/abs/2201.05989
 .. _`tiny-cuda-nn`: https://github.com/NVlabs/tiny-cuda-nn
-.. _`Nerfacto`: https://docs.nerf.studio/en/latest/nerfology/methods/nerfacto.html
-.. _`nerfstudio`: https://docs.nerf.studio/en/latest/
+.. _`Nerfacto`: https://docs.nerf.studio/nerfology/methods/nerfacto.html
+.. _`nerfstudio`: https://docs.nerf.studio/

@@ -15,7 +15,7 @@ in training various recent NeRF papers.
 
 |
 
-| Github: https://github.com/KAIR-BAIR/nerfacc
+| Github: https://github.com/nerfstudio-project/nerfacc
 | Paper: https://arxiv.org/pdf/2305.04966.pdf
 | Authors: `Ruilong Li`_, `Hang Gao`_, `Matthew Tancik`_, `Angjoo Kanazawa`_
 
@@ -41,7 +41,7 @@ Or install from source. In this way it will build the CUDA code during installat
 
 .. code-block:: console
 
-   $ pip install git+https://github.com/KAIR-BAIR/nerfacc.git
+   $ pip install git+https://github.com/nerfstudio-project/nerfacc.git
 
 We also provide pre-built wheels covering major combinations of Pytorch + CUDA versions. 
 See our `Github README`_ for what we support.
@@ -164,6 +164,6 @@ Links:
 .. _`Matthew Tancik`: https://www.matthewtancik.com/
 .. _`Angjoo Kanazawa`: https://people.eecs.berkeley.edu/~kanazawa/
 
-.. _`Github README`: https://github.com/KAIR-BAIR/nerfacc#readme
+.. _`Github README`: https://github.com/nerfstudio-project/nerfacc#readme
 
 .. _`PyTorch`: https://pytorch.org/get-started/locally/

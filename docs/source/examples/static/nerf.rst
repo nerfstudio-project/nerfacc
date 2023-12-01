@@ -34,5 +34,5 @@ The training memory footprint is about 10GB.
 | Ours  (~ 1 hr)       | 33.69 | 33.76 | 29.73   | 33.32 | 35.80 | 32.52 | 25.39 | 28.18 | 31.55 |
 +----------------------+-------+-------+---------+-------+-------+-------+-------+-------+-------+
 
-.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/
+.. _`github repository`: https://github.com/nerfstudio-project/nerfacc/
 .. _`NeRF`: https://arxiv.org/abs/2003.08934

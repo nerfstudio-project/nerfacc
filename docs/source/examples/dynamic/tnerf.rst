@@ -31,5 +31,5 @@ The training memory footprint is about 11GB.
 +----------------------+----------+---------+-------+---------+-------+--------+---------+-------+-------+
 
 .. _`D-NeRF`: https://arxiv.org/abs/2011.13961
-.. _`github repository`: https://github.com/KAIR-BAIR/nerfacc/
+.. _`github repository`: https://github.com/nerfstudio-project/nerfacc/
 

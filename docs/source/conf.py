@@ -48,13 +48,13 @@ copybutton_prompt_is_regexp = True
 # documentation.
 html_theme_options = {
     # The target url that the logo directs to. Unset to do nothing
-    "logo_url": "https://www.nerfacc.com/en/latest/index.html",
+    "logo_url": "https://www.nerfacc.com/",
     # "menu" is a list of dictionaries where you can specify the content and the
     # behavior of each item in the menu. Each item can either be a link or a
     # dropdown menu containing a list of links.
     "menu": [
         # A link
-        {"name": "GitHub", "url": "https://github.com/KAIR-BAIR/nerfacc"},
+        {"name": "GitHub", "url": "https://github.com/nerfstudio-project/nerfacc"},
         # A dropdown menu
         # {
         #     "name": "Projects",

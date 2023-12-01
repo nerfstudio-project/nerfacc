@@ -9,7 +9,7 @@ from setuptools import find_packages, setup
 __version__ = None
 exec(open("nerfacc/version.py", "r").read())
 
-URL = "https://github.com/KAIR-BAIR/nerfacc"
+URL = "https://github.com/nerfstudio-project/nerfacc"
 
 BUILD_NO_CUDA = os.getenv("BUILD_NO_CUDA", "0") == "1"
 WITH_SYMBOLS = os.getenv("WITH_SYMBOLS", "0") == "1"
