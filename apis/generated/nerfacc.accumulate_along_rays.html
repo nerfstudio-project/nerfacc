@@ -1,0 +1,431 @@
+
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!-->
+<html class="no-js" lang="en">
+<!--<![endif]-->
+
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>nerfacc.accumulate_along_rays &mdash; nerfacc 0.5.3 documentation</title>
+  
+
+<!--   <link rel="shortcut icon" href="../../_static/images/logo192.png" /> -->
+  
+  
+
+  
+
+  
+  
+  
+
+  
+
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!-- <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" /> -->
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/css/readthedocs.css" type="text/css" />
+  <link rel="index" title="Index" href="../../genindex.html" />
+  <link rel="search" title="Search" href="../../search.html" />
+  <link rel="next" title="nerfacc.importance_sampling" href="nerfacc.importance_sampling.html" />
+  <link rel="prev" title="nerfacc.render_transmittance_from_density" href="nerfacc.render_transmittance_from_density.html" />
+  <!-- Google Analytics -->
+  <script type="text/javascript">
+    var collapsedSections = [];
+  </script>
+  
+  <!-- End Google Analytics -->
+  
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+  <script>
+    MathJax = {
+        chtml: {
+            scale: 1,
+            minScale: 1,
+        },
+        svg: {
+            scale: 1,
+            minScale: 1,
+        }
+    }
+</script>
+
+  <!-- Preload the theme fonts -->
+
+<link rel="preload" href="../../_static/fonts/FreightSans/freight-sans-book.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/FreightSans/freight-sans-medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/IBMPlexMono/IBMPlexMono-Medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/FreightSans/freight-sans-bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/FreightSans/freight-sans-medium-italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/IBMPlexMono/IBMPlexMono-SemiBold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+
+<!-- Preload the katex fonts -->
+
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size1-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size4-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size2-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size3-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Caligraphic-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"
+    integrity="sha384-vSIIfh2YWi9wW0r9iZe7RJPrKwp6bG+s9QZMoITbCckVJqGCCRhc+ccxNcdpHuYu" crossorigin="anonymous">
+</head>
+
+<div class="container-fluid header-holder tutorials-header" id="header-holder">
+  <div class="container">
+    <div class="header-container">
+      <a class="header-logo" href="https://www.nerfacc.com/"
+        aria-label="LOGO"></a>
+
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+        </ul>
+      </div>
+
+      <a class="main-menu-open-button" href="#" data-behavior="open-mobile-menu"></a>
+    </div>
+  </div>
+</div>
+
+<body class="pytorch-body">
+
+   
+
+  
+
+  <div class="table-of-contents-link-wrapper">
+    <span>Table of Contents</span>
+    <a href="#" class="toggle-table-of-contents" data-behavior="toggle-table-of-contents"></a>
+  </div>
+
+  <nav data-toggle="wy-nav-shift" class="pytorch-left-menu" id="pytorch-left-menu">
+    <div class="pytorch-side-scroll">
+      <div class="pytorch-menu pytorch-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        <div class="pytorch-left-menu-search">
+          
+
+          
+          
+          
+          
+
+          
+
+
+
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search Docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        
+        
+        
+        
+        
+        <p class="caption" role="heading"><span class="caption-text">Methodology</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../methodology/coding.html">Efficient Coding</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../methodology/sampling.html">Efficient Sampling</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../estimators.html">Estimators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../rendering.html">Rendering</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../utils.html">Utils</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Usages and Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/camera.html">Camera Optimization NeRFs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/dynamic.html">Dynamic NeRFs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/static.html">Static NeRFs</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Projects</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://docs.nerf.studio/">nerfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://autonomousvision.github.io/sdfstudio/">sdfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/bennyguo/instant-nsr-pl">instant-nsr-pl</a></li>
+</ul>
+
+        
+        
+      </div>
+    </div>
+  </nav>
+
+  <div class="pytorch-container">
+    <div class="pytorch-page-level-bar" id="pytorch-page-level-bar">
+      <div class="pytorch-breadcrumbs-wrapper">
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="pytorch-breadcrumbs">
+    
+      <li>
+        <a href="../../index.html">
+            Docs
+        </a> &gt;
+      </li>
+
+        
+          <li><a href="../utils.html">Utils</a> &gt;</li>
+        
+      <li>nerfacc.accumulate_along_rays</li>
+    
+    
+      <li class="pytorch-breadcrumbs-aside">
+        
+            
+            <a href="../../_sources/apis/generated/nerfacc.accumulate_along_rays.rst.txt" rel="nofollow"><img src="../../_static/images/view-page-source-icon.svg"></a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+</div>
+      </div>
+
+      <div class="pytorch-shortcuts-wrapper" id="pytorch-shortcuts-wrapper">
+        Shortcuts
+      </div>
+    </div>
+
+    <section data-toggle="wy-nav-shift" id="pytorch-content-wrap" class="pytorch-content-wrap">
+      <div class="pytorch-content-left">
+        
+          <div class="rst-content">
+            
+            <div role="main" class="main-content" itemscope="itemscope" itemtype="http://schema.org/Article">
+              <article itemprop="articleBody" id="pytorch-article" class="pytorch-article">
+                
+  <section id="nerfacc-accumulate-along-rays">
+<h1>nerfacc.accumulate_along_rays<a class="headerlink" href="#nerfacc-accumulate-along-rays" title="Permalink to this heading">¶</a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="nerfacc.accumulate_along_rays">
+<span class="sig-prename descclassname"><span class="pre">nerfacc.</span></span><span class="sig-name descname"><span class="pre">accumulate_along_rays</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">values</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ray_indices</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_rays</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nerfacc.accumulate_along_rays" title="Permalink to this definition">¶</a></dt>
+<dd><p>Accumulate volumetric values along the ray.</p>
+<p>This function supports both batched inputs and flattened inputs with
+<cite>ray_indices</cite> and <cite>n_rays</cite> provided.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function is differentiable to <cite>weights</cite> and <cite>values</cite>.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>weights</strong> (<em>Tensor</em>) – Weights to be accumulated. If <cite>ray_indices</cite> not provided,
+<cite>weights</cite> must be batched with shape (n_rays, n_samples). Else it
+must be flattened with shape (all_samples,).</p></li>
+<li><p><strong>values</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.12)"><em>Optional</em></a><em>[</em><em>Tensor</em><em>]</em>) – Values to be accumulated. If <cite>ray_indices</cite> not provided,
+<cite>values</cite> must be batched with shape (n_rays, n_samples, D). Else it
+must be flattened with shape (all_samples, D). None means
+we accumulate weights along rays. Default: None.</p></li>
+<li><p><strong>ray_indices</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.12)"><em>Optional</em></a><em>[</em><em>Tensor</em><em>]</em>) – Ray indices of the samples with shape (all_samples,).
+If provided, <cite>weights</cite> must be a flattened tensor with shape (all_samples,)
+and values (if not None) must be a flattened tensor with shape (all_samples, D).
+Default: None.</p></li>
+<li><p><strong>n_rays</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.12)"><em>Optional</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em>) – Number of rays. Should be provided together with <cite>ray_indices</cite>. Default: None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Accumulated values with shape (n_rays, D). If <cite>values</cite> is not given we return
+the accumulated weights, in which case D == 1.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Tensor</em></p>
+</dd>
+</dl>
+<p>Examples:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Rendering: accumulate rgbs, opacities, and depths along the rays.</span>
+<span class="n">colors</span> <span class="o">=</span> <span class="n">accumulate_along_rays</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="n">rgbs</span><span class="p">,</span> <span class="n">ray_indices</span><span class="p">,</span> <span class="n">n_rays</span><span class="p">)</span>
+<span class="n">opacities</span> <span class="o">=</span> <span class="n">accumulate_along_rays</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">ray_indices</span><span class="p">,</span> <span class="n">n_rays</span><span class="p">)</span>
+<span class="n">depths</span> <span class="o">=</span> <span class="n">accumulate_along_rays</span><span class="p">(</span>
+    <span class="n">weights</span><span class="p">,</span>
+    <span class="p">(</span><span class="n">t_starts</span> <span class="o">+</span> <span class="n">t_ends</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">,</span>
+    <span class="n">ray_indices</span><span class="p">,</span>
+    <span class="n">n_rays</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="c1"># (n_rays, 3), (n_rays, 1), (n_rays, 1)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">colors</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">opacities</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">depths</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+
+
+              </article>
+              
+            </div>
+            <footer>
+  
+  <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+    
+    <a href="nerfacc.importance_sampling.html" class="btn btn-neutral float-right" title="nerfacc.importance_sampling" accesskey="n"
+      rel="next">Next <img src="../../_static/images/chevron-right-blue.svg"
+        class="next-page"></a>
+    
+    
+    <a href="nerfacc.render_transmittance_from_density.html" class="btn btn-neutral" title="nerfacc.render_transmittance_from_density" accesskey="p"
+      rel="prev"><img src="../../_static/images/chevron-right-blue.svg" class="previous-page"> Previous</a>
+    
+  </div>
+  
+
+  <hr>
+
+  <div role="contentinfo">
+    <p>
+      &copy; Copyright 2022, Ruilong.
+
+    </p>
+  </div>
+  
+  <div>
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a
+      href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the
+      Docs</a>.
+  </div>
+   
+
+</footer>
+          </div>
+        </div>
+
+        <div class="pytorch-content-right" id="pytorch-content-right">
+          <div class="pytorch-right-menu" id="pytorch-right-menu">
+            <div class="pytorch-side-scroll" id="pytorch-side-scroll-right">
+              <ul>
+<li><a class="reference internal" href="#">nerfacc.accumulate_along_rays</a><ul>
+<li><a class="reference internal" href="#nerfacc.accumulate_along_rays"><code class="docutils literal notranslate"><span class="pre">accumulate_along_rays()</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+            </div>
+          </div>
+        </div>
+    </section>
+  </div>
+
+  <!-- 
+ -->
+
+  
+
+  
+  <script type="text/javascript" id="documentation_options" data-url_root="../../"
+    src="../../_static/documentation_options.js"></script>
+  <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+  <script src="../../_static/jquery.js"></script>
+  <script src="../../_static/underscore.js"></script>
+  <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+  <script src="../../_static/doctools.js"></script>
+  <script src="../../_static/sphinx_highlight.js"></script>
+  
+
+  
+
+  <script type="text/javascript" src="../../_static/js/vendor/popper.min.js"></script>
+  <script type="text/javascript" src="../../_static/js/vendor/bootstrap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/list.js/1.5.0/list.min.js"></script>
+  <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+    jQuery(function () {
+      SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+  <!-- Begin Footer -->
+
+  <div class="container-fluid docs-tutorials-resources" id="docs-tutorials-resources">
+  </div>
+
+  <!-- End Footer -->
+
+  <!-- Begin Mobile Menu -->
+
+  <div class="mobile-main-menu">
+    <div class="container-fluid">
+      <div class="container">
+        <div class="mobile-main-menu-header-container">
+          <a class="header-logo" href="https://www.nerfacc.com/" aria-label="LOGO"></a>
+          <a class="main-menu-close-button" href="#" data-behavior="close-mobile-menu"></a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mobile-main-menu-links-container">
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+      </div>
+    </div>
+  </div>
+
+  <!-- End Mobile Menu -->
+
+  <script type="text/javascript" src="../../_static/js/vendor/anchor.min.js"></script>
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      mobileMenu.bind();
+      mobileTOC.bind();
+      pytorchAnchors.bind();
+      sideMenus.bind();
+      scrollToAnchor.bind();
+      highlightNavigation.bind();
+      mainMenuDropdown.bind();
+      filterTags.bind();
+
+      // Add class to links that have code blocks, since we cannot create links in code blocks
+      $("article.pytorch-article a span.pre").each(function (e) {
+        $(this).closest("a").addClass("has-code");
+      });
+    })
+  </script>
+</body>
+
+</html>

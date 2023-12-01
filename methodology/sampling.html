@@ -1,0 +1,460 @@
+
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!-->
+<html class="no-js" lang="en">
+<!--<![endif]-->
+
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Efficient Sampling &mdash; nerfacc 0.5.3 documentation</title>
+  
+
+<!--   <link rel="shortcut icon" href="../_static/images/logo192.png" /> -->
+  
+  
+
+  
+
+  
+  
+  
+
+  
+
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!-- <link rel="stylesheet" href="../_static/pygments.css" type="text/css" /> -->
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/readthedocs.css" type="text/css" />
+  <link rel="index" title="Index" href="../genindex.html" />
+  <link rel="search" title="Search" href="../search.html" />
+  <link rel="next" title="Estimators" href="../apis/estimators.html" />
+  <link rel="prev" title="Efficient Coding" href="coding.html" />
+  <!-- Google Analytics -->
+  <script type="text/javascript">
+    var collapsedSections = [];
+  </script>
+  
+  <!-- End Google Analytics -->
+  
+
+  
+  <script src="../_static/js/modernizr.min.js"></script>
+  <script>
+    MathJax = {
+        chtml: {
+            scale: 1,
+            minScale: 1,
+        },
+        svg: {
+            scale: 1,
+            minScale: 1,
+        }
+    }
+</script>
+
+  <!-- Preload the theme fonts -->
+
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-book.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/IBMPlexMono/IBMPlexMono-Medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-medium-italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/IBMPlexMono/IBMPlexMono-SemiBold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+
+<!-- Preload the katex fonts -->
+
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size1-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size4-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size2-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size3-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Caligraphic-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"
+    integrity="sha384-vSIIfh2YWi9wW0r9iZe7RJPrKwp6bG+s9QZMoITbCckVJqGCCRhc+ccxNcdpHuYu" crossorigin="anonymous">
+</head>
+
+<div class="container-fluid header-holder tutorials-header" id="header-holder">
+  <div class="container">
+    <div class="header-container">
+      <a class="header-logo" href="https://www.nerfacc.com/"
+        aria-label="LOGO"></a>
+
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+        </ul>
+      </div>
+
+      <a class="main-menu-open-button" href="#" data-behavior="open-mobile-menu"></a>
+    </div>
+  </div>
+</div>
+
+<body class="pytorch-body">
+
+   
+
+  
+
+  <div class="table-of-contents-link-wrapper">
+    <span>Table of Contents</span>
+    <a href="#" class="toggle-table-of-contents" data-behavior="toggle-table-of-contents"></a>
+  </div>
+
+  <nav data-toggle="wy-nav-shift" class="pytorch-left-menu" id="pytorch-left-menu">
+    <div class="pytorch-side-scroll">
+      <div class="pytorch-menu pytorch-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        <div class="pytorch-left-menu-search">
+          
+
+          
+          
+          
+          
+
+          
+
+
+
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search Docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        
+        
+        
+        
+        
+        <p class="caption" role="heading"><span class="caption-text">Methodology</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="coding.html">Efficient Coding</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Efficient Sampling</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../apis/estimators.html">Estimators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../apis/rendering.html">Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../apis/utils.html">Utils</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Usages and Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../examples/camera.html">Camera Optimization NeRFs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/dynamic.html">Dynamic NeRFs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/static.html">Static NeRFs</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Projects</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://docs.nerf.studio/">nerfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://autonomousvision.github.io/sdfstudio/">sdfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/bennyguo/instant-nsr-pl">instant-nsr-pl</a></li>
+</ul>
+
+        
+        
+      </div>
+    </div>
+  </nav>
+
+  <div class="pytorch-container">
+    <div class="pytorch-page-level-bar" id="pytorch-page-level-bar">
+      <div class="pytorch-breadcrumbs-wrapper">
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="pytorch-breadcrumbs">
+    
+      <li>
+        <a href="../index.html">
+            Docs
+        </a> &gt;
+      </li>
+
+        
+      <li>Efficient Sampling</li>
+    
+    
+      <li class="pytorch-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/methodology/sampling.rst.txt" rel="nofollow"><img src="../_static/images/view-page-source-icon.svg"></a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+</div>
+      </div>
+
+      <div class="pytorch-shortcuts-wrapper" id="pytorch-shortcuts-wrapper">
+        Shortcuts
+      </div>
+    </div>
+
+    <section data-toggle="wy-nav-shift" id="pytorch-content-wrap" class="pytorch-content-wrap">
+      <div class="pytorch-content-left">
+        
+          <div class="rst-content">
+            
+            <div role="main" class="main-content" itemscope="itemscope" itemtype="http://schema.org/Article">
+              <article itemprop="articleBody" id="pytorch-article" class="pytorch-article">
+                
+  <section id="efficient-sampling">
+<span id="id1"></span><h1>Efficient Sampling<a class="headerlink" href="#efficient-sampling" title="Permalink to this heading">¶</a></h1>
+<section id="importance-sampling-via-transmittance-estimator">
+<h2>Importance Sampling via Transmittance Estimator.<a class="headerlink" href="#importance-sampling-via-transmittance-estimator" title="Permalink to this heading">¶</a></h2>
+<p>Efficient sampling is a well-explored problem in Graphics, wherein the
+emphasis is on identifying regions that make the most significant
+contribution to the final rendering. This objective is generally accomplished
+through importance sampling, which aims to distribute samples based on the
+probability density function (PDF), denoted as <span class="math notranslate nohighlight">\(p(t)\)</span>, between the range
+of <span class="math notranslate nohighlight">\([t_n, t_f]\)</span>. By computing the cumulative distribution function (CDF)
+through integration, <em>i.e.</em>, <span class="math notranslate nohighlight">\(F(t) = \int_{t_n}^{t} p(v)\,dv\)</span>,
+samples are generated using the inverse transform sampling method:</p>
+<div class="math notranslate nohighlight">
+\[t = F^{-1}(u) \quad \text{where} \quad u \sim \mathcal{U}[0,1].\]</div>
+<p>In volumetric rendering, the contribution of each sample to the final
+rendering is expressed by the accumulation weights <span class="math notranslate nohighlight">\(T(t)\sigma(t)\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[C(\mathbf{r}) = \int_{t_n}^{t_f} T(t)\,\sigma(t)\,c(t)\,dt\]</div>
+<p>Hence, the PDF for volumetric rendering is <span class="math notranslate nohighlight">\(p(t) = T(t)\sigma(t)\)</span>
+and the CDF is:</p>
+<div class="math notranslate nohighlight">
+\[F(t)  = \int_{t_n}^{t} T(v)\sigma(v)\,dv = 1 - T(t)\]</div>
+<p>Therefore, inverse sampling the CDF <span class="math notranslate nohighlight">\(F(t)\)</span> is equivalent to inverse
+sampling the transmittance <span class="math notranslate nohighlight">\(T(t)\)</span>. A transmittance estimator is sufficient
+to determine the optimal samples. We refer readers to the
+<a class="reference external" href="https://graphics.pixar.com/library/ProductionVolumeRendering/paper.pdf">SIGGRAPH 2017 Course: Production Volume Rendering</a> for more details about this
+concept if within interests.</p>
+</section>
+<section id="occupancy-grid-estimator">
+<h2>Occupancy Grid Estimator.<a class="headerlink" href="#occupancy-grid-estimator" title="Permalink to this heading">¶</a></h2>
+<a class="float-right reference internal image-reference" href="../_images/illustration_occgrid.png"><img alt="../_images/illustration_occgrid.png" class="float-right" src="../_images/illustration_occgrid.png" style="width: 200px;" /></a>
+<p>The idea of Occupancy Grid is to cache the density in the scene with a binaraized voxel grid. When
+sampling, the ray marches through the grid with a preset step sizes, and skip the empty regions by querying
+the voxel grid. Intuitively, the binaraized voxel grid is an <em>estimator</em> of the radiance field, with much
+faster readout. This technique is proposed in <a class="reference external" href="https://arxiv.org/abs/2201.05989">Instant-NGP</a> with highly optimized CUDA implementations.
+More formally, The estimator describes a binaraized density distribution <span class="math notranslate nohighlight">\(\hat{\sigma}\)</span> along
+the ray with a conservative threshold <span class="math notranslate nohighlight">\(\tau\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\hat{\sigma}(t_i) = \mathbb{1}\big[\sigma(t_i) &gt; \tau\big]\]</div>
+<p>Consequently, the piece-wise constant PDF can be expressed as</p>
+<div class="math notranslate nohighlight">
+\[p(t_i) = \hat{\sigma}(t_i) / \sum_{j=1}^{n} \hat{\sigma}(t_j)\]</div>
+<p>and the piece-wise linear transmittance estimator is</p>
+<div class="math notranslate nohighlight">
+\[T(t_i) = 1 - \sum_{j=1}^{i-1}\hat{\sigma}(t_j) / \sum_{j=1}^{n} \hat{\sigma}(t_j)\]</div>
+<p>See the figure below for an illustration.</p>
+<img alt="../_images/plot_occgrid.png" class="clear-both align-center" src="../_images/plot_occgrid.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>In <cite>nerfacc</cite>, this is implemented via the <a class="reference internal" href="../apis/estimators.html#nerfacc.OccGridEstimator" title="nerfacc.OccGridEstimator"><code class="xref py py-class docutils literal notranslate"><span class="pre">nerfacc.OccGridEstimator</span></code></a> class.</p>
+</section>
+<section id="proposal-network-estimator">
+<h2>Proposal Network Estimator.<a class="headerlink" href="#proposal-network-estimator" title="Permalink to this heading">¶</a></h2>
+<a class="float-right reference internal image-reference" href="../_images/illustration_propnet.png"><img alt="../_images/illustration_propnet.png" class="float-right" src="../_images/illustration_propnet.png" style="width: 200px;" /></a>
+<p>Another type of approach is to directly estimate the PDF along the ray with discrete samples.
+In <a class="reference external" href="https://arxiv.org/abs/2003.08934">vanilla NeRF</a>, the coarse MLP is trained using volumetric rendering loss to output a set of
+densities <span class="math notranslate nohighlight">\({\sigma(t_i)}\)</span>. This allows for the creation of a piece-wise constant PDF:</p>
+<div class="math notranslate nohighlight">
+\[p(t_i) = \sigma(t_i)\exp(-\sigma(t_i)\,dt)\]</div>
+<p>and a piece-wise linear transmittance estimator:</p>
+<div class="math notranslate nohighlight">
+\[T(t_i) = \exp(-\sum_{j=1}^{i-1}\sigma(t_i)\,dt)\]</div>
+<p>This approach was further improved in <a class="reference external" href="https://arxiv.org/abs/2111.12077">Mip-NeRF 360</a> with a PDF matching loss, which allows for
+the use of a much smaller MLP in the coarse level, namely Proposal Network, to speedup the
+PDF construction.</p>
+<p>See the figure below for an illustration.</p>
+<img alt="../_images/plot_propnet.png" class="align-center" src="../_images/plot_propnet.png" />
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p>In <cite>nerfacc</cite>, this is implemented via the <a class="reference internal" href="../apis/estimators.html#nerfacc.PropNetEstimator" title="nerfacc.PropNetEstimator"><code class="xref py py-class docutils literal notranslate"><span class="pre">nerfacc.PropNetEstimator</span></code></a> class.</p>
+</section>
+<section id="which-estimator-to-use">
+<h2>Which Estimator to use?<a class="headerlink" href="#which-estimator-to-use" title="Permalink to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="../apis/estimators.html#nerfacc.OccGridEstimator" title="nerfacc.OccGridEstimator"><code class="xref py py-class docutils literal notranslate"><span class="pre">nerfacc.OccGridEstimator</span></code></a> is a generally more efficient when most of the space in the scene is empty, such as in the case of <a class="reference external" href="https://arxiv.org/abs/2003.08934">NeRF-Synthetic</a> dataset. But it still places samples within occluded areas that contribute little to the final rendering (e.g., the last sample in the above illustration).</p></li>
+<li><p><a class="reference internal" href="../apis/estimators.html#nerfacc.PropNetEstimator" title="nerfacc.PropNetEstimator"><code class="xref py py-class docutils literal notranslate"><span class="pre">nerfacc.PropNetEstimator</span></code></a> generally provide more accurate transmittance estimation, enabling samples to concentrate more on high-contribution areas (e.g., surfaces) and to be more spread out in both empty and occluded regions. Also this method works nicely on unbouned scenes as it does not require a preset bounding box of the scene. Thus datasets like <a class="reference external" href="https://arxiv.org/abs/2111.12077">Mip-NeRF 360</a> are better suited with this estimator.</p></li>
+</ul>
+</section>
+</section>
+
+
+              </article>
+              
+            </div>
+            <footer>
+  
+  <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+    
+    <a href="../apis/estimators.html" class="btn btn-neutral float-right" title="Estimators" accesskey="n"
+      rel="next">Next <img src="../_static/images/chevron-right-blue.svg"
+        class="next-page"></a>
+    
+    
+    <a href="coding.html" class="btn btn-neutral" title="Efficient Coding" accesskey="p"
+      rel="prev"><img src="../_static/images/chevron-right-blue.svg" class="previous-page"> Previous</a>
+    
+  </div>
+  
+
+  <hr>
+
+  <div role="contentinfo">
+    <p>
+      &copy; Copyright 2022, Ruilong.
+
+    </p>
+  </div>
+  
+  <div>
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a
+      href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the
+      Docs</a>.
+  </div>
+   
+
+</footer>
+          </div>
+        </div>
+
+        <div class="pytorch-content-right" id="pytorch-content-right">
+          <div class="pytorch-right-menu" id="pytorch-right-menu">
+            <div class="pytorch-side-scroll" id="pytorch-side-scroll-right">
+              <ul>
+<li><a class="reference internal" href="#">Efficient Sampling</a><ul>
+<li><a class="reference internal" href="#importance-sampling-via-transmittance-estimator">Importance Sampling via Transmittance Estimator.</a></li>
+<li><a class="reference internal" href="#occupancy-grid-estimator">Occupancy Grid Estimator.</a></li>
+<li><a class="reference internal" href="#proposal-network-estimator">Proposal Network Estimator.</a></li>
+<li><a class="reference internal" href="#which-estimator-to-use">Which Estimator to use?</a></li>
+</ul>
+</li>
+</ul>
+
+            </div>
+          </div>
+        </div>
+    </section>
+  </div>
+
+  <!-- 
+ -->
+
+  
+
+  
+  <script type="text/javascript" id="documentation_options" data-url_root="../"
+    src="../_static/documentation_options.js"></script>
+  <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+  <script src="../_static/jquery.js"></script>
+  <script src="../_static/underscore.js"></script>
+  <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+  <script src="../_static/doctools.js"></script>
+  <script src="../_static/sphinx_highlight.js"></script>
+  <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  
+
+  
+
+  <script type="text/javascript" src="../_static/js/vendor/popper.min.js"></script>
+  <script type="text/javascript" src="../_static/js/vendor/bootstrap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/list.js/1.5.0/list.min.js"></script>
+  <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+    jQuery(function () {
+      SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+  <!-- Begin Footer -->
+
+  <div class="container-fluid docs-tutorials-resources" id="docs-tutorials-resources">
+  </div>
+
+  <!-- End Footer -->
+
+  <!-- Begin Mobile Menu -->
+
+  <div class="mobile-main-menu">
+    <div class="container-fluid">
+      <div class="container">
+        <div class="mobile-main-menu-header-container">
+          <a class="header-logo" href="https://www.nerfacc.com/" aria-label="LOGO"></a>
+          <a class="main-menu-close-button" href="#" data-behavior="close-mobile-menu"></a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mobile-main-menu-links-container">
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+      </div>
+    </div>
+  </div>
+
+  <!-- End Mobile Menu -->
+
+  <script type="text/javascript" src="../_static/js/vendor/anchor.min.js"></script>
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      mobileMenu.bind();
+      mobileTOC.bind();
+      pytorchAnchors.bind();
+      sideMenus.bind();
+      scrollToAnchor.bind();
+      highlightNavigation.bind();
+      mainMenuDropdown.bind();
+      filterTags.bind();
+
+      // Add class to links that have code blocks, since we cannot create links in code blocks
+      $("article.pytorch-article a span.pre").each(function (e) {
+        $(this).closest("a").addClass("has-code");
+      });
+    })
+  </script>
+</body>
+
+</html>

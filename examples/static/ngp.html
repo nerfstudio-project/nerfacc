@@ -1,0 +1,595 @@
+
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!-->
+<html class="no-js" lang="en">
+<!--<![endif]-->
+
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Instant-NGP &mdash; nerfacc 0.5.3 documentation</title>
+  
+
+<!--   <link rel="shortcut icon" href="../../_static/images/logo192.png" /> -->
+  
+  
+
+  
+
+  
+  
+  
+
+  
+
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!-- <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" /> -->
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/css/readthedocs.css" type="text/css" />
+  <link rel="index" title="Index" href="../../genindex.html" />
+  <link rel="search" title="Search" href="../../search.html" />
+  <link rel="next" title="TensoRF" href="tensorf.html" />
+  <link rel="prev" title="Vanilla NeRF" href="nerf.html" />
+  <!-- Google Analytics -->
+  <script type="text/javascript">
+    var collapsedSections = [];
+  </script>
+  
+  <!-- End Google Analytics -->
+  
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+  <script>
+    MathJax = {
+        chtml: {
+            scale: 1,
+            minScale: 1,
+        },
+        svg: {
+            scale: 1,
+            minScale: 1,
+        }
+    }
+</script>
+
+  <!-- Preload the theme fonts -->
+
+<link rel="preload" href="../../_static/fonts/FreightSans/freight-sans-book.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/FreightSans/freight-sans-medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/IBMPlexMono/IBMPlexMono-Medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/FreightSans/freight-sans-bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/FreightSans/freight-sans-medium-italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../../_static/fonts/IBMPlexMono/IBMPlexMono-SemiBold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+
+<!-- Preload the katex fonts -->
+
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size1-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size4-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size2-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size3-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Caligraphic-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"
+    integrity="sha384-vSIIfh2YWi9wW0r9iZe7RJPrKwp6bG+s9QZMoITbCckVJqGCCRhc+ccxNcdpHuYu" crossorigin="anonymous">
+</head>
+
+<div class="container-fluid header-holder tutorials-header" id="header-holder">
+  <div class="container">
+    <div class="header-container">
+      <a class="header-logo" href="https://www.nerfacc.com/"
+        aria-label="LOGO"></a>
+
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+        </ul>
+      </div>
+
+      <a class="main-menu-open-button" href="#" data-behavior="open-mobile-menu"></a>
+    </div>
+  </div>
+</div>
+
+<body class="pytorch-body">
+
+   
+
+  
+
+  <div class="table-of-contents-link-wrapper">
+    <span>Table of Contents</span>
+    <a href="#" class="toggle-table-of-contents" data-behavior="toggle-table-of-contents"></a>
+  </div>
+
+  <nav data-toggle="wy-nav-shift" class="pytorch-left-menu" id="pytorch-left-menu">
+    <div class="pytorch-side-scroll">
+      <div class="pytorch-menu pytorch-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        <div class="pytorch-left-menu-search">
+          
+
+          
+          
+          
+          
+
+          
+
+
+
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search Docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        
+        
+        
+        
+        
+        <p class="caption" role="heading"><span class="caption-text">Methodology</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../methodology/coding.html">Efficient Coding</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../methodology/sampling.html">Efficient Sampling</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../apis/estimators.html">Estimators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../apis/rendering.html">Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../apis/utils.html">Utils</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Usages and Benchmarks</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../camera.html">Camera Optimization NeRFs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dynamic.html">Dynamic NeRFs</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../static.html">Static NeRFs</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Projects</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://docs.nerf.studio/">nerfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://autonomousvision.github.io/sdfstudio/">sdfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/bennyguo/instant-nsr-pl">instant-nsr-pl</a></li>
+</ul>
+
+        
+        
+      </div>
+    </div>
+  </nav>
+
+  <div class="pytorch-container">
+    <div class="pytorch-page-level-bar" id="pytorch-page-level-bar">
+      <div class="pytorch-breadcrumbs-wrapper">
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="pytorch-breadcrumbs">
+    
+      <li>
+        <a href="../../index.html">
+            Docs
+        </a> &gt;
+      </li>
+
+        
+          <li><a href="../static.html">Static NeRFs</a> &gt;</li>
+        
+      <li>Instant-NGP</li>
+    
+    
+      <li class="pytorch-breadcrumbs-aside">
+        
+            
+            <a href="../../_sources/examples/static/ngp.rst.txt" rel="nofollow"><img src="../../_static/images/view-page-source-icon.svg"></a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+</div>
+      </div>
+
+      <div class="pytorch-shortcuts-wrapper" id="pytorch-shortcuts-wrapper">
+        Shortcuts
+      </div>
+    </div>
+
+    <section data-toggle="wy-nav-shift" id="pytorch-content-wrap" class="pytorch-content-wrap">
+      <div class="pytorch-content-left">
+        
+          <div class="rst-content">
+            
+            <div role="main" class="main-content" itemscope="itemscope" itemtype="http://schema.org/Article">
+              <article itemprop="articleBody" id="pytorch-article" class="pytorch-article">
+                
+  <section id="instant-ngp">
+<span id="instant-ngp-example"></span><h1>Instant-NGP<a class="headerlink" href="#instant-ngp" title="Permalink to this heading">¶</a></h1>
+<p>See code <cite>examples/train_ngp_nerf_occ.py</cite> and <cite>examples/train_ngp_nerf_prop.py</cite> at our
+<a class="reference external" href="https://github.com/nerfstudio-project/nerfacc/">github repository</a> for details.</p>
+<section id="radiance-field">
+<h2>Radiance Field<a class="headerlink" href="#radiance-field" title="Permalink to this heading">¶</a></h2>
+<p>We follow the <a class="reference external" href="https://arxiv.org/abs/2201.05989">Instant-NGP</a> paper to implement the radiance field (<cite>examples/radiance_fields/ngp.py</cite>),
+and aligns the hyperparameters (e.g., hashencoder, mlp) with the paper. It is build on top of the
+<a class="reference external" href="https://github.com/NVlabs/tiny-cuda-nn">tiny-cuda-nn</a> library.</p>
+</section>
+<section id="benchmark-nerf-synthetic-dataset">
+<h2>Benchmark: Nerf-Synthetic Dataset<a class="headerlink" href="#benchmark-nerf-synthetic-dataset" title="Permalink to this heading">¶</a></h2>
+<p><em>updated on 2023-04-04 with nerfacc==0.5.0</em></p>
+<p>Our experiments are conducted on a single NVIDIA TITAN RTX GPU.
+The training memory footprint is about 3GB.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The Instant-NGP paper makes use of the alpha channel in the images to apply random background
+augmentation during training. For fair comparision, we rerun their code with a constant white
+background during both training and testing. Also it is worth to mention that we didn’t strictly
+follow the training receipe in the Instant-NGP paper, such as the learning rate schedule etc, as
+the purpose of this benchmark is to showcase instead of reproducing the paper.</p>
+</div>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>PSNR</p></th>
+<th class="head"><p>Lego</p></th>
+<th class="head"><p>Mic</p></th>
+<th class="head"><p>Materials</p></th>
+<th class="head"><p>Chair</p></th>
+<th class="head"><p>Hotdog</p></th>
+<th class="head"><p>Ficus</p></th>
+<th class="head"><p>Drums</p></th>
+<th class="head"><p>Ship</p></th>
+<th class="head"><p>MEAN</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Instant-NGP 35k steps</p></td>
+<td><p>35.87</p></td>
+<td><p>36.22</p></td>
+<td><p>29.08</p></td>
+<td><p>35.10</p></td>
+<td><p>37.48</p></td>
+<td><p>30.61</p></td>
+<td><p>23.85</p></td>
+<td><p>30.62</p></td>
+<td><p>32.35</p></td>
+</tr>
+<tr class="row-odd"><td><p>training time</p></td>
+<td><p>309s</p></td>
+<td><p>258s</p></td>
+<td><p>256s</p></td>
+<td><p>316s</p></td>
+<td><p>292s</p></td>
+<td><p>207s</p></td>
+<td><p>218s</p></td>
+<td><p>250s</p></td>
+<td><p>263s</p></td>
+</tr>
+<tr class="row-even"><td><p>Ours (occ) 20k steps</p></td>
+<td><p>35.67</p></td>
+<td><p>36.85</p></td>
+<td><p>29.60</p></td>
+<td><p>35.71</p></td>
+<td><p>37.37</p></td>
+<td><p>33.95</p></td>
+<td><p>25.44</p></td>
+<td><p>30.29</p></td>
+<td><p>33.11</p></td>
+</tr>
+<tr class="row-odd"><td><p>training time</p></td>
+<td><p>288s</p></td>
+<td><p>260s</p></td>
+<td><p>253s</p></td>
+<td><p>326s</p></td>
+<td><p>272s</p></td>
+<td><p>249s</p></td>
+<td><p>252s</p></td>
+<td><p>251s</p></td>
+<td><p>269s</p></td>
+</tr>
+<tr class="row-even"><td><p>Ours (prop) 20k steps</p></td>
+<td><p>34.04</p></td>
+<td><p>34.56</p></td>
+<td><p>28.76</p></td>
+<td><p>34.21</p></td>
+<td><p>36.44</p></td>
+<td><p>31.41</p></td>
+<td><p>24.81</p></td>
+<td><p>29.85</p></td>
+<td><p>31.76</p></td>
+</tr>
+<tr class="row-odd"><td><p>training time</p></td>
+<td><p>225s</p></td>
+<td><p>235s</p></td>
+<td><p>235s</p></td>
+<td><p>240s</p></td>
+<td><p>239s</p></td>
+<td><p>242s</p></td>
+<td><p>258s</p></td>
+<td><p>247s</p></td>
+<td><p>240s</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="benchmark-mip-nerf-360-dataset">
+<h2>Benchmark: Mip-NeRF 360 Dataset<a class="headerlink" href="#benchmark-mip-nerf-360-dataset" title="Permalink to this heading">¶</a></h2>
+<p><em>updated on 2023-04-04 with nerfacc==0.5.0</em></p>
+<p>Our experiments are conducted on a single NVIDIA TITAN RTX GPU.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><cite>Ours (prop)</cite> combines the proposal network (<a class="reference internal" href="../../apis/estimators.html#nerfacc.PropNetEstimator" title="nerfacc.PropNetEstimator"><code class="xref py py-class docutils literal notranslate"><span class="pre">nerfacc.PropNetEstimator</span></code></a>) with the
+Instant-NGP radiance field. This is exactly what the <a class="reference external" href="https://docs.nerf.studio/nerfology/methods/nerfacto.html">Nerfacto</a> model is doing in the
+<a class="reference external" href="https://docs.nerf.studio/">nerfstudio</a> project. In fact, the hyperparameters for <cite>Ours (prop)</cite> in this experiment
+are aligned with the <a class="reference external" href="https://docs.nerf.studio/nerfology/methods/nerfacto.html">Nerfacto</a> model.</p>
+</div>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>PSNR</p></th>
+<th class="head"><p>Bicycle</p></th>
+<th class="head"><p>Garden</p></th>
+<th class="head"><p>Stump</p></th>
+<th class="head"><p>Bonsai</p></th>
+<th class="head"><p>Counter</p></th>
+<th class="head"><p>Kitchen</p></th>
+<th class="head"><p>Room</p></th>
+<th class="head"><p>MEAN</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>NeRF++ (~days)</p></td>
+<td><p>22.64</p></td>
+<td><p>24.32</p></td>
+<td><p>23.34</p></td>
+<td><p>29.15</p></td>
+<td><p>26.38</p></td>
+<td><p>27.80</p></td>
+<td><p>28.87</p></td>
+<td><p>26.21</p></td>
+</tr>
+<tr class="row-odd"><td><p>Mip-NeRF 360 (~days)</p></td>
+<td><p>24.37</p></td>
+<td><p>26.98</p></td>
+<td><p>26.40</p></td>
+<td><p>33.46</p></td>
+<td><p>29.55</p></td>
+<td><p>32.23</p></td>
+<td><p>31.63</p></td>
+<td><p>29.23</p></td>
+</tr>
+<tr class="row-even"><td><p>Instant-NGP 35k steps</p></td>
+<td><p>22.40</p></td>
+<td><p>24.86</p></td>
+<td><p>23.17</p></td>
+<td><p>24.41</p></td>
+<td><p>27.38</p></td>
+<td><p>29.07</p></td>
+<td><p>30.24</p></td>
+<td><p>25.93</p></td>
+</tr>
+<tr class="row-odd"><td><p>training time</p></td>
+<td><p>301s</p></td>
+<td><p>339s</p></td>
+<td><p>295s</p></td>
+<td><p>279s</p></td>
+<td><p>339s</p></td>
+<td><p>366s</p></td>
+<td><p>317s</p></td>
+<td><p>319s</p></td>
+</tr>
+<tr class="row-even"><td><p>Ours (occ) 20k steps</p></td>
+<td><p>22.40</p></td>
+<td><p>23.94</p></td>
+<td><p>22.98</p></td>
+<td><p>30.09</p></td>
+<td><p>26.84</p></td>
+<td><p>28.03</p></td>
+<td><p>30.60</p></td>
+<td><p>26.41</p></td>
+</tr>
+<tr class="row-odd"><td><p>training time</p></td>
+<td><p>277s</p></td>
+<td><p>302s</p></td>
+<td><p>299s</p></td>
+<td><p>278s</p></td>
+<td><p>315s</p></td>
+<td><p>331s</p></td>
+<td><p>301s</p></td>
+<td><p>300s</p></td>
+</tr>
+<tr class="row-even"><td><p>Ours (prop) 20k steps</p></td>
+<td><p>23.23</p></td>
+<td><p>25.42</p></td>
+<td><p>25.24</p></td>
+<td><p>30.71</p></td>
+<td><p>26.74</p></td>
+<td><p>30.70</p></td>
+<td><p>30.99</p></td>
+<td><p>27.58</p></td>
+</tr>
+<tr class="row-odd"><td><p>training time</p></td>
+<td><p>276s</p></td>
+<td><p>293s</p></td>
+<td><p>291s</p></td>
+<td><p>291s</p></td>
+<td><p>291s</p></td>
+<td><p>295s</p></td>
+<td><p>287s</p></td>
+<td><p>289s</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+
+              </article>
+              
+            </div>
+            <footer>
+  
+  <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+    
+    <a href="tensorf.html" class="btn btn-neutral float-right" title="TensoRF" accesskey="n"
+      rel="next">Next <img src="../../_static/images/chevron-right-blue.svg"
+        class="next-page"></a>
+    
+    
+    <a href="nerf.html" class="btn btn-neutral" title="Vanilla NeRF" accesskey="p"
+      rel="prev"><img src="../../_static/images/chevron-right-blue.svg" class="previous-page"> Previous</a>
+    
+  </div>
+  
+
+  <hr>
+
+  <div role="contentinfo">
+    <p>
+      &copy; Copyright 2022, Ruilong.
+
+    </p>
+  </div>
+  
+  <div>
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a
+      href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the
+      Docs</a>.
+  </div>
+   
+
+</footer>
+          </div>
+        </div>
+
+        <div class="pytorch-content-right" id="pytorch-content-right">
+          <div class="pytorch-right-menu" id="pytorch-right-menu">
+            <div class="pytorch-side-scroll" id="pytorch-side-scroll-right">
+              <ul>
+<li><a class="reference internal" href="#">Instant-NGP</a><ul>
+<li><a class="reference internal" href="#radiance-field">Radiance Field</a></li>
+<li><a class="reference internal" href="#benchmark-nerf-synthetic-dataset">Benchmark: Nerf-Synthetic Dataset</a></li>
+<li><a class="reference internal" href="#benchmark-mip-nerf-360-dataset">Benchmark: Mip-NeRF 360 Dataset</a></li>
+</ul>
+</li>
+</ul>
+
+            </div>
+          </div>
+        </div>
+    </section>
+  </div>
+
+  <!-- 
+ -->
+
+  
+
+  
+  <script type="text/javascript" id="documentation_options" data-url_root="../../"
+    src="../../_static/documentation_options.js"></script>
+  <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+  <script src="../../_static/jquery.js"></script>
+  <script src="../../_static/underscore.js"></script>
+  <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+  <script src="../../_static/doctools.js"></script>
+  <script src="../../_static/sphinx_highlight.js"></script>
+  
+
+  
+
+  <script type="text/javascript" src="../../_static/js/vendor/popper.min.js"></script>
+  <script type="text/javascript" src="../../_static/js/vendor/bootstrap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/list.js/1.5.0/list.min.js"></script>
+  <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+    jQuery(function () {
+      SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+  <!-- Begin Footer -->
+
+  <div class="container-fluid docs-tutorials-resources" id="docs-tutorials-resources">
+  </div>
+
+  <!-- End Footer -->
+
+  <!-- Begin Mobile Menu -->
+
+  <div class="mobile-main-menu">
+    <div class="container-fluid">
+      <div class="container">
+        <div class="mobile-main-menu-header-container">
+          <a class="header-logo" href="https://www.nerfacc.com/" aria-label="LOGO"></a>
+          <a class="main-menu-close-button" href="#" data-behavior="close-mobile-menu"></a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mobile-main-menu-links-container">
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+      </div>
+    </div>
+  </div>
+
+  <!-- End Mobile Menu -->
+
+  <script type="text/javascript" src="../../_static/js/vendor/anchor.min.js"></script>
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      mobileMenu.bind();
+      mobileTOC.bind();
+      pytorchAnchors.bind();
+      sideMenus.bind();
+      scrollToAnchor.bind();
+      highlightNavigation.bind();
+      mainMenuDropdown.bind();
+      filterTags.bind();
+
+      // Add class to links that have code blocks, since we cannot create links in code blocks
+      $("article.pytorch-article a span.pre").each(function (e) {
+        $(this).closest("a").addClass("has-code");
+      });
+    })
+  </script>
+</body>
+
+</html>

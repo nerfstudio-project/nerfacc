@@ -1,0 +1,477 @@
+
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!-->
+<html class="no-js" lang="en">
+<!--<![endif]-->
+
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Dynamic NeRFs &mdash; nerfacc 0.5.3 documentation</title>
+  
+
+<!--   <link rel="shortcut icon" href="../_static/images/logo192.png" /> -->
+  
+  
+
+  
+
+  
+  
+  
+
+  
+
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!-- <link rel="stylesheet" href="../_static/pygments.css" type="text/css" /> -->
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/readthedocs.css" type="text/css" />
+  <link rel="index" title="Index" href="../genindex.html" />
+  <link rel="search" title="Search" href="../search.html" />
+  <link rel="next" title="K-Planes" href="dynamic/kplanes.html" />
+  <link rel="prev" title="BARF" href="camera/barf.html" />
+  <!-- Google Analytics -->
+  <script type="text/javascript">
+    var collapsedSections = [];
+  </script>
+  
+  <!-- End Google Analytics -->
+  
+
+  
+  <script src="../_static/js/modernizr.min.js"></script>
+  <script>
+    MathJax = {
+        chtml: {
+            scale: 1,
+            minScale: 1,
+        },
+        svg: {
+            scale: 1,
+            minScale: 1,
+        }
+    }
+</script>
+
+  <!-- Preload the theme fonts -->
+
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-book.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/IBMPlexMono/IBMPlexMono-Medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-medium-italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/IBMPlexMono/IBMPlexMono-SemiBold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+
+<!-- Preload the katex fonts -->
+
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size1-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size4-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size2-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size3-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Caligraphic-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"
+    integrity="sha384-vSIIfh2YWi9wW0r9iZe7RJPrKwp6bG+s9QZMoITbCckVJqGCCRhc+ccxNcdpHuYu" crossorigin="anonymous">
+</head>
+
+<div class="container-fluid header-holder tutorials-header" id="header-holder">
+  <div class="container">
+    <div class="header-container">
+      <a class="header-logo" href="https://www.nerfacc.com/"
+        aria-label="LOGO"></a>
+
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+        </ul>
+      </div>
+
+      <a class="main-menu-open-button" href="#" data-behavior="open-mobile-menu"></a>
+    </div>
+  </div>
+</div>
+
+<body class="pytorch-body">
+
+   
+
+  
+
+  <div class="table-of-contents-link-wrapper">
+    <span>Table of Contents</span>
+    <a href="#" class="toggle-table-of-contents" data-behavior="toggle-table-of-contents"></a>
+  </div>
+
+  <nav data-toggle="wy-nav-shift" class="pytorch-left-menu" id="pytorch-left-menu">
+    <div class="pytorch-side-scroll">
+      <div class="pytorch-menu pytorch-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        <div class="pytorch-left-menu-search">
+          
+
+          
+          
+          
+          
+
+          
+
+
+
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search Docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        
+        
+        
+        
+        
+        <p class="caption" role="heading"><span class="caption-text">Methodology</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../methodology/coding.html">Efficient Coding</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../methodology/sampling.html">Efficient Sampling</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../apis/estimators.html">Estimators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../apis/rendering.html">Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../apis/utils.html">Utils</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Usages and Benchmarks</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="camera.html">Camera Optimization NeRFs</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Dynamic NeRFs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="static.html">Static NeRFs</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Projects</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://docs.nerf.studio/">nerfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://autonomousvision.github.io/sdfstudio/">sdfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/bennyguo/instant-nsr-pl">instant-nsr-pl</a></li>
+</ul>
+
+        
+        
+      </div>
+    </div>
+  </nav>
+
+  <div class="pytorch-container">
+    <div class="pytorch-page-level-bar" id="pytorch-page-level-bar">
+      <div class="pytorch-breadcrumbs-wrapper">
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="pytorch-breadcrumbs">
+    
+      <li>
+        <a href="../index.html">
+            Docs
+        </a> &gt;
+      </li>
+
+        
+      <li>Dynamic NeRFs</li>
+    
+    
+      <li class="pytorch-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/examples/dynamic.rst.txt" rel="nofollow"><img src="../_static/images/view-page-source-icon.svg"></a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+</div>
+      </div>
+
+      <div class="pytorch-shortcuts-wrapper" id="pytorch-shortcuts-wrapper">
+        Shortcuts
+      </div>
+    </div>
+
+    <section data-toggle="wy-nav-shift" id="pytorch-content-wrap" class="pytorch-content-wrap">
+      <div class="pytorch-content-left">
+        
+          <div class="rst-content">
+            
+            <div role="main" class="main-content" itemscope="itemscope" itemtype="http://schema.org/Article">
+              <article itemprop="articleBody" id="pytorch-article" class="pytorch-article">
+                
+  <section id="dynamic-nerfs">
+<h1>Dynamic NeRFs<a class="headerlink" href="#dynamic-nerfs" title="Permalink to this heading">¶</a></h1>
+<p>The <a class="reference internal" href="../apis/estimators.html#nerfacc.PropNetEstimator" title="nerfacc.PropNetEstimator"><code class="xref py py-class docutils literal notranslate"><span class="pre">nerfacc.PropNetEstimator</span></code></a> can natually work with dynamic NeRFs. To make the
+<a class="reference internal" href="../apis/estimators.html#nerfacc.OccGridEstimator" title="nerfacc.OccGridEstimator"><code class="xref py py-class docutils literal notranslate"><span class="pre">nerfacc.OccGridEstimator</span></code></a> also work with dynamic NeRFs, we need to make some compromises.
+In these examples, we use the <a class="reference internal" href="../apis/estimators.html#nerfacc.OccGridEstimator" title="nerfacc.OccGridEstimator"><code class="xref py py-class docutils literal notranslate"><span class="pre">nerfacc.OccGridEstimator</span></code></a> to estimate the
+<cite>maximum</cite> opacity at each area <cite>over all the timestamps</cite>. This allows us to share the same estimator
+across all the timestamps, including those timestamps that are not in the training set.
+In other words, we use it to cache the union of the occupancy at all timestamps.
+It is not optimal but still makes the rendering very efficient if the motion is not crazyly significant.</p>
+<section id="performance-overview">
+<h2>Performance Overview<a class="headerlink" href="#performance-overview" title="Permalink to this heading">¶</a></h2>
+<p><em>updated on 2023-04-04</em></p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Methods</p></th>
+<th class="head"><p>Dataset</p></th>
+<th class="head"><p>Training Time <span class="math notranslate nohighlight">\(\downarrow\)</span></p></th>
+<th class="head"><p>PSNR <span class="math notranslate nohighlight">\(\uparrow\)</span></p></th>
+<th class="head"><p>LPIPS <span class="math notranslate nohighlight">\(\downarrow\)</span></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>TiNeuVox <a class="reference external" href="https://arxiv.org/abs/2205.15285">[1]</a></p></td>
+<td><p>HyperNeRF</p></td>
+<td><p>56.3min</p></td>
+<td><p>24.19</p></td>
+<td><p>0.425</p></td>
+</tr>
+<tr class="row-odd"><td><p><em>+nerfacc (occgrid)</em></p></td>
+<td></td>
+<td><p>33.0min</p></td>
+<td><p>24.19</p></td>
+<td><p>0.434</p></td>
+</tr>
+<tr class="row-even"><td><p><em>+nerfacc (propnet)</em></p></td>
+<td></td>
+<td><p>34.3min</p></td>
+<td><p>24.26</p></td>
+<td><p>0.398</p></td>
+</tr>
+<tr class="row-odd"><td><p>TiNeuVox <a class="reference external" href="https://arxiv.org/abs/2205.15285">[1]</a></p></td>
+<td><p>D-NeRF</p></td>
+<td><p>11.8min</p></td>
+<td><p>31.14</p></td>
+<td><p>0.050</p></td>
+</tr>
+<tr class="row-even"><td><p><em>+nerfacc (occgrid)</em></p></td>
+<td></td>
+<td><p>4.2min</p></td>
+<td><p>31.75</p></td>
+<td><p>0.038</p></td>
+</tr>
+<tr class="row-odd"><td><p>K-Planes <a class="reference external" href="https://arxiv.org/abs/2301.10241">[2]</a></p></td>
+<td><p>D-NeRF</p></td>
+<td><p>63.9min</p></td>
+<td><p>30.28</p></td>
+<td><p>0.043</p></td>
+</tr>
+<tr class="row-even"><td><p><em>+nerfacc (occgrid)</em></p></td>
+<td></td>
+<td><p>38.8min</p></td>
+<td><p>30.35</p></td>
+<td><p>0.042</p></td>
+</tr>
+<tr class="row-odd"><td><p>T-NeRF <a class="reference external" href="https://arxiv.org/abs/2011.13961">[3]</a></p></td>
+<td><p>D-NeRF</p></td>
+<td><p>20hours</p></td>
+<td><p>28.78</p></td>
+<td><p>0.069</p></td>
+</tr>
+<tr class="row-even"><td><p><em>+nerfacc (occgrid)</em></p></td>
+<td></td>
+<td><p>58min</p></td>
+<td><p>32.22</p></td>
+<td><p>0.040</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="implementation-details">
+<h2>Implementation Details<a class="headerlink" href="#implementation-details" title="Permalink to this heading">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="dynamic/kplanes.html">K-Planes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dynamic/tineuvox.html">TiNeuVox</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dynamic/tnerf.html">T-NeRF</a></li>
+</ul>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="rd-party-use-cases">
+<h2>3rd-Party Use Cases<a class="headerlink" href="#rd-party-use-cases" title="Permalink to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/zju3dv/mlp_maps">Representing Volumetric Videos as Dynamic MLP Maps, CVPR 2023</a>.</p></li>
+</ul>
+</section>
+</section>
+
+
+              </article>
+              
+            </div>
+            <footer>
+  
+  <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+    
+    <a href="dynamic/kplanes.html" class="btn btn-neutral float-right" title="K-Planes" accesskey="n"
+      rel="next">Next <img src="../_static/images/chevron-right-blue.svg"
+        class="next-page"></a>
+    
+    
+    <a href="camera/barf.html" class="btn btn-neutral" title="BARF" accesskey="p"
+      rel="prev"><img src="../_static/images/chevron-right-blue.svg" class="previous-page"> Previous</a>
+    
+  </div>
+  
+
+  <hr>
+
+  <div role="contentinfo">
+    <p>
+      &copy; Copyright 2022, Ruilong.
+
+    </p>
+  </div>
+  
+  <div>
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a
+      href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the
+      Docs</a>.
+  </div>
+   
+
+</footer>
+          </div>
+        </div>
+
+        <div class="pytorch-content-right" id="pytorch-content-right">
+          <div class="pytorch-right-menu" id="pytorch-right-menu">
+            <div class="pytorch-side-scroll" id="pytorch-side-scroll-right">
+              <ul>
+<li><a class="reference internal" href="#">Dynamic NeRFs</a><ul>
+<li><a class="reference internal" href="#performance-overview">Performance Overview</a></li>
+<li><a class="reference internal" href="#implementation-details">Implementation Details</a></li>
+<li><a class="reference internal" href="#rd-party-use-cases">3rd-Party Use Cases</a></li>
+</ul>
+</li>
+</ul>
+
+            </div>
+          </div>
+        </div>
+    </section>
+  </div>
+
+  <!-- 
+ -->
+
+  
+
+  
+  <script type="text/javascript" id="documentation_options" data-url_root="../"
+    src="../_static/documentation_options.js"></script>
+  <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+  <script src="../_static/jquery.js"></script>
+  <script src="../_static/underscore.js"></script>
+  <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+  <script src="../_static/doctools.js"></script>
+  <script src="../_static/sphinx_highlight.js"></script>
+  <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  
+
+  
+
+  <script type="text/javascript" src="../_static/js/vendor/popper.min.js"></script>
+  <script type="text/javascript" src="../_static/js/vendor/bootstrap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/list.js/1.5.0/list.min.js"></script>
+  <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+    jQuery(function () {
+      SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+  <!-- Begin Footer -->
+
+  <div class="container-fluid docs-tutorials-resources" id="docs-tutorials-resources">
+  </div>
+
+  <!-- End Footer -->
+
+  <!-- Begin Mobile Menu -->
+
+  <div class="mobile-main-menu">
+    <div class="container-fluid">
+      <div class="container">
+        <div class="mobile-main-menu-header-container">
+          <a class="header-logo" href="https://www.nerfacc.com/" aria-label="LOGO"></a>
+          <a class="main-menu-close-button" href="#" data-behavior="close-mobile-menu"></a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mobile-main-menu-links-container">
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+      </div>
+    </div>
+  </div>
+
+  <!-- End Mobile Menu -->
+
+  <script type="text/javascript" src="../_static/js/vendor/anchor.min.js"></script>
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      mobileMenu.bind();
+      mobileTOC.bind();
+      pytorchAnchors.bind();
+      sideMenus.bind();
+      scrollToAnchor.bind();
+      highlightNavigation.bind();
+      mainMenuDropdown.bind();
+      filterTags.bind();
+
+      // Add class to links that have code blocks, since we cannot create links in code blocks
+      $("article.pytorch-article a span.pre").each(function (e) {
+        $(this).closest("a").addClass("has-code");
+      });
+    })
+  </script>
+</body>
+
+</html>

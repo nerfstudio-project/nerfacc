@@ -1,0 +1,9 @@
+.header-logo {
+    background-image: url("../images/logo4x.png");
+    background-size: 156px 35px;
+    height: 35px;
+    width: 156px;
+}
+code {
+    word-break: normal;
+}

@@ -1,0 +1,612 @@
+
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!-->
+<html class="no-js" lang="en">
+<!--<![endif]-->
+
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Estimators &mdash; nerfacc 0.5.3 documentation</title>
+  
+
+<!--   <link rel="shortcut icon" href="../_static/images/logo192.png" /> -->
+  
+  
+
+  
+
+  
+  
+  
+
+  
+
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!-- <link rel="stylesheet" href="../_static/pygments.css" type="text/css" /> -->
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/readthedocs.css" type="text/css" />
+  <link rel="index" title="Index" href="../genindex.html" />
+  <link rel="search" title="Search" href="../search.html" />
+  <link rel="next" title="Rendering" href="rendering.html" />
+  <link rel="prev" title="Efficient Sampling" href="../methodology/sampling.html" />
+  <!-- Google Analytics -->
+  <script type="text/javascript">
+    var collapsedSections = [];
+  </script>
+  
+  <!-- End Google Analytics -->
+  
+
+  
+  <script src="../_static/js/modernizr.min.js"></script>
+  <script>
+    MathJax = {
+        chtml: {
+            scale: 1,
+            minScale: 1,
+        },
+        svg: {
+            scale: 1,
+            minScale: 1,
+        }
+    }
+</script>
+
+  <!-- Preload the theme fonts -->
+
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-book.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/IBMPlexMono/IBMPlexMono-Medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/FreightSans/freight-sans-medium-italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="../_static/fonts/IBMPlexMono/IBMPlexMono-SemiBold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+
+<!-- Preload the katex fonts -->
+
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Math-Italic.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Main-Bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size1-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size4-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size2-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Size3-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/fonts/KaTeX_Caligraphic-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"
+    integrity="sha384-vSIIfh2YWi9wW0r9iZe7RJPrKwp6bG+s9QZMoITbCckVJqGCCRhc+ccxNcdpHuYu" crossorigin="anonymous">
+</head>
+
+<div class="container-fluid header-holder tutorials-header" id="header-holder">
+  <div class="container">
+    <div class="header-container">
+      <a class="header-logo" href="https://www.nerfacc.com/"
+        aria-label="LOGO"></a>
+
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+        </ul>
+      </div>
+
+      <a class="main-menu-open-button" href="#" data-behavior="open-mobile-menu"></a>
+    </div>
+  </div>
+</div>
+
+<body class="pytorch-body">
+
+   
+
+  
+
+  <div class="table-of-contents-link-wrapper">
+    <span>Table of Contents</span>
+    <a href="#" class="toggle-table-of-contents" data-behavior="toggle-table-of-contents"></a>
+  </div>
+
+  <nav data-toggle="wy-nav-shift" class="pytorch-left-menu" id="pytorch-left-menu">
+    <div class="pytorch-side-scroll">
+      <div class="pytorch-menu pytorch-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+        <div class="pytorch-left-menu-search">
+          
+
+          
+          
+          
+          
+
+          
+
+
+
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search Docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        
+        
+        
+        
+        
+        <p class="caption" role="heading"><span class="caption-text">Methodology</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../methodology/coding.html">Efficient Coding</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../methodology/sampling.html">Efficient Sampling</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Estimators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rendering.html">Rendering</a></li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">Utils</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Example Usages and Benchmarks</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../examples/camera.html">Camera Optimization NeRFs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/dynamic.html">Dynamic NeRFs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/static.html">Static NeRFs</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Projects</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://docs.nerf.studio/">nerfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://autonomousvision.github.io/sdfstudio/">sdfstudio</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/bennyguo/instant-nsr-pl">instant-nsr-pl</a></li>
+</ul>
+
+        
+        
+      </div>
+    </div>
+  </nav>
+
+  <div class="pytorch-container">
+    <div class="pytorch-page-level-bar" id="pytorch-page-level-bar">
+      <div class="pytorch-breadcrumbs-wrapper">
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="pytorch-breadcrumbs">
+    
+      <li>
+        <a href="../index.html">
+            Docs
+        </a> &gt;
+      </li>
+
+        
+      <li>Estimators</li>
+    
+    
+      <li class="pytorch-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/apis/estimators.rst.txt" rel="nofollow"><img src="../_static/images/view-page-source-icon.svg"></a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+</div>
+      </div>
+
+      <div class="pytorch-shortcuts-wrapper" id="pytorch-shortcuts-wrapper">
+        Shortcuts
+      </div>
+    </div>
+
+    <section data-toggle="wy-nav-shift" id="pytorch-content-wrap" class="pytorch-content-wrap">
+      <div class="pytorch-content-left">
+        
+          <div class="rst-content">
+            
+            <div role="main" class="main-content" itemscope="itemscope" itemtype="http://schema.org/Article">
+              <article itemprop="articleBody" id="pytorch-article" class="pytorch-article">
+                
+  <section id="estimators">
+<span id="id1"></span><h1>Estimators<a class="headerlink" href="#estimators" title="Permalink to this heading">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="nerfacc.OccGridEstimator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nerfacc.</span></span><span class="sig-name descname"><span class="pre">OccGridEstimator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">roi_aabb</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">128</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">levels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nerfacc.OccGridEstimator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Occupancy grid transmittance estimator for spatial skipping.</p>
+<p>References: “Instant Neural Graphics Primitives.”</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>roi_aabb</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.12)"><em>Union</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.12)"><em>List</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>Tensor</em><em>]</em>) – The axis-aligned bounding box of the region of interest. Useful for mapping
+the 3D space to the grid.</p></li>
+<li><p><strong>resolution</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Union" title="(in Python v3.12)"><em>Union</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.12)"><em>List</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>Tensor</em><em>]</em>) – The resolution of the grid. If an integer is given, the grid is assumed to
+be a cube. Otherwise, a list or a tensor of shape (3,) is expected. Default: 128.</p></li>
+<li><p><strong>levels</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a>) – The number of levels of the grid. Default: 1.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="nerfacc.OccGridEstimator.mark_invisible_cells">
+<span class="sig-name descname"><span class="pre">mark_invisible_cells</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">K</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c2w</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">near_plane</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunk</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">32768</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nerfacc.OccGridEstimator.mark_invisible_cells" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mark the cells that aren’t covered by the cameras with density -1.
+Should only be executed once before training starts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>K</strong> (<em>Tensor</em>) – Camera intrinsics of shape (N, 3, 3) or (1, 3, 3).</p></li>
+<li><p><strong>c2w</strong> (<em>Tensor</em>) – Camera to world poses of shape (N, 3, 4) or (N, 4, 4).</p></li>
+<li><p><strong>width</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a>) – Image width in pixels</p></li>
+<li><p><strong>height</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a>) – Image height in pixels</p></li>
+<li><p><strong>near_plane</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Near plane distance</p></li>
+<li><p><strong>chunk</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a>) – The chunk size to split the cells (to avoid OOM)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nerfacc.OccGridEstimator.sampling">
+<span class="sig-name descname"><span class="pre">sampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rays_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rays_d</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma_fn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_fn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">near_plane</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">far_plane</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000000000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_min</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t_max</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">render_step_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">early_stop_eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_thre</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratified</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cone_angle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nerfacc.OccGridEstimator.sampling" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sampling with spatial skipping.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function is not differentiable to any inputs.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rays_o</strong> (<em>Tensor</em>) – Ray origins of shape (n_rays, 3).</p></li>
+<li><p><strong>rays_d</strong> (<em>Tensor</em>) – Normalized ray directions of shape (n_rays, 3).</p></li>
+<li><p><strong>sigma_fn</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.12)"><em>Optional</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Callable" title="(in Python v3.12)"><em>Callable</em></a><em>]</em>) – Optional. If provided, the marching will skip the invisible space
+by evaluating the density along the ray with <cite>sigma_fn</cite>. It should be a
+function that takes in samples {t_starts (N,), t_ends (N,),
+ray indices (N,)} and returns the post-activation density values (N,).
+You should only provide either <cite>sigma_fn</cite> or <cite>alpha_fn</cite>.</p></li>
+<li><p><strong>alpha_fn</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.12)"><em>Optional</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Callable" title="(in Python v3.12)"><em>Callable</em></a><em>]</em>) – Optional. If provided, the marching will skip the invisible space
+by evaluating the density along the ray with <cite>alpha_fn</cite>. It should be a
+function that takes in samples {t_starts (N,), t_ends (N,),
+ray indices (N,)} and returns the post-activation opacity values (N,).
+You should only provide either <cite>sigma_fn</cite> or <cite>alpha_fn</cite>.</p></li>
+<li><p><strong>near_plane</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Optional. Near plane distance. Default: 0.0.</p></li>
+<li><p><strong>far_plane</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Optional. Far plane distance. Default: 1e10.</p></li>
+<li><p><strong>t_min</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.12)"><em>Optional</em></a><em>[</em><em>Tensor</em><em>]</em>) – Optional. Per-ray minimum distance. Tensor with shape (n_rays).
+If profided, the marching will start from maximum of t_min and near_plane.</p></li>
+<li><p><strong>t_max</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.12)"><em>Optional</em></a><em>[</em><em>Tensor</em><em>]</em>) – Optional. Per-ray maximum distance. Tensor with shape (n_rays).
+If profided, the marching will stop by minimum of t_max and far_plane.</p></li>
+<li><p><strong>render_step_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Step size for marching. Default: 1e-3.</p></li>
+<li><p><strong>early_stop_eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Early stop threshold for skipping invisible space. Default: 1e-4.</p></li>
+<li><p><strong>alpha_thre</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Alpha threshold for skipping empty space. Default: 0.0.</p></li>
+<li><p><strong>stratified</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a>) – Whether to use stratified sampling. Default: False.</p></li>
+<li><p><strong>cone_angle</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Cone angle for linearly-increased step size. 0. means
+constant step size. Default: 0.0.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>ray_indices</strong>: Ray index of each sample. IntTensor with shape (n_samples).</p></li>
+<li><p><strong>t_starts</strong>: Per-sample start distance. Tensor with shape (n_samples,).</p></li>
+<li><p><strong>t_ends</strong>: Per-sample end distance. Tensor with shape (n_samples,).</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A tuple of {LongTensor, Tensor, Tensor}</p>
+</dd>
+</dl>
+<p>Examples:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ray_indices</span><span class="p">,</span> <span class="n">t_starts</span><span class="p">,</span> <span class="n">t_ends</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">sampling</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">rays_o</span><span class="p">,</span> <span class="n">rays_d</span><span class="p">,</span> <span class="n">render_step_size</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t_mid</span> <span class="o">=</span> <span class="p">(</span><span class="n">t_starts</span> <span class="o">+</span> <span class="n">t_ends</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sample_locs</span> <span class="o">=</span> <span class="n">rays_o</span><span class="p">[</span><span class="n">ray_indices</span><span class="p">]</span> <span class="o">+</span> <span class="n">t_mid</span> <span class="o">*</span> <span class="n">rays_d</span><span class="p">[</span><span class="n">ray_indices</span><span class="p">]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nerfacc.OccGridEstimator.update_every_n_steps">
+<span class="sig-name descname"><span class="pre">update_every_n_steps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">step</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">occ_eval_fn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">occ_thre</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ema_decay</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.95</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">warmup_steps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">256</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">16</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nerfacc.OccGridEstimator.update_every_n_steps" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update the estimator every n steps during training.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>step</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a>) – Current training step.</p></li>
+<li><p><strong>occ_eval_fn</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Callable" title="(in Python v3.12)"><em>Callable</em></a>) – A function that takes in sample locations <span class="math notranslate nohighlight">\((N, 3)\)</span> and
+returns the occupancy values <span class="math notranslate nohighlight">\((N, 1)\)</span> at those locations.</p></li>
+<li><p><strong>occ_thre</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Threshold used to binarize the occupancy grid. Default: 1e-2.</p></li>
+<li><p><strong>ema_decay</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – The decay rate for EMA updates. Default: 0.95.</p></li>
+<li><p><strong>warmup_steps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a>) – Sample all cells during the warmup stage. After the warmup
+stage we change the sampling strategy to 1/4 uniformly sampled cells
+together with 1/4 occupied cells. Default: 256.</p></li>
+<li><p><strong>n</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a>) – Update the grid every n steps. Default: 16.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nerfacc.PropNetEstimator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nerfacc.</span></span><span class="sig-name descname"><span class="pre">PropNetEstimator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">optimizer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scheduler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nerfacc.PropNetEstimator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Proposal network transmittance estimator.</p>
+<p>References: “Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields.”</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>optimizer</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.12)"><em>Optional</em></a><em>[</em><em>Optimizer</em><em>]</em>) – The optimizer to use for the proposal networks.</p></li>
+<li><p><strong>scheduler</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Optional" title="(in Python v3.12)"><em>Optional</em></a><em>[</em><em>_LRScheduler</em><em>]</em>) – The learning rate scheduler to use for the proposal networks.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="nerfacc.PropNetEstimator.compute_loss">
+<span class="sig-name descname"><span class="pre">compute_loss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trans</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">loss_scaler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nerfacc.PropNetEstimator.compute_loss" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the loss for the proposal networks.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trans</strong> (<em>Tensor</em>) – The transmittance of all samples. Shape (n_rays, num_samples).</p></li>
+<li><p><strong>loss_scaler</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – The loss scaler. Default to 1.0.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The loss for the proposal networks.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><em>Tensor</em></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nerfacc.PropNetEstimator.sampling">
+<span class="sig-name descname"><span class="pre">sampling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prop_sigma_fns</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prop_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_rays</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">near_plane</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">far_plane</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lindisp'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratified</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">requires_grad</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nerfacc.PropNetEstimator.sampling" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sampling with CDFs from proposal networks.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When <cite>requires_grad</cite> is <cite>True</cite>, the gradients are allowed to flow
+through the proposal networks, and the outputs of the proposal
+networks are cached to update them later when calling <cite>update_every_n_steps()</cite></p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prop_sigma_fns</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.12)"><em>List</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Callable" title="(in Python v3.12)"><em>Callable</em></a><em>]</em>) – Proposal network evaluate functions. It should be a list
+of functions that take in samples {t_starts (n_rays, n_samples),
+t_ends (n_rays, n_samples)} and returns the post-activation densities
+(n_rays, n_samples).</p></li>
+<li><p><strong>prop_samples</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.12)"><em>List</em></a><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em>) – Number of samples to draw from each proposal network. Should
+be the same length as <cite>prop_sigma_fns</cite>.</p></li>
+<li><p><strong>num_samples</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a>) – Number of samples to draw in the end.</p></li>
+<li><p><strong>n_rays</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a>) – Number of rays.</p></li>
+<li><p><strong>near_plane</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Near plane.</p></li>
+<li><p><strong>far_plane</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – Far plane.</p></li>
+<li><p><strong>sampling_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><em>Literal</em></a><em>[</em><em>'uniform'</em><em>, </em><em>'lindisp'</em><em>]</em>) – Sampling type. Either “uniform” or “lindisp”. Default to
+“lindisp”.</p></li>
+<li><p><strong>stratified</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a>) – Whether to use stratified sampling. Default to <cite>False</cite>.</p></li>
+<li><p><strong>requires_grad</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a>) – Whether to allow gradients to flow through the proposal
+networks. Default to <cite>False</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>t_starts</strong>: The starts of the samples. Shape (n_rays, num_samples).</p></li>
+<li><p><strong>t_ends</strong>: The ends of the samples. Shape (n_rays, num_samples).</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A tuple of {Tensor, Tensor}</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nerfacc.PropNetEstimator.update_every_n_steps">
+<span class="sig-name descname"><span class="pre">update_every_n_steps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trans</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">requires_grad</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">loss_scaler</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#nerfacc.PropNetEstimator.update_every_n_steps" title="Permalink to this definition">¶</a></dt>
+<dd><p>Update the estimator every n steps during training.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trans</strong> (<em>Tensor</em>) – The transmittance of all samples. Shape (n_rays, num_samples).</p></li>
+<li><p><strong>requires_grad</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a>) – Whether to allow gradients to flow through the proposal
+networks. Default to <cite>False</cite>.</p></li>
+<li><p><strong>loss_scaler</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a>) – The loss scaler to use. Default to 1.0.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The loss of the proposal networks for logging (a float scalar).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)">float</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+              </article>
+              
+            </div>
+            <footer>
+  
+  <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+    
+    <a href="rendering.html" class="btn btn-neutral float-right" title="Rendering" accesskey="n"
+      rel="next">Next <img src="../_static/images/chevron-right-blue.svg"
+        class="next-page"></a>
+    
+    
+    <a href="../methodology/sampling.html" class="btn btn-neutral" title="Efficient Sampling" accesskey="p"
+      rel="prev"><img src="../_static/images/chevron-right-blue.svg" class="previous-page"> Previous</a>
+    
+  </div>
+  
+
+  <hr>
+
+  <div role="contentinfo">
+    <p>
+      &copy; Copyright 2022, Ruilong.
+
+    </p>
+  </div>
+  
+  <div>
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a
+      href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the
+      Docs</a>.
+  </div>
+   
+
+</footer>
+          </div>
+        </div>
+
+        <div class="pytorch-content-right" id="pytorch-content-right">
+          <div class="pytorch-right-menu" id="pytorch-right-menu">
+            <div class="pytorch-side-scroll" id="pytorch-side-scroll-right">
+              <ul>
+<li><a class="reference internal" href="#">Estimators</a><ul>
+<li><a class="reference internal" href="#nerfacc.OccGridEstimator"><code class="docutils literal notranslate"><span class="pre">OccGridEstimator</span></code></a><ul>
+<li><a class="reference internal" href="#nerfacc.OccGridEstimator.mark_invisible_cells"><code class="docutils literal notranslate"><span class="pre">OccGridEstimator.mark_invisible_cells()</span></code></a></li>
+<li><a class="reference internal" href="#nerfacc.OccGridEstimator.sampling"><code class="docutils literal notranslate"><span class="pre">OccGridEstimator.sampling()</span></code></a></li>
+<li><a class="reference internal" href="#nerfacc.OccGridEstimator.update_every_n_steps"><code class="docutils literal notranslate"><span class="pre">OccGridEstimator.update_every_n_steps()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#nerfacc.PropNetEstimator"><code class="docutils literal notranslate"><span class="pre">PropNetEstimator</span></code></a><ul>
+<li><a class="reference internal" href="#nerfacc.PropNetEstimator.compute_loss"><code class="docutils literal notranslate"><span class="pre">PropNetEstimator.compute_loss()</span></code></a></li>
+<li><a class="reference internal" href="#nerfacc.PropNetEstimator.sampling"><code class="docutils literal notranslate"><span class="pre">PropNetEstimator.sampling()</span></code></a></li>
+<li><a class="reference internal" href="#nerfacc.PropNetEstimator.update_every_n_steps"><code class="docutils literal notranslate"><span class="pre">PropNetEstimator.update_every_n_steps()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+            </div>
+          </div>
+        </div>
+    </section>
+  </div>
+
+  <!-- 
+ -->
+
+  
+
+  
+  <script type="text/javascript" id="documentation_options" data-url_root="../"
+    src="../_static/documentation_options.js"></script>
+  <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+  <script src="../_static/jquery.js"></script>
+  <script src="../_static/underscore.js"></script>
+  <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+  <script src="../_static/doctools.js"></script>
+  <script src="../_static/sphinx_highlight.js"></script>
+  <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  
+
+  
+
+  <script type="text/javascript" src="../_static/js/vendor/popper.min.js"></script>
+  <script type="text/javascript" src="../_static/js/vendor/bootstrap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/list.js/1.5.0/list.min.js"></script>
+  <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+    jQuery(function () {
+      SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+  <!-- Begin Footer -->
+
+  <div class="container-fluid docs-tutorials-resources" id="docs-tutorials-resources">
+  </div>
+
+  <!-- End Footer -->
+
+  <!-- Begin Mobile Menu -->
+
+  <div class="mobile-main-menu">
+    <div class="container-fluid">
+      <div class="container">
+        <div class="mobile-main-menu-header-container">
+          <a class="header-logo" href="https://www.nerfacc.com/" aria-label="LOGO"></a>
+          <a class="main-menu-close-button" href="#" data-behavior="close-mobile-menu"></a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mobile-main-menu-links-container">
+      <div class="main-menu">
+        <ul>
+          <li>
+            <a href="https://github.com/nerfstudio-project/nerfacc" target="_blank">GitHub</a>
+          </li>
+      </div>
+    </div>
+  </div>
+
+  <!-- End Mobile Menu -->
+
+  <script type="text/javascript" src="../_static/js/vendor/anchor.min.js"></script>
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      mobileMenu.bind();
+      mobileTOC.bind();
+      pytorchAnchors.bind();
+      sideMenus.bind();
+      scrollToAnchor.bind();
+      highlightNavigation.bind();
+      mainMenuDropdown.bind();
+      filterTags.bind();
+
+      // Add class to links that have code blocks, since we cannot create links in code blocks
+      $("article.pytorch-article a span.pre").each(function (e) {
+        $(this).closest("a").addClass("has-code");
+      });
+    })
+  </script>
+</body>
+
+</html>
