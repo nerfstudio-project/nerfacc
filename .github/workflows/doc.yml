@@ -1,5 +1,5 @@
 name: Docs
-on: [push, pull_request, workflow_dispatch]
+on: [push, workflow_dispatch]
 permissions:
     contents: write
 jobs:
