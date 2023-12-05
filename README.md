@@ -110,7 +110,7 @@ ray_indices, t_starts, t_ends = estimator.sampling(
 )
 
 # Differentiable Volumetric Rendering.
-# colors: (n_rays, 3). opaicity: (n_rays, 1). depth: (n_rays, 1).
+# colors: (n_rays, 3). opacity: (n_rays, 1). depth: (n_rays, 1).
 color, opacity, depth, extras = nerfacc.rendering(
     t_starts, t_ends, ray_indices, n_rays=rays_o.shape[0], rgb_sigma_fn=rgb_sigma_fn
 )
