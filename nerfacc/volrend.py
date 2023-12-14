@@ -23,6 +23,7 @@ def rendering(
     rgb_alpha_fn: Optional[Callable] = None,
     # rendering options
     render_bkgd: Optional[Tensor] = None,
+    expected_depths: bool = True,
 ) -> Tuple[Tensor, Tensor, Tensor, Dict]:
     """Render the rays through the radience field defined by `rgb_sigma_fn`.
 
@@ -49,6 +50,7 @@ def rendering(
             ray indices} and returns the post-activation rgb (..., 3) and opacity
             values (...,). The shape `...` is the same as the shape of `t_starts`.
         render_bkgd: Background color. Tensor with shape (3,).
+        expected_depths: If True, return the expected depths. Else, the accumulated depth is returned.
 
     Returns:
         Ray colors (n_rays, 3), opacities (n_rays, 1), depths (n_rays, 1) and a dict
@@ -150,7 +152,8 @@ def rendering(
         ray_indices=ray_indices,
         n_rays=n_rays,
     )
-    depths = depths / opacities.clamp_min(torch.finfo(rgbs.dtype).eps)
+    if expected_depths:
+        depths = depths / opacities.clamp_min(torch.finfo(rgbs.dtype).eps)
 
     # Background composition.
     if render_bkgd is not None:
