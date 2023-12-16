@@ -124,6 +124,8 @@ class SubjectLoader(torch.utils.data.Dataset):
         self.camtoworlds = self.camtoworlds.to(device)
         self.K = self.K.to(device)
         assert self.images.shape[1:3] == (self.HEIGHT, self.WIDTH)
+        self.g = torch.Generator(device=device)
+        self.g.manual_seed(42)
 
     def __len__(self):
         return len(self.images)
@@ -141,7 +143,7 @@ class SubjectLoader(torch.utils.data.Dataset):
 
         if self.training:
             if self.color_bkgd_aug == "random":
-                color_bkgd = torch.rand(3, device=self.images.device)
+                color_bkgd = torch.rand(3, device=self.images.device, generator=self.g)
             elif self.color_bkgd_aug == "white":
                 color_bkgd = torch.ones(3, device=self.images.device)
             elif self.color_bkgd_aug == "black":
@@ -172,14 +174,15 @@ class SubjectLoader(torch.utils.data.Dataset):
                     len(self.images),
                     size=(num_rays,),
                     device=self.images.device,
+                    generator=self.g,
                 )
             else:
                 image_id = [index] * num_rays
             x = torch.randint(
-                0, self.WIDTH, size=(num_rays,), device=self.images.device
+                0, self.WIDTH, size=(num_rays,), device=self.images.device, generator=self.g
             )
             y = torch.randint(
-                0, self.HEIGHT, size=(num_rays,), device=self.images.device
+                0, self.HEIGHT, size=(num_rays,), device=self.images.device, generator=self.g
             )
         else:
             image_id = [index]

@@ -85,6 +85,13 @@ class NGPRadianceField(torch.nn.Module):
         super().__init__()
         if not isinstance(aabb, torch.Tensor):
             aabb = torch.tensor(aabb, dtype=torch.float32)
+
+        # Turns out rectangle aabb will leads to uneven collision so bad performance.
+        # We enforce a cube aabb here.
+        center = (aabb[..., :num_dim] + aabb[..., num_dim:]) / 2.0
+        size = (aabb[..., num_dim:] - aabb[..., :num_dim]).max()
+        aabb = torch.cat([center - size / 2.0, center + size / 2.0], dim=-1)
+
         self.register_buffer("aabb", aabb)
         self.num_dim = num_dim
         self.use_viewdirs = use_viewdirs
