@@ -79,38 +79,6 @@ def render_image_with_occgrid(
     else:
         num_rays, _ = rays_shape
 
-    def sigma_fn(t_starts, t_ends, ray_indices):
-        t_origins = chunk_rays.origins[ray_indices]
-        t_dirs = chunk_rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
-        if timestamps is not None:
-            # dnerf
-            t = (
-                timestamps[ray_indices]
-                if radiance_field.training
-                else timestamps.expand_as(positions[:, :1])
-            )
-            sigmas = radiance_field.query_density(positions, t)
-        else:
-            sigmas = radiance_field.query_density(positions)
-        return sigmas.squeeze(-1)
-
-    def rgb_sigma_fn(t_starts, t_ends, ray_indices):
-        t_origins = chunk_rays.origins[ray_indices]
-        t_dirs = chunk_rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
-        if timestamps is not None:
-            # dnerf
-            t = (
-                timestamps[ray_indices]
-                if radiance_field.training
-                else timestamps.expand_as(positions[:, :1])
-            )
-            rgbs, sigmas = radiance_field(positions, t, t_dirs)
-        else:
-            rgbs, sigmas = radiance_field(positions, t_dirs)
-        return rgbs, sigmas.squeeze(-1)
-
     results = []
     chunk = (
         torch.iinfo(torch.int32).max
@@ -119,9 +87,45 @@ def render_image_with_occgrid(
     )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
+
+        rays_o = chunk_rays.origins
+        rays_d = chunk_rays.viewdirs
+
+        def sigma_fn(t_starts, t_ends, ray_indices):
+            t_origins = rays_o[ray_indices]
+            t_dirs = rays_d[ray_indices]
+            positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
+            if timestamps is not None:
+                # dnerf
+                t = (
+                    timestamps[ray_indices]
+                    if radiance_field.training
+                    else timestamps.expand_as(positions[:, :1])
+                )
+                sigmas = radiance_field.query_density(positions, t)
+            else:
+                sigmas = radiance_field.query_density(positions)
+            return sigmas.squeeze(-1)
+
+        def rgb_sigma_fn(t_starts, t_ends, ray_indices):
+            t_origins = rays_o[ray_indices]
+            t_dirs = rays_d[ray_indices]
+            positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
+            if timestamps is not None:
+                # dnerf
+                t = (
+                    timestamps[ray_indices]
+                    if radiance_field.training
+                    else timestamps.expand_as(positions[:, :1])
+                )
+                rgbs, sigmas = radiance_field(positions, t, t_dirs)
+            else:
+                rgbs, sigmas = radiance_field(positions, t_dirs)
+            return rgbs, sigmas.squeeze(-1)
+
         ray_indices, t_starts, t_ends = estimator.sampling(
-            chunk_rays.origins,
-            chunk_rays.viewdirs,
+            rays_o,
+            rays_d,
             sigma_fn=sigma_fn,
             near_plane=near_plane,
             far_plane=far_plane,
@@ -134,7 +138,7 @@ def render_image_with_occgrid(
             t_starts,
             t_ends,
             ray_indices,
-            n_rays=chunk_rays.origins.shape[0],
+            n_rays=rays_o.shape[0],
             rgb_sigma_fn=rgb_sigma_fn,
             render_bkgd=render_bkgd,
         )
