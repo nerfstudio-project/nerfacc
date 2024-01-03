@@ -24,6 +24,7 @@ from examples.utils import (
 )
 from nerfacc.estimators.occ_grid import OccGridEstimator
 
+
 def run(args):
     device = "cuda:0"
     set_random_seed(42)
@@ -102,7 +103,10 @@ def run(args):
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
     radiance_field = NGPRadianceField(aabb=estimator.aabbs[-1]).to(device)
     optimizer = torch.optim.Adam(
-        radiance_field.parameters(), lr=1e-2, eps=1e-15, weight_decay=weight_decay
+        radiance_field.parameters(),
+        lr=1e-2,
+        eps=1e-15,
+        weight_decay=weight_decay,
     )
     scheduler = torch.optim.lr_scheduler.ChainedScheduler(
         [
@@ -167,7 +171,8 @@ def run(args):
             # dynamic batch size for rays to keep sample batch size constant.
             num_rays = len(pixels)
             num_rays = int(
-                num_rays * (target_sample_batch_size / float(n_rendering_samples))
+                num_rays
+                * (target_sample_batch_size / float(n_rendering_samples))
             )
             train_dataset.update_num_rays(num_rays)
 
@@ -248,6 +253,7 @@ def run(args):
             psnr_avg = sum(psnrs) / len(psnrs)
             lpips_avg = sum(lpips) / len(lpips)
             print(f"evaluation: psnr_avg={psnr_avg}, lpips_avg={lpips_avg}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

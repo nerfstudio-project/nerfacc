@@ -276,7 +276,9 @@ class SubjectLoader(torch.utils.data.Dataset):
 
         if self.training:
             if self.color_bkgd_aug == "random":
-                color_bkgd = torch.rand(3, device=self.images.device, generator=self.g)
+                color_bkgd = torch.rand(
+                    3, device=self.images.device, generator=self.g
+                )
             elif self.color_bkgd_aug == "white":
                 color_bkgd = torch.ones(3, device=self.images.device)
             elif self.color_bkgd_aug == "black":
@@ -311,10 +313,18 @@ class SubjectLoader(torch.utils.data.Dataset):
             else:
                 image_id = [index] * num_rays
             x = torch.randint(
-                0, self.width, size=(num_rays,), device=self.images.device, generator=self.g
+                0,
+                self.width,
+                size=(num_rays,),
+                device=self.images.device,
+                generator=self.g,
             )
             y = torch.randint(
-                0, self.height, size=(num_rays,), device=self.images.device, generator=self.g
+                0,
+                self.height,
+                size=(num_rays,),
+                device=self.images.device,
+                generator=self.g,
             )
         else:
             image_id = [index]

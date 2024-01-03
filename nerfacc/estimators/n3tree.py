@@ -2,13 +2,14 @@ import math
 from typing import Callable, List, Optional, Tuple, Union
 
 import torch
+from torch import Tensor
+
 from ..grid import _enlarge_aabb
 from ..volrend import (
     render_visibility_from_alpha,
     render_visibility_from_density,
 )
 from .base import AbstractEstimator
-from torch import Tensor
 
 try:
     import svox
@@ -21,7 +22,7 @@ except ImportError:
 
 class N3TreeEstimator(AbstractEstimator):
     """Use N3Tree to implement Occupancy Grid.
-    
+
     This allows more flexible topologies than the cascaded grid. However, it is
     slower to create samples from the tree than the cascaded grid. By default,
     it has the same topology as the cascaded grid but `self.tree` can be
@@ -43,7 +44,9 @@ class N3TreeEstimator(AbstractEstimator):
             )
 
         # check the resolution is legal
-        assert isinstance(resolution, int), "N3Tree only supports uniform resolution!"
+        assert isinstance(
+            resolution, int
+        ), "N3Tree only supports uniform resolution!"
 
         # check the roi_aabb is legal
         if isinstance(roi_aabb, (list, tuple)):
@@ -148,16 +151,18 @@ class N3TreeEstimator(AbstractEstimator):
 
         """
 
-        assert t_min is None and t_max is None, (
-            "Do not supported per-ray min max. Please use near_plane and far_plane instead."
-        )
+        assert (
+            t_min is None and t_max is None
+        ), "Do not supported per-ray min max. Please use near_plane and far_plane instead."
         if stratified:
             near_plane += torch.rand(()).item() * render_step_size
 
         t_starts, t_ends, packed_info, ray_indices = svox.volume_sample(
             self.tree,
             thresh=self.thresh,
-            rays=svox.Rays(rays_o.contiguous(), rays_d.contiguous(), rays_d.contiguous()),
+            rays=svox.Rays(
+                rays_o.contiguous(), rays_d.contiguous(), rays_d.contiguous()
+            ),
             step_size=render_step_size,
             cone_angle=cone_angle,
             near_plane=near_plane,
@@ -253,10 +258,16 @@ class N3TreeEstimator(AbstractEstimator):
     @torch.no_grad()
     def _sample_uniform_and_occupied_cells(self, n: int) -> List[Tensor]:
         """Samples both n uniform and occupied cells."""
-        uniform_indices = torch.randint(len(self.tree), (n,), device=self.device)
-        occupied_indices = torch.nonzero(self.tree[:].values >= self.thresh)[:, 0]
+        uniform_indices = torch.randint(
+            len(self.tree), (n,), device=self.device
+        )
+        occupied_indices = torch.nonzero(self.tree[:].values >= self.thresh)[
+            :, 0
+        ]
         if n < len(occupied_indices):
-            selector = torch.randint(len(occupied_indices), (n,), device=self.device)
+            selector = torch.randint(
+                len(occupied_indices), (n,), device=self.device
+            )
             occupied_indices = occupied_indices[selector]
         indices = torch.cat([uniform_indices, occupied_indices], dim=0)
         return indices
@@ -275,7 +286,9 @@ class N3TreeEstimator(AbstractEstimator):
             x = self.tree.sample(1).squeeze(1)
             occ = occ_eval_fn(x).squeeze(-1)
             sel = (*self.tree._all_leaves().T,)
-            self.tree.data.data[sel] = torch.maximum(self.tree.data.data[sel] * ema_decay, occ[:, None])
+            self.tree.data.data[sel] = torch.maximum(
+                self.tree.data.data[sel] * ema_decay, occ[:, None]
+            )
         else:
             N = len(self.tree) // 4
             indices = self._sample_uniform_and_occupied_cells(N)
