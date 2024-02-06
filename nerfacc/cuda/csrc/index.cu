@@ -21,6 +21,17 @@ inline void index_add_by_offset(
                 "cub DeviceSegmentedReduce::Sum does not support more than LONG_MAX elements");
     CUB_WRAPPER(cub::DeviceSegmentedReduce::Sum, input, output, num_items, offset0, offset1, at::cuda::getCurrentCUDAStream());
 }
+
+// template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT>
+// inline void index_add_by_key(
+//     KeysInputIteratorT key, ValuesInputIteratorT input, ValuesOutputIteratorT unique_out, 
+//     ValuesOutputIteratorT aggre_out, ValuesOutputIteratorT count_out, int64_t num_items)
+// {
+//     TORCH_CHECK(num_items <= std::numeric_limits<long>::max(),
+//                 "cub DeviceReduce::ReduceByKey does not support more than LONG_MAX elements");
+//     CUB_WRAPPER(cub::DeviceReduce::ReduceByKey, key, unique_out, input, aggre_out, count_out, 
+//                 cub::Sum(), num_items, at::cuda::getCurrentCUDAStream());
+// }
 #endif
 
 
@@ -59,9 +70,9 @@ torch::Tensor index_add_forward(
     int64_t n_dims = inputs.size(1);
 
     torch::Tensor chunk_ends = chunk_starts + chunk_cnts;
-    torch::Tensor outputs = torch::empty({n_rays, n_dims}, inputs.options());
+    torch::Tensor outputs = torch::empty({n_dims, n_rays}, inputs.options());
     if (n_rays == 0) {
-        return outputs;
+        return outputs.t().contiguous();
     }
     
     const auto batched_idx_it =
@@ -106,7 +117,7 @@ torch::Tensor index_add_forward(
     index_add_by_offset(
         batched_chunk_starts_it,
         batched_chunk_ends_it,
-        inputs.data_ptr<float>(),
+        inputs.t().contiguous().data_ptr<float>(),
         outputs.data_ptr<float>(),
         n_rays);
 #else
@@ -114,5 +125,5 @@ torch::Tensor index_add_forward(
 #endif
 
     cudaGetLastError();
-    return outputs;
+    return outputs.t().contiguous();
 }

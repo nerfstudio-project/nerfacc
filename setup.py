@@ -67,7 +67,7 @@ def get_extensions():
 
     nvcc_flags = os.getenv("NVCC_FLAGS", "")
     nvcc_flags = [] if nvcc_flags == "" else nvcc_flags.split(" ")
-    nvcc_flags += ["-O3"]
+    nvcc_flags += ["-O3", "--extended-lambda"]
     if torch.version.hip:
         # USE_ROCM was added to later versions of PyTorch.
         # Define here to support older PyTorch versions as well:
