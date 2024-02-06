@@ -29,6 +29,7 @@ inclusive_prod_forward = _make_lazy_cuda_func("inclusive_prod_forward")
 inclusive_prod_backward = _make_lazy_cuda_func("inclusive_prod_backward")
 exclusive_prod_forward = _make_lazy_cuda_func("exclusive_prod_forward")
 exclusive_prod_backward = _make_lazy_cuda_func("exclusive_prod_backward")
+index_add_forward = _make_lazy_cuda_func("index_add_forward")
 
 is_cub_available = _make_lazy_cuda_func("is_cub_available")
 inclusive_sum_cub = _make_lazy_cuda_func("inclusive_sum_cub")

@@ -41,7 +41,7 @@ name = "nerfacc_cuda"
 build_dir = _get_build_directory(name, verbose=False)
 extra_include_paths = []
 extra_cflags = ["-O3"]
-extra_cuda_cflags = ["-O3"]
+extra_cuda_cflags = ["-O3", "--extended-lambda"]
 
 _C = None
 sources = list(glob.glob(os.path.join(PATH, "csrc/*.cu"))) + list(

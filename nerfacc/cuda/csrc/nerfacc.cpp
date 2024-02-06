@@ -37,6 +37,10 @@ torch::Tensor exclusive_prod_backward(
     torch::Tensor inputs,
     torch::Tensor outputs,
     torch::Tensor grad_outputs);
+torch::Tensor index_add_forward(
+    torch::Tensor chunk_starts,
+    torch::Tensor chunk_cnts,
+    torch::Tensor inputs);
 
 bool is_cub_available();
 torch::Tensor inclusive_sum_cub(
@@ -131,6 +135,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     _REG_FUNC(inclusive_prod_backward);
     _REG_FUNC(exclusive_prod_forward);
     _REG_FUNC(exclusive_prod_backward);
+    _REG_FUNC(index_add_forward);
 
     _REG_FUNC(is_cub_available);
     _REG_FUNC(inclusive_sum_cub);
