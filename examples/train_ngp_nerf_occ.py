@@ -59,7 +59,9 @@ def run(args):
         max_steps = 20000
         init_batch_size = 1024
         target_sample_batch_size = 1 << 18
-        weight_decay = 1e-5 if args.scene in ["materials", "ficus", "drums"] else 1e-6
+        weight_decay = (
+            1e-5 if args.scene in ["materials", "ficus", "drums"] else 1e-6
+        )
         # scene parameters
         aabb = torch.tensor([-1.5, -1.5, -1.5, 1.5, 1.5, 1.5], device=device)
         near_plane = 0.0
@@ -186,7 +188,8 @@ def run(args):
             # dynamic batch size for rays to keep sample batch size constant.
             num_rays = len(pixels)
             num_rays = int(
-                num_rays * (target_sample_batch_size / float(n_rendering_samples))
+                num_rays
+                * (target_sample_batch_size / float(n_rendering_samples))
             )
             train_dataset.update_num_rays(num_rays)
 

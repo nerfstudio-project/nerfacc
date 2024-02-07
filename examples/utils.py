@@ -73,12 +73,18 @@ def render_image_with_occgrid(
     if len(rays_shape) == 3:
         height, width, _ = rays_shape
         num_rays = height * width
-        rays = namedtuple_map(lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays)
+        rays = namedtuple_map(
+            lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays
+        )
     else:
         num_rays, _ = rays_shape
 
     results = []
-    chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
+    chunk = (
+        torch.iinfo(torch.int32).max
+        if radiance_field.training
+        else test_chunk_size
+    )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
 
@@ -91,7 +97,9 @@ def render_image_with_occgrid(
             else:
                 t_origins = rays_o[ray_indices]
                 t_dirs = rays_d[ray_indices]
-                positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
+                positions = (
+                    t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
+                )
                 if timestamps is not None:
                     # dnerf
                     t = (
@@ -111,7 +119,9 @@ def render_image_with_occgrid(
             else:
                 t_origins = rays_o[ray_indices]
                 t_dirs = rays_d[ray_indices]
-                positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
+                positions = (
+                    t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
+                )
                 if timestamps is not None:
                     # dnerf
                     t = (
@@ -181,7 +191,9 @@ def render_image_with_propnet(
     if len(rays_shape) == 3:
         height, width, _ = rays_shape
         num_rays = height * width
-        rays = namedtuple_map(lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays)
+        rays = namedtuple_map(
+            lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays
+        )
     else:
         num_rays, _ = rays_shape
 
@@ -206,7 +218,11 @@ def render_image_with_propnet(
         return rgb, sigmas.squeeze(-1)
 
     results = []
-    chunk = torch.iinfo(torch.int32).max if radiance_field.training else test_chunk_size
+    chunk = (
+        torch.iinfo(torch.int32).max
+        if radiance_field.training
+        else test_chunk_size
+    )
     for i in range(0, num_rays, chunk):
         chunk_rays = namedtuple_map(lambda r: r[i : i + chunk], rays)
         t_starts, t_ends = estimator.sampling(
@@ -271,14 +287,18 @@ def render_image_with_occgrid_test(
     if len(rays_shape) == 3:
         height, width, _ = rays_shape
         num_rays = height * width
-        rays = namedtuple_map(lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays)
+        rays = namedtuple_map(
+            lambda r: r.reshape([num_rays] + list(r.shape[2:])), rays
+        )
     else:
         num_rays, _ = rays_shape
 
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
         t_origins = rays.origins[ray_indices]
         t_dirs = rays.viewdirs[ray_indices]
-        positions = t_origins + t_dirs * (t_starts[:, None] + t_ends[:, None]) / 2.0
+        positions = (
+            t_origins + t_dirs * (t_starts[:, None] + t_ends[:, None]) / 2.0
+        )
         if timestamps is not None:
             # dnerf
             t = (
