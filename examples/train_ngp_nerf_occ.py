@@ -59,9 +59,7 @@ def run(args):
         max_steps = 20000
         init_batch_size = 1024
         target_sample_batch_size = 1 << 18
-        weight_decay = (
-            1e-5 if args.scene in ["materials", "ficus", "drums"] else 1e-6
-        )
+        weight_decay = 1e-5 if args.scene in ["materials", "ficus", "drums"] else 1e-6
         # scene parameters
         aabb = torch.tensor([-1.5, -1.5, -1.5, 1.5, 1.5, 1.5], device=device)
         near_plane = 0.0
@@ -95,9 +93,26 @@ def run(args):
         **test_dataset_kwargs,
     )
 
-    estimator = OccGridEstimator(
-        roi_aabb=aabb, resolution=grid_resolution, levels=grid_nlvl
-    ).to(device)
+    if args.vdb:
+        from fvdb import sparse_grid_from_dense
+
+        from nerfacc.estimators.vdb import VDBEstimator
+
+        assert grid_nlvl == 1, "VDBEstimator only supports grid_nlvl=1"
+        voxel_sizes = (aabb[3:] - aabb[:3]) / grid_resolution
+        origins = aabb[:3] + voxel_sizes / 2
+        grid = sparse_grid_from_dense(
+            1,
+            (grid_resolution, grid_resolution, grid_resolution),
+            voxel_sizes=voxel_sizes,
+            origins=origins,
+        )
+        estimator = VDBEstimator(grid).to(device)
+        estimator.aabbs = [aabb]
+    else:
+        estimator = OccGridEstimator(
+            roi_aabb=aabb, resolution=grid_resolution, levels=grid_nlvl
+        ).to(device)
 
     # setup the radiance field we want to train.
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
@@ -171,8 +186,7 @@ def run(args):
             # dynamic batch size for rays to keep sample batch size constant.
             num_rays = len(pixels)
             num_rays = int(
-                num_rays
-                * (target_sample_batch_size / float(n_rendering_samples))
+                num_rays * (target_sample_batch_size / float(n_rendering_samples))
             )
             train_dataset.update_num_rays(num_rays)
 
@@ -277,6 +291,11 @@ if __name__ == "__main__":
         default="lego",
         choices=NERF_SYNTHETIC_SCENES + MIPNERF360_UNBOUNDED_SCENES,
         help="which scene to use",
+    )
+    parser.add_argument(
+        "--vdb",
+        action="store_true",
+        help="use VDBEstimator instead of OccGridEstimator",
     )
     args = parser.parse_args()
 
