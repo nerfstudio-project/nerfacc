@@ -1,9 +1,11 @@
 """
 Copyright (c) 2022 Ruilong Li, UC Berkeley.
 """
+
 from .data_specs import RayIntervals, RaySamples
 from .estimators.occ_grid import OccGridEstimator
 from .estimators.prop_net import PropNetEstimator
+from .estimators.vdb import VDBEstimator, traverse_vdbs
 from .grid import ray_aabb_intersect, traverse_grids
 from .losses import distortion
 from .pack import pack_info
@@ -46,7 +48,9 @@ __all__ = [
     "RaySamples",
     "ray_aabb_intersect",
     "traverse_grids",
+    "traverse_vdbs",
     "OccGridEstimator",
     "PropNetEstimator",
+    "VDBEstimator",
     "distortion",
 ]

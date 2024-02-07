@@ -92,35 +92,46 @@ def render_image_with_occgrid(
         rays_d = chunk_rays.viewdirs
 
         def sigma_fn(t_starts, t_ends, ray_indices):
-            t_origins = rays_o[ray_indices]
-            t_dirs = rays_d[ray_indices]
-            positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
-            if timestamps is not None:
-                # dnerf
-                t = (
-                    timestamps[ray_indices]
-                    if radiance_field.training
-                    else timestamps.expand_as(positions[:, :1])
-                )
-                sigmas = radiance_field.query_density(positions, t)
+            if t_starts.shape[0] == 0:
+                sigmas = torch.empty((0, 1), device=t_starts.device)
             else:
-                sigmas = radiance_field.query_density(positions)
+                t_origins = rays_o[ray_indices]
+                t_dirs = rays_d[ray_indices]
+                positions = (
+                    t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
+                )
+                if timestamps is not None:
+                    # dnerf
+                    t = (
+                        timestamps[ray_indices]
+                        if radiance_field.training
+                        else timestamps.expand_as(positions[:, :1])
+                    )
+                    sigmas = radiance_field.query_density(positions, t)
+                else:
+                    sigmas = radiance_field.query_density(positions)
             return sigmas.squeeze(-1)
 
         def rgb_sigma_fn(t_starts, t_ends, ray_indices):
-            t_origins = rays_o[ray_indices]
-            t_dirs = rays_d[ray_indices]
-            positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
-            if timestamps is not None:
-                # dnerf
-                t = (
-                    timestamps[ray_indices]
-                    if radiance_field.training
-                    else timestamps.expand_as(positions[:, :1])
-                )
-                rgbs, sigmas = radiance_field(positions, t, t_dirs)
+            if t_starts.shape[0] == 0:
+                rgbs = torch.empty((0, 3), device=t_starts.device)
+                sigmas = torch.empty((0, 1), device=t_starts.device)
             else:
-                rgbs, sigmas = radiance_field(positions, t_dirs)
+                t_origins = rays_o[ray_indices]
+                t_dirs = rays_d[ray_indices]
+                positions = (
+                    t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
+                )
+                if timestamps is not None:
+                    # dnerf
+                    t = (
+                        timestamps[ray_indices]
+                        if radiance_field.training
+                        else timestamps.expand_as(positions[:, :1])
+                    )
+                    rgbs, sigmas = radiance_field(positions, t, t_dirs)
+                else:
+                    rgbs, sigmas = radiance_field(positions, t_dirs)
             return rgbs, sigmas.squeeze(-1)
 
         ray_indices, t_starts, t_ends = estimator.sampling(

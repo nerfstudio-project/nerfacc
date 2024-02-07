@@ -95,9 +95,26 @@ def run(args):
         **test_dataset_kwargs,
     )
 
-    estimator = OccGridEstimator(
-        roi_aabb=aabb, resolution=grid_resolution, levels=grid_nlvl
-    ).to(device)
+    if args.vdb:
+        from fvdb import sparse_grid_from_dense
+
+        from nerfacc.estimators.vdb import VDBEstimator
+
+        assert grid_nlvl == 1, "VDBEstimator only supports grid_nlvl=1"
+        voxel_sizes = (aabb[3:] - aabb[:3]) / grid_resolution
+        origins = aabb[:3] + voxel_sizes / 2
+        grid = sparse_grid_from_dense(
+            1,
+            (grid_resolution, grid_resolution, grid_resolution),
+            voxel_sizes=voxel_sizes,
+            origins=origins,
+        )
+        estimator = VDBEstimator(grid).to(device)
+        estimator.aabbs = [aabb]
+    else:
+        estimator = OccGridEstimator(
+            roi_aabb=aabb, resolution=grid_resolution, levels=grid_nlvl
+        ).to(device)
 
     # setup the radiance field we want to train.
     grad_scaler = torch.cuda.amp.GradScaler(2**10)
@@ -277,6 +294,11 @@ if __name__ == "__main__":
         default="lego",
         choices=NERF_SYNTHETIC_SCENES + MIPNERF360_UNBOUNDED_SCENES,
         help="which scene to use",
+    )
+    parser.add_argument(
+        "--vdb",
+        action="store_true",
+        help="use VDBEstimator instead of OccGridEstimator",
     )
     args = parser.parse_args()
 
