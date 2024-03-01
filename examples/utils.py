@@ -294,21 +294,25 @@ def render_image_with_occgrid_test(
         num_rays, _ = rays_shape
 
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
-        t_origins = rays.origins[ray_indices]
-        t_dirs = rays.viewdirs[ray_indices]
-        positions = (
-            t_origins + t_dirs * (t_starts[:, None] + t_ends[:, None]) / 2.0
-        )
-        if timestamps is not None:
-            # dnerf
-            t = (
-                timestamps[ray_indices]
-                if radiance_field.training
-                else timestamps.expand_as(positions[:, :1])
-            )
-            rgbs, sigmas = radiance_field(positions, t, t_dirs)
+        if t_starts.shape[0] == 0:
+            rgbs = torch.empty((0, 3), device=t_starts.device)
+            sigmas = torch.empty((0, 1), device=t_starts.device)
         else:
-            rgbs, sigmas = radiance_field(positions, t_dirs)
+            t_origins = rays.origins[ray_indices]
+            t_dirs = rays.viewdirs[ray_indices]
+            positions = (
+                t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
+            )
+            if timestamps is not None:
+                # dnerf
+                t = (
+                    timestamps[ray_indices]
+                    if radiance_field.training
+                    else timestamps.expand_as(positions[:, :1])
+                )
+                rgbs, sigmas = radiance_field(positions, t, t_dirs)
+            else:
+                rgbs, sigmas = radiance_field(positions, t_dirs)
         return rgbs, sigmas.squeeze(-1)
 
     device = rays.origins.device
