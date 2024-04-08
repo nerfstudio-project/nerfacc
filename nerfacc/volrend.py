@@ -212,7 +212,7 @@ def render_transmittance_from_alpha(
         1 - alphas, packed_info=packed_info, indices=ray_indices
     )
     if prefix_trans is not None:
-        trans *= prefix_trans
+        trans = trans * prefix_trans
     return trans
 
 
