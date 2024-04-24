@@ -54,7 +54,7 @@ class RaySamples:
         spec.vals = self.vals.contiguous()
         if self.packed_info is not None:
             spec.chunk_starts = self.packed_info[:, 0].contiguous()
-        if self.chunk_cnts is not None:
+        if self.packed_info is not None:
             spec.chunk_cnts = self.packed_info[:, 1].contiguous()
         if self.ray_indices is not None:
             spec.ray_indices = self.ray_indices.contiguous()
