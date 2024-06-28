@@ -80,9 +80,8 @@ class VDBEstimator(AbstractEstimator):
         )
 
     def state_dict(self):
-        state_dict = super().state_dict()
+        state_dict = self.state_dict()
         state_dict["grid"] = self.grid
-        state_dict["occs"] = self.occs.state_dict()
         return state_dict
 
     def load_state_dict(
@@ -96,7 +95,7 @@ class VDBEstimator(AbstractEstimator):
             mutable=True,
         )
         remaining_state_dict = {
-            k: v for k, v in state_dict.items() if k not in ["grid", "occs"]
+            k: v for k, v in state_dict.items() if k not in ["grid"]
         }
         super().load_state_dict(remaining_state_dict, strict=strict)
 
