@@ -391,7 +391,7 @@ def render_visibility_from_alpha(
     In this function, we first compute the transmittance from the sample opacity. The
     transmittance is then used to filter out occluded samples. And opacity is used to
     filter out transparent samples. The function returns a boolean tensor indicating
-    which samples are visible (`transmittance > early_stop_eps` and `opacity > alpha_thre`).
+    which samples are visible (`transmittance >= early_stop_eps` and `opacity >= alpha_thre`).
 
     This function supports both batched and flattened input tensor. For flattened input tensor, either
     (`packed_info`) or (`ray_indices` and `n_rays`) should be provided.
@@ -449,7 +449,7 @@ def render_visibility_from_density(
     In this function, we first compute the transmittance and opacity from the sample density. The
     transmittance is then used to filter out occluded samples. And opacity is used to
     filter out transparent samples. The function returns a boolean tensor indicating
-    which samples are visible (`transmittance > early_stop_eps` and `opacity > alpha_thre`).
+    which samples are visible (`transmittance >= early_stop_eps` and `opacity >= alpha_thre`).
 
     This function supports both batched and flattened input tensor. For flattened input tensor, either
     (`packed_info`) or (`ray_indices` and `n_rays`) should be provided.
