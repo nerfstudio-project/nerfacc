@@ -2,6 +2,7 @@
  * Copyright (c) 2022 Ruilong Li, UC Berkeley.
  */
 
+#include <thrust/functional.h>
 #include <thrust/iterator/reverse_iterator.h>
 #include "include/utils_cuda.cuh"
 #include "include/utils.cub.cuh"
@@ -22,7 +23,7 @@ inline void exclusive_sum_by_key(
     TORCH_CHECK(num_items <= std::numeric_limits<long>::max(),
                 "cub ExclusiveSumByKey does not support more than LONG_MAX elements");
     CUB_WRAPPER(cub::DeviceScan::ExclusiveSumByKey, keys, input, output,
-                num_items, cub::Equality(), at::cuda::getCurrentCUDAStream());
+                num_items, thrust::equal_to<int64_t>(), at::cuda::getCurrentCUDAStream());
 }
 
 template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT>
@@ -32,7 +33,7 @@ inline void inclusive_sum_by_key(
     TORCH_CHECK(num_items <= std::numeric_limits<long>::max(),
                 "cub InclusiveSumByKey does not support more than LONG_MAX elements");
     CUB_WRAPPER(cub::DeviceScan::InclusiveSumByKey, keys, input, output,
-                num_items, cub::Equality(), at::cuda::getCurrentCUDAStream());
+                num_items, thrust::equal_to<int64_t>(), at::cuda::getCurrentCUDAStream());
 }
 
 template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT>
@@ -42,7 +43,7 @@ inline void exclusive_prod_by_key(
     TORCH_CHECK(num_items <= std::numeric_limits<long>::max(),
                 "cub ExclusiveScanByKey does not support more than LONG_MAX elements");
     CUB_WRAPPER(cub::DeviceScan::ExclusiveScanByKey, keys, input, output, Product(), 1.0f,
-                num_items, cub::Equality(), at::cuda::getCurrentCUDAStream());
+                num_items, thrust::equal_to<int64_t>(), at::cuda::getCurrentCUDAStream());
 }
 
 template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT>
@@ -52,7 +53,7 @@ inline void inclusive_prod_by_key(
     TORCH_CHECK(num_items <= std::numeric_limits<long>::max(),
                 "cub InclusiveScanByKey does not support more than LONG_MAX elements");
     CUB_WRAPPER(cub::DeviceScan::InclusiveScanByKey, keys, input, output, Product(),
-                num_items, cub::Equality(), at::cuda::getCurrentCUDAStream());
+                num_items, thrust::equal_to<int64_t>(), at::cuda::getCurrentCUDAStream());
 }
 #endif
 
