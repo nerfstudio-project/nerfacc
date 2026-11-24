@@ -225,3 +225,23 @@ if __name__ == "__main__":
     test_accumulate_along_rays()
     test_grads()
     test_rendering()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="No CUDA device")
+@pytest.mark.parametrize("indexed", [False, True])
+def test_opaque_sample_transmittance_gradient(indexed):
+    from nerfacc.volrend import render_transmittance_from_alpha
+
+    alphas = torch.tensor([0.25, 1.0, 0.5], device=device, requires_grad=True)
+    if indexed:
+        trans = render_transmittance_from_alpha(
+            alphas, ray_indices=torch.tensor([0, 0, 0], device=device), n_rays=1
+        )
+    else:
+        trans = render_transmittance_from_alpha(
+            alphas, packed_info=torch.tensor([[0, 3]], device=device)
+        )
+
+    torch.testing.assert_close(trans, alphas.new_tensor([1.0, 0.75, 0.0]))
+    trans[-1].backward()
+    torch.testing.assert_close(alphas.grad, alphas.new_tensor([0.0, -0.75, 0.0]))
