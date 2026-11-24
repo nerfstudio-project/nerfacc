@@ -200,9 +200,6 @@ def render_transmittance_from_alpha(
         >>> transmittance = render_transmittance_from_alpha(alphas, ray_indices=ray_indices)
         tensor([1.0, 0.6, 0.12, 1.0, 0.2, 1.0, 1.0])
     """
-    # FIXME Try not to use exclusive_prod because:
-    # 1. torch.cumprod is much slower than torch.cumsum
-    # 2. exclusive_prod gradient on input == 0 is not correct.
     if not is_cub_available() and packed_info is None:
         # Convert ray indices to packed info
         packed_info = pack_info(ray_indices, n_rays)
