@@ -209,3 +209,29 @@ if __name__ == "__main__":
     test_inclusive_prod()
     test_exclusive_prod()
     profile()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="No CUDA device")
+@pytest.mark.parametrize("inclusive", [True, False])
+@pytest.mark.parametrize("layout", ["packed_info", "indices"])
+def test_segmented_product_grad_at_zero(inclusive, layout):
+    from nerfacc.scan import exclusive_prod, inclusive_prod
+
+    prod = inclusive_prod if inclusive else exclusive_prod
+    x = torch.tensor(
+        [[2.0, 0.0, -3.0, 4.0], [-1.0, 0.0, 0.0, 2.0], [1.0, 1e-12, 2.0, -3.0]],
+        device="cuda",
+        requires_grad=True,
+    )
+    weights = torch.arange(1, 13, device=x.device, dtype=x.dtype).reshape_as(x)
+    expected = prod(x)
+    (reference,) = torch.autograd.grad(expected, x, weights)
+    args = (
+        torch.tensor([[0, 4], [4, 0], [4, 4], [8, 4]], device=x.device)
+        if layout == "packed_info"
+        else torch.tensor([0, 2, 3], device=x.device).repeat_interleave(4)
+    )
+    result = prod(x.flatten(), **{layout: args}).reshape_as(x)
+    (actual,) = torch.autograd.grad(result, x, weights)
+    torch.testing.assert_close(result, expected)
+    torch.testing.assert_close(actual, reference)
