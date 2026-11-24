@@ -9,6 +9,13 @@
 #if CUB_SUPPORTS_SCAN_BY_KEY()
 #include <cub/cub.cuh>
 
+#if defined(USE_ROCM)
+// hipify translates `cub::DeviceScan` -> `hipcub::DeviceScan` but leaves
+// helper types like `cub::Equality()` unqualified. Alias the namespace so
+// those references resolve to hipCUB on ROCm.
+namespace cub = hipcub;
+#endif
+
 struct Product
 {
     template <typename T>
