@@ -5,6 +5,13 @@
 
 #pragma once
 
+#if defined(USE_ROCM)
+// On ROCm, cub maps to hipCUB (rocPRIM backend), which supports
+// DeviceScan::*ByKey. The NVIDIA cub version gating below does not apply
+// (hipify translates CUDA_VERSION -> a HIP version that never satisfies the
+// >= 11000 CUDA check), so enable the scan-by-key path explicitly here.
+#define CUB_SUPPORTS_SCAN_BY_KEY() 1
+#else
 #include <cuda.h>  // for CUDA_VERSION
 
 #if defined(CUDA_VERSION) && CUDA_VERSION >= 11000
@@ -19,6 +26,7 @@
 #define CUB_SUPPORTS_SCAN_BY_KEY() 1
 #else
 #define CUB_SUPPORTS_SCAN_BY_KEY() 0
+#endif
 #endif
 
 // https://github.com/pytorch/pytorch/blob/233305a852e1cd7f319b15b5137074c9eac455f6/aten/src/ATen/cuda/cub.cuh#L38-L46

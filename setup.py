@@ -28,66 +28,147 @@ def get_extensions():
     from torch.__config__ import parallel_info
     from torch.utils.cpp_extension import CUDAExtension
 
-    extensions_dir = osp.join("nerfacc", "cuda", "csrc")
-    sources = glob.glob(osp.join(extensions_dir, "*.cu")) + glob.glob(
-        osp.join(extensions_dir, "*.cpp")
-    )
-    # remove generated 'hip' files, in case of rebuilds
-    sources = [path for path in sources if "hip" not in path]
+    # Detect ROCm by checking the installed torch build, not a hardcoded flag,
+    # so this same setup.py still produces a correct NVIDIA/CUDA build when
+    # run with a CUDA-only torch install.
+    IS_ROCM = torch.version.hip is not None
 
-    undef_macros = []
-    define_macros = []
+    if IS_ROCM:
+        print("ROCM detected, compiling with HIP support...")
+        extensions_dir = osp.join("nerfacc","cuda")
+        sources = glob.glob(osp.join(extensions_dir, "csrc", "*.cu")) + glob.glob(osp.join(extensions_dir, "csrc", "*.cpp"))
 
-    if sys.platform == "win32":
-        define_macros += [("nerfacc_EXPORTS", None)]
+        # remove generated 'hip' files, in case of rebuilds
+        sources = [path for path in sources if "hip" not in path]
 
-    extra_compile_args = {"cxx": ["-O3"]}
-    if not os.name == "nt":  # Not on Windows:
-        extra_compile_args["cxx"] += ["-Wno-sign-compare"]
-    extra_link_args = [] if WITH_SYMBOLS else ["-s"]
+        undef_macros = []
+        define_macros = []
 
-    info = parallel_info()
-    if (
-        "backend: OpenMP" in info
-        and "OpenMP not found" not in info
-        and sys.platform != "darwin"
-    ):
-        extra_compile_args["cxx"] += ["-DAT_PARALLEL_OPENMP"]
         if sys.platform == "win32":
-            extra_compile_args["cxx"] += ["/openmp"]
+            define_macros += [("nerfacc_EXPORTS", None)]
+
+        extra_compile_args = {"cxx": ["-O3","-D__HIP_PLATFORM_AMD__", "-DUSE_ROCM"]}
+        if not os.name == "nt":  # Not on Windows:
+            extra_compile_args["cxx"] += ["-Wno-sign-compare"]
+        extra_link_args = [] if WITH_SYMBOLS else ["-s"]
+        
+        info = parallel_info()
+        if (
+            "backend: OpenMP" in info
+            and "OpenMP not found" not in info
+            and sys.platform != "darwin"
+        ):
+            extra_compile_args["cxx"] += ["-DAT_PARALLEL_OPENMP"]
+            if sys.platform == "win32":
+                extra_compile_args["cxx"] += ["/openmp"]
+            else:
+                extra_compile_args["cxx"] += ["-fopenmp"]
         else:
-            extra_compile_args["cxx"] += ["-fopenmp"]
+            print("Compiling without OpenMP...")
+
+        # Compile for mac arm64
+        if sys.platform == "darwin" and platform.machine() == "arm64":
+            extra_compile_args["cxx"] += ["-arch", "arm64"]
+            extra_link_args += ["-arch", "arm64"]
+
+        # Resolve target GPU arch(s). Priority: PYTORCH_ROCM_ARCH env var ->
+        # the arch list from the installed torch build -> gfx942 fallback.
+        rocm_arch = os.getenv("PYTORCH_ROCM_ARCH", "")
+        if rocm_arch:
+            archs = [a.strip() for a in rocm_arch.replace(",", ";").split(";") if a.strip()]
+        else:
+            try:
+                archs = [a for a in torch.cuda.get_arch_list() if a.startswith("gfx")]
+            except Exception:
+                archs = []
+        if not archs:
+            archs = ["gfx942"]
+        print(f"Building HIP kernels for arch(s): {archs}")
+
+        hipcc_flags = ["-O3", "-D__HIP_PLATFORM_AMD__", "-DUSE_ROCM"]
+        hipcc_flags += [f"--offload-arch={a}" for a in archs]
+
+        if torch.version.hip:
+            # USE_ROCM was added to later versions of PyTorch.
+            # Define here to support older PyTorch versions as well:
+            define_macros += [("USE_ROCM", "1")]
+            undef_macros += ["__HIP_NO_HALF_CONVERSIONS__"]
+
+        # Its still nvcc flags that are used for HIP compilation
+        extra_compile_args["nvcc"] = hipcc_flags
+
+        extension = CUDAExtension(
+             f"nerfacc.csrc",
+            sources,
+            include_dirs=[osp.join(extensions_dir, "include")],
+            define_macros=define_macros,
+            undef_macros=undef_macros,
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
+        )
+        return [extension]
     else:
-        print("Compiling without OpenMP...")
 
-    # Compile for mac arm64
-    if sys.platform == "darwin" and platform.machine() == "arm64":
-        extra_compile_args["cxx"] += ["-arch", "arm64"]
-        extra_link_args += ["-arch", "arm64"]
+        extensions_dir = osp.join("nerfacc", "cuda", "csrc")
+        sources = glob.glob(osp.join(extensions_dir, "*.cu")) + glob.glob(
+            osp.join(extensions_dir, "*.cpp")
+        )
+        # remove generated 'hip' files, in case of rebuilds
+        sources = [path for path in sources if "hip" not in path]
 
-    nvcc_flags = os.getenv("NVCC_FLAGS", "")
-    nvcc_flags = [] if nvcc_flags == "" else nvcc_flags.split(" ")
-    nvcc_flags += ["-O3"]
-    if torch.version.hip:
-        # USE_ROCM was added to later versions of PyTorch.
-        # Define here to support older PyTorch versions as well:
-        define_macros += [("USE_ROCM", None)]
-        undef_macros += ["__HIP_NO_HALF_CONVERSIONS__"]
-    else:
-        nvcc_flags += ["--expt-relaxed-constexpr"]
-    extra_compile_args["nvcc"] = nvcc_flags
+        undef_macros = []
+        define_macros = []
 
-    extension = CUDAExtension(
-        f"nerfacc.csrc",
-        sources,
-        include_dirs=[osp.join(extensions_dir, "include")],
-        define_macros=define_macros,
-        undef_macros=undef_macros,
-        extra_compile_args=extra_compile_args,
-        extra_link_args=extra_link_args,
-    )
+        if sys.platform == "win32":
+            define_macros += [("nerfacc_EXPORTS", None)]
 
-    return [extension]
+        extra_compile_args = {"cxx": ["-O3"]}
+        if not os.name == "nt":  # Not on Windows:
+            extra_compile_args["cxx"] += ["-Wno-sign-compare"]
+        extra_link_args = [] if WITH_SYMBOLS else ["-s"]
+
+        info = parallel_info()
+        if (
+            "backend: OpenMP" in info
+            and "OpenMP not found" not in info
+            and sys.platform != "darwin"
+        ):
+            extra_compile_args["cxx"] += ["-DAT_PARALLEL_OPENMP"]
+            if sys.platform == "win32":
+                extra_compile_args["cxx"] += ["/openmp"]
+            else:
+                extra_compile_args["cxx"] += ["-fopenmp"]
+        else:
+            print("Compiling without OpenMP...")
+
+        # Compile for mac arm64
+        if sys.platform == "darwin" and platform.machine() == "arm64":
+            extra_compile_args["cxx"] += ["-arch", "arm64"]
+            extra_link_args += ["-arch", "arm64"]
+
+        nvcc_flags = os.getenv("NVCC_FLAGS", "")
+        nvcc_flags = [] if nvcc_flags == "" else nvcc_flags.split(" ")
+        nvcc_flags += ["-O3"]
+        if torch.version.hip:
+            # USE_ROCM was added to later versions of PyTorch.
+            # Define here to support older PyTorch versions as well:
+            define_macros += [("USE_ROCM", None)]
+            undef_macros += ["__HIP_NO_HALF_CONVERSIONS__"]
+        else:
+            nvcc_flags += ["--expt-relaxed-constexpr"]
+        extra_compile_args["nvcc"] = nvcc_flags
+
+        extension = CUDAExtension(
+            f"nerfacc.csrc",
+            sources,
+            include_dirs=[osp.join(extensions_dir, "include")],
+            define_macros=define_macros,
+            undef_macros=undef_macros,
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
+        )
+
+        return [extension]
 
 
 # work-around hipify abs paths
