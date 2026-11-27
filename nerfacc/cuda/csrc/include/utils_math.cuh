@@ -746,11 +746,19 @@ inline __host__ __device__ void operator-=(uint4 &a, uint b)
 ////////////////////////////////////////////////////////////////////////////////
 // multiply
 ////////////////////////////////////////////////////////////////////////////////
-
+// NOTE: HIP's native vector types (float2/float3/float4, aka
+// HIP_vector_type<float, N>) already define a vector*vector operator*/operator/
+// via class templates, which makes the free-function overloads below ambiguous
+// at the call site when compiled for ROCm. CUDA's vector_types.h does not
+// define these, so we only need to skip the exact same-type vector*vector (and
+// vector/vector) overloads on ROCm; the scalar and int/uint variants below are
+// unaffected and are kept identical on both platforms.
+#ifndef USE_ROCM
 inline __host__ __device__ float2 operator*(float2 a, float2 b)
 {
     return make_float2(a.x * b.x, a.y * b.y);
 }
+#endif
 inline __host__ __device__ void operator*=(float2 &a, float2 b)
 {
     a.x *= b.x;
@@ -816,10 +824,12 @@ inline __host__ __device__ void operator*=(uint2 &a, uint b)
     a.y *= b;
 }
 
+#ifndef USE_ROCM
 inline __host__ __device__ float3 operator*(float3 a, float3 b)
 {
     return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
 }
+#endif
 inline __host__ __device__ void operator*=(float3 &a, float3 b)
 {
     a.x *= b.x;
@@ -891,10 +901,12 @@ inline __host__ __device__ void operator*=(uint3 &a, uint b)
     a.z *= b;
 }
 
+#ifndef USE_ROCM
 inline __host__ __device__ float4 operator*(float4 a, float4 b)
 {
     return make_float4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w);
 }
+#endif
 inline __host__ __device__ void operator*=(float4 &a, float4 b)
 {
     a.x *= b.x;
@@ -971,15 +983,17 @@ inline __host__ __device__ void operator*=(uint4 &a, uint b)
     a.z *= b;
     a.w *= b;
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 // divide
 ////////////////////////////////////////////////////////////////////////////////
-
+// See the NOTE above the multiply section: only the same-type vector/vector
+// operator/ overloads collide with HIP's built-in vector type operators.
+#ifndef USE_ROCM
 inline __host__ __device__ float2 operator/(float2 a, float2 b)
 {
     return make_float2(a.x / b.x, a.y / b.y);
 }
+#endif
 inline __host__ __device__ void operator/=(float2 &a, float2 b)
 {
     a.x /= b.x;
@@ -999,10 +1013,12 @@ inline __host__ __device__ float2 operator/(float b, float2 a)
     return make_float2(b / a.x, b / a.y);
 }
 
+#ifndef USE_ROCM
 inline __host__ __device__ float3 operator/(float3 a, float3 b)
 {
     return make_float3(a.x / b.x, a.y / b.y, a.z / b.z);
 }
+#endif
 inline __host__ __device__ void operator/=(float3 &a, float3 b)
 {
     a.x /= b.x;
@@ -1024,10 +1040,12 @@ inline __host__ __device__ float3 operator/(float b, float3 a)
     return make_float3(b / a.x, b / a.y, b / a.z);
 }
 
+#ifndef USE_ROCM
 inline __host__ __device__ float4 operator/(float4 a, float4 b)
 {
     return make_float4(a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w);
 }
+#endif
 inline __host__ __device__ void operator/=(float4 &a, float4 b)
 {
     a.x /= b.x;
@@ -1142,10 +1160,17 @@ inline __host__ __device__ uint4 max(uint4 a, uint4 b)
 // - linear interpolation between a and b, based on value t in [0, 1] range
 ////////////////////////////////////////////////////////////////////////////////
 
+// NOTE: C++17's std::lerp(float, float, float) is pulled into the global
+// namespace by libstdc++ (<cmath> does `using std::lerp;`) on GCC >= 14, which
+// collides with this overload ("declaration conflicts with target of using
+// declaration already in scope"). Only define our own scalar lerp when
+// std::lerp is not available. The vector overloads below never conflict.
+#if !defined(__cpp_lib_interpolate)
 inline __device__ __host__ float lerp(float a, float b, float t)
 {
     return a + t * (b - a);
 }
+#endif
 inline __device__ __host__ float2 lerp(float2 a, float2 b, float t)
 {
     return a + t * (b - a);
